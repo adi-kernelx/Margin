@@ -1,0 +1,13 @@
+services:
+  ocr:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OCR_ENGINE=paddleocr
+    volumes:
+      # Persist PaddleOCR models to avoid re-downloading on restart
+      - paddleocr-models:/root/.paddleocr
+
+volumes:
+  paddleocr-models:

@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paddleocr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paddleocr
+  template:
+    metadata:
+      labels:
+        app: paddleocr
+    spec:
+      containers:
+      - name: paddleocr
+        image: 515823085623.dkr.ecr.ap-south-1.amazonaws.com/paddleocr-service:v2
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paddleocr-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: paddleocr
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

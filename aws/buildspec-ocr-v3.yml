@@ -1,0 +1,96 @@
+version: 0.2
+
+env:
+  variables:
+    IMAGE_TAG: "v3"
+
+phases:
+  pre_build:
+    commands:
+      - echo "Starting pre_build phase"
+      - apt-get update -y || true
+      - echo "Logging into ECR"
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPO
+  build:
+    commands:
+      - echo "Creating build context"
+      - mkdir -p paddleocr-api
+      - cd paddleocr-api
+      - echo "Creating enhanced server.py with canonical sidecar format"
+      - echo 'from fastapi import FastAPI, UploadFile, File, Form' > server.py
+      - echo 'from paddleocr import PaddleOCR' >> server.py
+      - echo 'import numpy as np, cv2, time, hashlib' >> server.py
+      - echo 'from typing import Optional, List' >> server.py
+      - echo 'from datetime import datetime, timezone' >> server.py
+      - echo '' >> server.py
+      - echo 'app = FastAPI(title="PaddleOCR Service", version="3.0.0")' >> server.py
+      - echo 'ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)' >> server.py
+      - echo 'OCR_VERSION = "paddleocr-2.7.0.2-cpu-v3"' >> server.py
+      - echo 'SIDECAR_VERSION = 1' >> server.py
+      - echo '' >> server.py
+      - echo 'def normalize_bbox(box, w, h):' >> server.py
+      - echo '    x = [p[0] for p in box]' >> server.py
+      - echo '    y = [p[1] for p in box]' >> server.py
+      - echo '    return [min(x)/w, min(y)/h, max(x)/w, max(y)/h]' >> server.py
+      - echo '' >> server.py
+      - echo 'def detect_script(text):' >> server.py
+      - echo '    for c in text:' >> server.py
+      - echo '        code = ord(c)' >> server.py
+      - echo '        if 0x0900 <= code <= 0x097F: return "Devanagari"' >> server.py
+      - echo '        if 0x4E00 <= code <= 0x9FFF: return "CJK"' >> server.py
+      - echo '    return "Latin"' >> server.py
+      - echo '' >> server.py
+      - echo '@app.get("/health")' >> server.py
+      - echo 'def health():' >> server.py
+      - echo '    return {"status": "ok", "ocrVersion": OCR_VERSION}' >> server.py
+      - echo '' >> server.py
+      - echo '@app.post("/ocr")' >> server.py
+      - echo 'async def run_ocr(file: UploadFile = File(...), docId: Optional[str] = Form(None), pageNumber: Optional[int] = Form(1), pdfHash: Optional[str] = Form(None), requestId: Optional[str] = Form(None)):' >> server.py
+      - echo '    start = time.time()' >> server.py
+      - echo '    data = await file.read()' >> server.py
+      - echo '    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)' >> server.py
+      - echo '    if img is None: return {"error": "Could not decode image"}' >> server.py
+      - echo '    h, w = img.shape[:2]' >> server.py
+      - echo '    result = ocr.ocr(img, cls=True)' >> server.py
+      - echo '    tokens, lines, langs, total_conf, tid = [], [], set(), 0, 0' >> server.py
+      - echo '    if result and result[0]:' >> server.py
+      - echo '        for lid, line in enumerate(result[0]):' >> server.py
+      - echo '            if not line: continue' >> server.py
+      - echo '            box, (text, conf) = line' >> server.py
+      - echo '            langs.add(detect_script(text))' >> server.py
+      - echo '            bbox = normalize_bbox(box, w, h)' >> server.py
+      - echo '            line_tids = []' >> server.py
+      - echo '            for word in text.split():' >> server.py
+      - echo '                tokens.append({"id": tid, "text": word, "confidence": float(conf), "bbox": bbox})' >> server.py
+      - echo '                line_tids.append(tid)' >> server.py
+      - echo '                total_conf += conf' >> server.py
+      - echo '                tid += 1' >> server.py
+      - echo '            lines.append({"id": lid, "text": text, "tokens": line_tids, "bbox": bbox})' >> server.py
+      - echo '    duration = int((time.time() - start) * 1000)' >> server.py
+      - echo '    avg_conf = total_conf / len(tokens) if tokens else 0' >> server.py
+      - echo '    return {"docId": docId, "pageNumber": pageNumber or 1, "pdfHash": pdfHash, "ocrVersion": OCR_VERSION, "sidecarVersion": SIDECAR_VERSION, "detectedLanguages": list(langs) or ["Latin"], "processing": {"engine": "paddleocr", "model": "2.7.0.2", "durationMs": duration}, "summary": {"avgConfidence": round(avg_conf, 3), "wordCount": len(tokens), "lineCount": len(lines)}, "tokens": tokens, "lines": lines, "imageMeta": {"width": w, "height": h, "dpr": 1}, "createdAt": datetime.now(timezone.utc).isoformat(), "source": "cloud-paddleocr"}' >> server.py
+      - cat server.py
+      - echo "Creating production Dockerfile"
+      - echo 'FROM public.ecr.aws/docker/library/python:3.10-slim' > Dockerfile
+      - echo 'ENV DEBIAN_FRONTEND=noninteractive' >> Dockerfile
+      - echo 'WORKDIR /app' >> Dockerfile
+      - echo 'RUN apt-get update && apt-get install -y build-essential git curl libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 ffmpeg && rm -rf /var/lib/apt/lists/*' >> Dockerfile
+      - echo 'RUN pip install --upgrade pip' >> Dockerfile
+      - echo 'RUN pip install fastapi uvicorn pillow numpy opencv-python-headless' >> Dockerfile
+      - echo 'RUN pip install paddlepaddle -U' >> Dockerfile
+      - echo 'RUN pip install paddleocr -U' >> Dockerfile
+      - echo 'COPY server.py /app/server.py' >> Dockerfile
+      - echo 'EXPOSE 8000' >> Dockerfile
+      - echo 'CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]' >> Dockerfile
+      - cat Dockerfile
+      - echo "Building Docker image"
+      - docker build -t paddleocr-service:${IMAGE_TAG} .
+      - docker tag paddleocr-service:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+  post_build:
+    commands:
+      - echo "Pushing image to ECR"
+      - docker push ${ECR_REPO}:${IMAGE_TAG}
+      - echo "Build completed - Image pushed to ${ECR_REPO}:${IMAGE_TAG}"
+artifacts:
+  files:
+    - '**/*'

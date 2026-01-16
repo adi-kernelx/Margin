@@ -1,0 +1,54 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "S3Access",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::pdf-reader-uploads-aditya/users/*/docs/*/pages/*",
+                "arn:aws:s3:::pdf-reader-uploads-aditya/users/*/docs/*/ocr/*",
+                "arn:aws:s3:::pdf-reader-uploads-aditya/users/*/docs/*/manifest.json"
+            ]
+        },
+        {
+            "Sid": "SQSAccess",
+            "Effect": "Allow",
+            "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueUrl",
+                "sqs:ChangeMessageVisibility"
+            ],
+            "Resource": [
+                "arn:aws:sqs:ap-south-1:515823085623:htr-page-ingest"
+            ]
+        },
+        {
+            "Sid": "EventBridgeAccess",
+            "Effect": "Allow",
+            "Action": [
+                "events:PutEvents"
+            ],
+            "Resource": [
+                "arn:aws:events:ap-south-1:515823085623:event-bus/default"
+            ]
+        },
+        {
+            "Sid": "CloudWatchLogs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:ap-south-1:515823085623:log-group:*"
+            ]
+        }
+    ]
+}

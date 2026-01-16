@@ -1,0 +1,99 @@
+@import 'pdfjs-dist/web/pdf_viewer.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 222.2 84% 4.9%;
+    }
+
+    .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-gray-200;
+    }
+
+    body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+    }
+}
+
+/* Custom scrollbar for PDF viewer */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+}
+
+/* PDF Text Layer adjustments */
+/* PDF Text Layer adjustments */
+.textLayer {
+    opacity: 1;
+    mix-blend-mode: multiply;
+}
+
+/* Text Selection Styles */
+/* We use color: transparent to hide the overlay text and show the sharp canvas text underneath.
+   The background is semi-transparent to highlight the selection. */
+::selection {
+    background-color: rgba(59, 130, 246, 0.4);
+    /* Standard blue with opacity */
+    color: transparent;
+}
+
+.dark ::selection {
+    background-color: rgba(139, 92, 246, 0.4);
+    /* Purple with opacity for dark mode */
+    color: transparent;
+}
+
+/* Utility to hide scrollbar but keep functionality */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+/* Search Highlight Animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.02);
+    }
+}

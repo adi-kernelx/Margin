@@ -1,0 +1,31 @@
+
+import type { AnnotationData } from '../../types/editor-types';
+
+export type SaveReason =
+    | 'manual'
+    | 'autosave'
+    | 'flatten'
+    | 'save-as'
+    | 'recovery'
+    | 'export'
+    | 'download-package';
+
+export interface SaveJob {
+    reason: SaveReason;
+    payload: AnnotationData;
+    requestedAt: number;
+}
+
+export type SaveResult = {
+    success: boolean;
+    error?: string;
+};
+
+export interface SaveAdapter {
+    save(job: SaveJob): Promise<void>;
+    flatten?(job: SaveJob): Promise<void>;
+}
+
+export type SaveInit = {
+    adapter: SaveAdapter;
+};
