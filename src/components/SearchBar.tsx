@@ -2,23 +2,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Search, ChevronDown, FileText, Files } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
-
-export type SearchSpan = {
-    text: string;
-    bbox: { x0: number; y0: number; x1: number; y1: number };
-    char_start?: number;
-    char_end?: number;
-};
-
-export type SearchResult = {
-    score: number;
-    docId: string;
-    pdfFingerprint?: string;  // For mapping to current session's docId
-    page: number;
-    text: string;
-    bbox: { x0: number; y0: number; x1: number; y1: number };
-    spans?: SearchSpan[];  // Precise word-level bboxes for highlighting
-};
+import { localSearchRegistry } from "@/lib/search/local-search";
+import type { SearchSpan, SearchResult } from "@/lib/search/local-search";
+export type { SearchSpan, SearchResult };
 
 export type SearchHighlight = {
     docId: string;
@@ -147,35 +133,20 @@ export function SearchBar({
 
             console.log('[SearchBar] Resolved:', { searchFingerprint, searchDocId });
 
-            const requestBody: Record<string, unknown> = {
-                query: query.trim(),
-                limit: 10
-            };
-
-            // Prefer fingerprint for search (stable across sessions)
-            if (searchFingerprint) {
-                requestBody.pdfFingerprint = searchFingerprint;
+            // Build array of scope identifiers (either docIds or fingerprints)
+            const scopeIds: string[] = [];
+            if (scope === "all") {
+                // If "all", leave scopeIds empty to search everything registered
+            } else if (searchFingerprint) {
+                scopeIds.push(searchFingerprint);
             } else if (searchDocId) {
-                // Fallback to docId if no fingerprint
-                requestBody.docId = searchDocId;
+                scopeIds.push(searchDocId);
             }
 
-            console.log('[SearchBar] Request body:', JSON.stringify(requestBody, null, 2));
-
-            const res = await fetch("http://localhost:9100/search", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                console.error('[SearchBar] Error response:', errorText);
-                throw new Error(`Search failed: ${res.status}`);
-            }
-
-            const data = await res.json();
-            let searchResults = data.results || [];
+            console.log('[SearchBar] Calling local search with scopeIds:', scopeIds);
+            
+            // Execute local search
+            let searchResults = await localSearchRegistry.search(query.trim(), scopeIds);
             console.log('[SearchBar] Raw results:', searchResults.length);
 
             // Filter to only open documents when searching "All open PDFs"
@@ -186,11 +157,11 @@ export function SearchBar({
                 console.log('[SearchBar] Filtered to open docs:', searchResults.length);
             }
 
-            setResults(searchResults);
+            setResults(searchResults.slice(0, 50)); // Limit to 50 results
             setIsOpen(true);
         } catch (err) {
             console.error("[SearchBar] Search error:", err);
-            setError("Search unavailable. Start the search API on port 9100.");
+            setError("Search failed. Please try again.");
             setResults([]);
         } finally {
             setIsLoading(false);
@@ -372,7 +343,7 @@ export function SearchBar({
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
                         onFocus={() => results.length > 0 && setIsOpen(true)}
-                        placeholder="Semantic search..."
+                        placeholder="Search document..."
                         className={cn(
                             "w-full px-3 py-1.5 pl-8 text-sm border-y focus:outline-none focus:ring-2 focus:ring-blue-500",
                             isDarkMode

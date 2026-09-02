@@ -1,4 +1,4 @@
-import { Plus, X, Settings as SettingsIcon, LogOut, User as UserIcon, Menu, Sparkles } from 'lucide-react';
+import { Plus, X, Settings as SettingsIcon, LogOut, User as UserIcon, Sparkles, RotateCw } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { useAppStore } from '@/lib/store';
 import { SettingsModal } from './SettingsModal';
@@ -12,13 +12,14 @@ interface HeaderProps {
     onOpenPDF: () => void;
     documents: DocumentEntry[];
     onRemoveDocument: (id: string) => void;
-    onToggleSidebar: () => void;
+    onRefreshDocument: (id: string) => void;
+
     onLoadJSON: (docId: string) => void;
     showAIChat: boolean;
     onToggleAIChat: () => void;
 }
 
-export function Header({ onOpenPDF, documents, onRemoveDocument, onToggleSidebar, onLoadJSON, showAIChat, onToggleAIChat }: HeaderProps) {
+export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat }: HeaderProps) {
     const { isDarkMode, focusedDocId, setFocusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
     const { logout, user } = useAuthStore();
     const [showSettings, setShowSettings] = useState(false);
@@ -109,16 +110,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onToggleSidebar
             isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"
         )} onClick={closeContextMenu}>
             <div className="flex items-center gap-4 flex-shrink-0">
-                <button
-                    onClick={onToggleSidebar}
-                    className="
-                        p-2 rounded-md transition-colors
-                        text-gray-500 hover:text-gray-800 hover:bg-gray-200
-                        dark:text-gray-400 dark:hover:text-blue-300 dark:hover:bg-gray-800
-                    "
-                >
-                    <Menu size={20} />
-                </button>
+
                 <h1 className="font-bold text-lg text-blue-600 dark:text-blue-400">PDF Reader</h1>
             </div>
 
@@ -141,6 +133,19 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onToggleSidebar
                         title={`${doc.name}\nRight-click for options`}
                     >
                         <span className="truncate flex-1">{doc.name}</span>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRefreshDocument(doc.id);
+                            }}
+                            className={cn(
+                                "p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                                isDarkMode ? "hover:bg-gray-700 text-gray-400 hover:text-blue-400" : "hover:bg-gray-200 text-gray-400 hover:text-blue-500"
+                            )}
+                            title="Refresh from disk"
+                        >
+                            <RotateCw size={12} />
+                        </button>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -236,6 +241,15 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onToggleSidebar
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()}
                 >
+                    <button
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                        onClick={() => {
+                            onRefreshDocument(contextMenu.docId);
+                            closeContextMenu();
+                        }}
+                    >
+                        Refresh from Disk
+                    </button>
                     <button
                         className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                         onClick={() => {

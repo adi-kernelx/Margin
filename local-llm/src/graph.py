@@ -27,7 +27,7 @@ qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 llm = ChatOpenAI(
     base_url=LLM_BASE_URL,
     api_key="sk-no-key-required",
-    model="deepseek-r1-distill-qwen-1.5b",
+    model="meta-llama-3.1-8b-instruct",
     temperature=0.1,
     max_tokens=2048
 )

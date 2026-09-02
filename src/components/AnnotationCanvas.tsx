@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useContext } from 'react';
+import { useEffect, useRef, useState, useContext } from 'react';
 import type { PageViewport } from 'pdfjs-dist';
 import type { Annotation, StrokeAnnotation, HighlightAnnotation, TextAnnotation, ShapeAnnotation, ImageAnnotation, MathAnnotation, BoundingBox, TransformMatrix } from '@/lib/annotations/models';
 import { UnifiedPointerHandler } from '@/lib/annotations/pointer-handler';
@@ -109,7 +109,7 @@ export function AnnotationCanvas({
     const [isMovingAnnotation, setIsMovingAnnotation] = useState(false);
     const [isResizingAnnotation, setIsResizingAnnotation] = useState(false);
     const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-    const [transientAnnotation, setTransientAnnotation] = useState<(ImageAnnotation | ShapeAnnotation | MathAnnotation) | null>(null);
+    const [transientAnnotation, setTransientAnnotation] = useState<(ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation) | null>(null);
     const [isHoveringAnnotation, setIsHoveringAnnotation] = useState(false);
 
     const docStore = useContext(DocumentContext);
@@ -621,11 +621,11 @@ export function AnnotationCanvas({
     }, [annotations, pageNum, viewport, annotationMode]);
 
     // Helpers for transform-aware geometry (Layer 3)
-    const getBaseBox = (annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation): BoundingBox => {
+    const getBaseBox = (annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation): BoundingBox => {
         return (annotation.geometry as any).baseBox || annotation.geometry.boundingBox;
     };
 
-    const getTransform = (annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation): TransformMatrix => {
+    const getTransform = (annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation): TransformMatrix => {
         const t = annotation.geometry.transform as any;
         if (!t) {
             return {
@@ -654,7 +654,7 @@ export function AnnotationCanvas({
     // Draw selection overlay (outline + resize handles)
     const drawSelectionOverlay = (
         ctx: CanvasRenderingContext2D,
-        annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation,
+        annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation,
         pageWidth: number,
         pageHeight: number
     ) => {
@@ -679,7 +679,7 @@ export function AnnotationCanvas({
         ctx.setLineDash([]);
 
         // Rotation handle (top center + offset)
-        if (annotation.type !== 'math') {
+        if (annotation.type !== 'math' && annotation.type !== 'text') {
             const rotationHandleDistance = 20 / avgScale; // keeping it visually consistent
             const rotateX = width / 2;
             const rotateY = -rotationHandleDistance;
@@ -716,11 +716,6 @@ export function AnnotationCanvas({
             { x: 0, y: height / 2 }, // w
             { x: width, y: height / 2 } // e
         ];
-
-        // For Math, only show bottom-right handle
-        if (annotation.type === 'math') {
-            handles = [{ x: width, y: height }];
-        }
 
         // For Math, only show bottom-right handle
         if (annotation.type === 'math') {
@@ -834,7 +829,13 @@ export function AnnotationCanvas({
         // Draw all saved annotations for this page (Layer 2 only: strokes/highlights/text/math)
         // Use ref to get latest annotations even when called from stale closures
         const currentAnnotations = annotationsRef.current;
-        const pageAnnotations = currentAnnotations.filter(a => a.pageNum === pageNum && a.type !== 'image' && a.type !== 'shape');
+        let pageAnnotations = currentAnnotations.filter(a => a.pageNum === pageNum && a.type !== 'image' && a.type !== 'shape');
+
+        if (transientAnnotation) {
+            pageAnnotations = pageAnnotations.map(a =>
+                a.id === transientAnnotation.id ? transientAnnotation : a
+            );
+        }
 
         // Sort logic to draw highlights first (behind), then strokes
         // Exclude images - they go on Layer 3
@@ -855,11 +856,11 @@ export function AnnotationCanvas({
             }
         }
 
-        // Draw selection overlay for math annotations (since they are on Layer 2)
+        // Draw selection overlay for math/text annotations (since they are on Layer 2)
         if (selectedAnnotationId) {
-            const selectedMath = sortedAnnotations.find(a => a.id === selectedAnnotationId && a.type === 'math');
-            if (selectedMath) {
-                drawSelectionOverlay(ctx, selectedMath as MathAnnotation, pageWidth, pageHeight);
+            const selectedL2 = sortedAnnotations.find(a => a.id === selectedAnnotationId && (a.type === 'math' || a.type === 'text'));
+            if (selectedL2) {
+                drawSelectionOverlay(ctx, selectedL2 as MathAnnotation | TextAnnotation, pageWidth, pageHeight);
             }
         }
 
@@ -869,9 +870,9 @@ export function AnnotationCanvas({
 
 
 
-    // Hit testing for images and shapes AND math
+    // Hit testing for images and shapes AND math AND text overlay
     const rotatableAnnotations = annotations
-        .filter(a => a.pageNum === pageNum && (a.type === 'image' || a.type === 'shape' || a.type === 'math'))
+        .filter(a => a.pageNum === pageNum && (a.type === 'image' || a.type === 'shape' || a.type === 'math' || a.type === 'text'))
         .reverse();
 
     // Helper: distance from point to line segment
@@ -908,8 +909,8 @@ export function AnnotationCanvas({
         // Iterate in reverse render order (top checks first)
         for (let i = rotatableAnnotations.length - 1; i >= 0; i--) {
             const annotation = rotatableAnnotations[i];
-            const t = getTransform(annotation as ImageAnnotation | ShapeAnnotation | MathAnnotation);
-            const base = getBaseBox(annotation as ImageAnnotation | ShapeAnnotation | MathAnnotation);
+            const t = getTransform(annotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation);
+            const base = getBaseBox(annotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation);
 
             const pxT = createPixelTransform(t, pageWidth, pageHeight);
             const invT = invertMatrix(pxT);
@@ -993,7 +994,7 @@ export function AnnotationCanvas({
 
 
 
-    const getRotationHandle = (x: number, y: number, annotation: ImageAnnotation | ShapeAnnotation) => {
+    const getRotationHandle = (x: number, y: number, annotation: ImageAnnotation | ShapeAnnotation | TextAnnotation) => {
         const t = getTransform(annotation);
         const base = getBaseBox(annotation);
 
@@ -1024,7 +1025,7 @@ export function AnnotationCanvas({
         return null;
     };
 
-    const getResizeHandle = (x: number, y: number, annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation) => {
+    const getResizeHandle = (x: number, y: number, annotation: ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation) => {
         const t = getTransform(annotation);
         const base = getBaseBox(annotation);
 
@@ -1157,20 +1158,40 @@ export function AnnotationCanvas({
     const handleImagePaste = (x: number, y: number, imageData: string) => {
         if (!toolRef.current || !(toolRef.current instanceof ImageTool)) return;
 
-        const defaultWidth = 200;
-        const defaultHeight = 200;
+        const img = new Image();
+        img.onload = () => {
+            if (!toolRef.current || !(toolRef.current instanceof ImageTool)) return;
+            
+            const originalWidth = img.width;
+            const originalHeight = img.height;
+            
+            // Set a reasonable maximum width for initial placement so it doesn't cover the whole page
+            const maxWidth = 300;
+            let finalWidth = originalWidth;
+            let finalHeight = originalHeight;
+            
+            if (originalWidth > maxWidth) {
+                const ratio = maxWidth / originalWidth;
+                finalWidth = maxWidth;
+                finalHeight = originalHeight * ratio;
+            }
 
-        const annotation = toolRef.current.createAnnotation(
-            x,
-            y,
-            defaultWidth,
-            defaultHeight,
-            imageData
-        );
+            const annotation = toolRef.current.createAnnotation(
+                x,
+                y,
+                finalWidth,
+                finalHeight,
+                imageData
+            );
 
-        annotation.pageNum = pageNum;
-        onSave(annotation);
-        redrawImageCanvas();
+            annotation.pageNum = pageNum;
+            onSave(annotation);
+            redrawImageCanvas();
+        };
+        img.onerror = () => {
+            console.error('Failed to load pasted image to determine dimensions');
+        };
+        img.src = imageData;
     };
 
     // Set up pointer handler
@@ -1460,7 +1481,7 @@ export function AnnotationCanvas({
         let isDragging = false;
         let isResizing = false;
         let currentHandle: string | null = null;
-        let draggedAnnotation: (ImageAnnotation | ShapeAnnotation | MathAnnotation) | null = null;
+        let draggedAnnotation: (ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation) | null = null;
         let startX = 0;
         let startY = 0;
         let startAnnotationX = 0;
@@ -1503,8 +1524,8 @@ export function AnnotationCanvas({
             // Check if clicking on a resize handle of the currently selected annotation
             if (selectedAnnotationId) {
                 const selected = annotations.find(a => a.id === selectedAnnotationId);
-                if (selected && (selected.type === 'image' || selected.type === 'shape' || selected.type === 'math')) {
-                    const annotation = selected as ImageAnnotation | ShapeAnnotation | MathAnnotation;
+                if (selected && (selected.type === 'image' || selected.type === 'shape' || selected.type === 'math' || selected.type === 'text')) {
+                    const annotation = selected as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation;
 
                     // Check for rotation handle first
                     if (annotation.type !== 'math') {
@@ -1588,8 +1609,8 @@ export function AnnotationCanvas({
 
             // Check if clicking on any annotation
             const clickedAnnotation = findAnnotationAtPoint(x, y);
-            if (clickedAnnotation && (clickedAnnotation.type === 'image' || clickedAnnotation.type === 'shape' || clickedAnnotation.type === 'math')) {
-                const annotation = clickedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation;
+            if (clickedAnnotation && (clickedAnnotation.type === 'image' || clickedAnnotation.type === 'shape' || clickedAnnotation.type === 'math' || clickedAnnotation.type === 'text')) {
+                const annotation = clickedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation;
 
                 // Select it
                 setSelectedAnnotationId(annotation.id);
@@ -1711,8 +1732,8 @@ export function AnnotationCanvas({
                     updatedAt: Date.now()
                 };
 
-                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation;
-                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation);
+                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation;
+                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation);
             }
 
             if (isDragging) {
@@ -1819,8 +1840,8 @@ export function AnnotationCanvas({
                     updatedAt: Date.now()
                 };
 
-                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation;
-                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation);
+                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation;
+                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation);
             }
 
             if (isResizing && currentHandle) {
@@ -1925,8 +1946,8 @@ export function AnnotationCanvas({
                     updatedAt: Date.now()
                 };
 
-                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation;
-                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation);
+                draggedAnnotation = updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation;
+                setTransientAnnotation(updatedAnnotation as ImageAnnotation | ShapeAnnotation | MathAnnotation | TextAnnotation);
             }
         };
 

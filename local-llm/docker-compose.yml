@@ -1,17 +1,6 @@
 
 
 services:
-  llm-runtime:
-    image: ghcr.io/ggml-org/llama.cpp:server
-    container_name: llm-runtime
-    ports:
-      - "8081:8081"
-    volumes:
-      - ./models:/models
-    # Command to run server: -m <model_path> --host 0.0.0.0 --port 8081
-    # We assume the model is downloaded to ./models/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf
-    command: -m /models/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf --host 0.0.0.0 --port 8081 --n-gpu-layers 0 --ctx-size 8192
-
   rag-api:
     build: ./rag-api
     container_name: rag-api
@@ -21,10 +10,8 @@ services:
       - PORT=9101
       - QDRANT_URL=http://host.docker.internal:6333
       - QDRANT_API_KEY=my-secret-qdrant-key
-      - LLM_BASE_URL=http://llm-runtime:8081
+      - LLM_BASE_URL=http://host.docker.internal:8081
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      - llm-runtime
     volumes:
       - ./rag-api:/app

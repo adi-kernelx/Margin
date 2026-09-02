@@ -15,7 +15,7 @@ import type { SaveStoreState } from '@/lib/saving/save-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
 import type { LocalFile } from '@/types/editor-types';
 import { computeStableId, computeStableIdForFile } from '@/lib/doc-id';
-import { SideMenu } from '@/components/FileSystem/SideMenu';
+
 import { ToastContainer } from '@/components/ui/Toast';
 
 // Pending permission request info
@@ -33,7 +33,6 @@ export default function Dashboard() {
     // Permission prompt state
     const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
 
-    const [sidebarOpen, setSidebarOpen] = useState(true);
     const { isDarkMode } = useAppStore();
 
     // Global Unsaved Changes Warning
@@ -167,7 +166,8 @@ export default function Dashboard() {
                         stableId: stableId,
                         name: file.name,
                         fileUrl: memoryUrl,
-                        file: detachedFile
+                        file: detachedFile,
+                        fileHandle: handle
                     });
                 }
 
@@ -214,74 +214,78 @@ export default function Dashboard() {
         }
     };
 
-    const handleOpenRemoteFile = async (file: any) => {
-        // Support both old and new file shapes if needed, but primarily new CloudFile
-        // CloudFile: { fileId, displayName, ... }
-        const fileId = file.fileId || file.id;
-        const fileName = file.displayName || file.name;
 
-        if (!fileId) return;
-
-        const remainingSlots = 4 - documents.length;
-        if (remainingSlots <= 0) {
-            alert("Maximum 4 documents allowed.");
-            return;
-        }
-
-        try {
-            // Lazy load upload service
-            const { uploadService } = await import('@/lib/upload-service');
-            // For shared files, use originalParentFolderId for lookups
-            // For own files, use parentFolderId
-            const parentFolderId = file.originalParentFolderId || file.parentFolderId;
-            const ownerUid = file.ownerUid; // Pass owner ID for shared file access
-
-            // Use getFileViewUrl to get the PDF URL (and potentially trigger annotation load logic implicitly or return it)
-            // For now, getFileViewUrl returns a string (PDF URL)
-            const url = await uploadService.getFileViewUrl(fileId, parentFolderId, ownerUid);
-
-            // CRITICAL: Use the cloud fileId as the document ID, NOT a new random UUID!
-            // This ensures SaveManager, AnnotationService, etc. all use the correct ID
-            const docId = fileId;
-            const stableId = fileId;
-
-            const newDoc: DocumentEntry = {
-                id: docId,
-                stableId: stableId,
-                name: fileName,
-                fileUrl: url,
-                file: undefined,
-                fileSource: 'remote',
-                parentFolderId: parentFolderId, // Use original parent for lookups
-                // Use sharedRole for shared files, default to 'owner' for own files
-                role: file.sharedRole === 'edit' ? 'editor' :
-                    file.sharedRole === 'view' ? 'viewer' : 'owner'
-            };
-
-            setDocuments(prev => [...prev, newDoc]);
-            setSidebarOpen(false);
-
-            // TODO: Ensure annotations are loaded. 
-            // Since we upgraded getFileViewUrl to call 'annotations/load', it returns pdfUrl relative to the *cloud structure*.
-            // But 'annotations/load' API response contains 'annotations'. 
-            // We are dropping it in upload-service currently. 
-            // Ideally we should dispatch an event or use a store to load these annotations.
-            // But per "Frontend Contract", "Load annotations into canvas".
-            // Since I can't easily injection annotations into the Viewer from here without major refactor (Viewer pulls from IDB usually),
-            // I'll assume the basic wiring is 'PDF Load'. 
-            // Annotations might need a second pass or check if Viewer handles 'remote' source by fetching annotations?
-            // Existing 'documents' don't seem to have 'annotations' property.
-            // I will leave it as PDF Load for now, as "Minimal Additions".
-
-        } catch (err: any) {
-            console.error("Failed to open remote file:", err);
-            alert("Failed to open file: " + (err.message || String(err)));
-        }
-    };
 
     const removeDocument = (id: string) => {
         useSaveStore.getState().clearDoc(id);
         setDocuments(prev => prev.filter(d => d.id !== id));
+    };
+
+    const handleRefreshDocument = async (docId: string) => {
+        const doc = documents.find(d => d.id === docId);
+        if (!doc) return;
+
+        // Try to get file handle from doc entry or from IDB
+        let handle: FileSystemFileHandle | null = doc.fileHandle || null;
+
+        if (!handle) {
+            // Try to get it from IDB
+            try {
+                const localFile = await localFileDB.getLocalFile(docId);
+                handle = localFile?.pdfFileHandle || null;
+            } catch { }
+        }
+
+        if (!handle) {
+            alert('Cannot refresh: No file handle available. The file was likely opened via drag-and-drop or file input without File System Access API support.');
+            return;
+        }
+
+        try {
+            // Try to read the file — this will throw if deleted/moved
+            const file = await handle.getFile();
+            const arrayBuffer = await file.arrayBuffer();
+            const memoryBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+            const newUrl = URL.createObjectURL(memoryBlob);
+
+            const detachedFile = new File([memoryBlob], file.name, {
+                type: 'application/pdf',
+                lastModified: file.lastModified
+            });
+
+            // Revoke old URL
+            if (doc.fileUrl) {
+                URL.revokeObjectURL(doc.fileUrl);
+            }
+
+            // Update the document entry with fresh file data
+            setDocuments(prev => prev.map(d =>
+                d.id === docId
+                    ? { ...d, fileUrl: newUrl, file: detachedFile, name: file.name }
+                    : d
+            ));
+
+            // Clear the pristine PDF cache so flatten uses the fresh file
+            // Dispatch a custom event that PDFViewer can listen to for reload
+            window.dispatchEvent(new CustomEvent('pdf-refresh', {
+                detail: { docId, fileUrl: newUrl }
+            }));
+
+            console.log('[Dashboard] Refreshed document:', file.name);
+        } catch (err: any) {
+            // File was deleted or moved
+            if (err.name === 'NotFoundError' || err.name === 'NotAllowedError') {
+                const action = confirm(
+                    `The file "${doc.name}" could not be found. It may have been deleted or moved.\n\nWould you like to close this tab?`
+                );
+                if (action) {
+                    removeDocument(docId);
+                }
+            } else {
+                console.error('[Dashboard] Refresh failed:', err);
+                alert(`Failed to refresh: ${err.message}`);
+            }
+        }
     };
 
     const handleLoadJSON = async (docId: string) => {
@@ -393,7 +397,7 @@ export default function Dashboard() {
                 onOpenPDF={handleOpenPDF}
                 documents={documents}
                 onRemoveDocument={removeDocument}
-                onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+                onRefreshDocument={handleRefreshDocument}
                 onLoadJSON={handleLoadJSON}
                 showAIChat={showAIChat}
                 onToggleAIChat={() => setShowAIChat(!showAIChat)}
@@ -421,11 +425,6 @@ export default function Dashboard() {
                     setReplicateToolbar={setReplicateToolbar}
                 />
 
-                <SideMenu
-                    isOpen={sidebarOpen}
-                    onClose={() => setSidebarOpen(false)}
-                    onOpenFile={handleOpenRemoteFile}
-                />
 
                 <div className="flex-1 overflow-hidden relative bg-white dark:bg-gray-950 flex">
                     <div className="flex-1 overflow-hidden relative">
@@ -439,12 +438,7 @@ export default function Dashboard() {
                                     >
                                         Open Local PDF
                                     </button>
-                                    <button
-                                        onClick={() => setSidebarOpen(prev => !prev)}
-                                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                                    >
-                                        Open from Cloud
-                                    </button>
+
                                 </div>
                             </div>
                         ) : (

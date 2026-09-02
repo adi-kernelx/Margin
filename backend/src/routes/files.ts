@@ -1,48 +1,18 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { firestore, s3, S3_BUCKET, S3_SIGNED_URL_EXP } from '../lib/storage';
-
-// Helper to generate a presigned PUT URL for a specific file structure
-// Enforces 2.3: "Backend computes the key"
-export async function generatePresignedPutUrl(
-    uid: string,
-    docId: string,
-    type: 'original' | 'page' | 'manifest',
-    fileName?: string
-) {
-    let key = '';
-    const prefix = `users/${uid}/docs/${docId}`;
-
-    if (type === 'original') {
-        key = `${prefix}/original.pdf`;
-    } else if (type === 'page' && fileName) {
-        // Enforce page naming convention if needed, or trust internal caller to pass 'page-XXXX.png'
-        // For strict security, validation is here:
-        if (!fileName.match(/^page-\d+\.png$/)) {
-            throw new Error('Invalid page filename');
-        }
-        key = `${prefix}/pages/${fileName}`;
-    } else if (type === 'manifest') {
-        key = `${prefix}/manifest.json`;
-    } else {
-        throw new Error('Invalid upload type');
-    }
-
-    const command = new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: key,
-        // Enforce content type if possible, or leave flexible
-    });
-
-    return getSignedUrl(s3, command, { expiresIn: 900 }); // 15 minutes
-}
+import { firestore } from '../lib/storage';
 import { requireAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
-import { findFolderDoc, computeS3Prefix, verifyAccess } from '../lib/firestore-helpers';
+import { findFolderDoc, verifyAccess } from '../lib/firestore-helpers';
 import { logAudit } from '../lib/audit';
+import fs from 'fs';
+import path from 'path';
+
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
 const router = Router();
 const upload = multer({
@@ -93,18 +63,8 @@ router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
             });
         }
 
-
-
-
         const fileId = uuidv4();
         const now = Date.now();
-
-        // 1. Enforce Canonical S3 Structure (Step 1.2)
-        // users/{userId}/docs/{docId}/original.pdf
-        const s3Prefix = `users/${uid}/docs/${fileId}`;
-        const s3PdfKey = `${s3Prefix}/original.pdf`;
-        const s3AnnotationsKey = `${s3Prefix}/annotations/annotation.json`;
-        const s3ManifestKey = `${s3Prefix}/manifest.json`;
 
         // 2. Determine Firestore Collection (for UI folder hierarchy)
         let targetCollection;
@@ -120,36 +80,25 @@ router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
             return res.status(500).json({ error: 'Path computation failed' });
         }
 
-        // 3. Upload to S3 (PDF)
-        const crypto = await import('crypto');
-        const hash = crypto.createHash('sha256').update(file.buffer).digest('hex');
+        // 3. Save to local disk (PDF)
+        const localPrefix = path.join(UPLOADS_DIR, `users/${uid}/docs/${fileId}`);
+        fs.mkdirSync(localPrefix, { recursive: true });
 
-        await s3.send(new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: s3PdfKey,
-            Body: file.buffer,
-            ContentType: 'application/pdf',
-            Metadata: {
-                'doc-id': fileId,
-                'original-name': file.originalname,
-                'owner-uid': uid,
-                'x-amz-meta-pdf-hash': hash
-            }
-        }));
+        const s3Prefix = `users/${uid}/docs/${fileId}`;
+        const s3PdfKey = path.join(localPrefix, 'original.pdf');
+        const s3AnnotationsKey = path.join(localPrefix, 'annotations.json');
+        const s3ManifestKey = path.join(localPrefix, 'manifest.json');
+
+        fs.writeFileSync(s3PdfKey, file.buffer);
 
         // 4. Upload Initial Manifest
-        await s3.send(new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: s3ManifestKey,
-            Body: JSON.stringify({
-                docId: fileId,
-                status: 'uploaded',
-                uploadedAt: new Date().toISOString(),
-                originalName: file.originalname,
-                fileSize: file.size
-            }),
-            ContentType: 'application/json'
-        }));
+        fs.writeFileSync(s3ManifestKey, JSON.stringify({
+            docId: fileId,
+            status: 'uploaded',
+            uploadedAt: new Date().toISOString(),
+            originalName: file.originalname,
+            fileSize: file.size
+        }, null, 2));
 
         // 5. Create Firestore Document
         // Store the full Firestore path so we can access it directly without collection group queries
@@ -339,47 +288,15 @@ router.delete('/:fileId', requireAuth, async (req, res) => {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        // Delete S3 Objects
-        // 1. Check for Canonical Structure (users/{uid}/docs/{docId}/original.pdf)
-        const canonicalMatch = data?.s3PdfKey?.match(/^(users\/[^/]+\/docs\/[^/]+)\/original\.pdf$/);
-
-        if (canonicalMatch) {
-            const docPrefix = canonicalMatch[1]; // users/{uid}/docs/{docId}
-            console.log(`[Delete] Detected canonical doc, clearing prefix: ${docPrefix}`);
-
-            try {
-                // List all objects under the prefix (pages, ocr, manifest, pdf)
-                let continuationToken: string | undefined;
-                do {
-                    const listCmd = new ListObjectsV2Command({
-                        Bucket: S3_BUCKET,
-                        Prefix: docPrefix,
-                        ContinuationToken: continuationToken
-                    });
-                    const listRes = await s3.send(listCmd);
-
-                    if (listRes.Contents && listRes.Contents.length > 0) {
-                        const objectsToDelete = listRes.Contents.map(o => ({ Key: o.Key }));
-                        await s3.send(new DeleteObjectsCommand({
-                            Bucket: S3_BUCKET,
-                            Delete: { Objects: objectsToDelete as { Key: string }[] }
-                        }));
-                    }
-                    continuationToken = listRes.NextContinuationToken;
-                } while (continuationToken);
-
-            } catch (e) {
-                console.warn('[Delete] Failed to clear canonical S3 folder:', e);
-            }
-
-        } else {
-            // Legacy individual delete
-            if (data?.s3PdfKey) {
-                await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: data.s3PdfKey }));
-            }
-            if (data?.s3AnnotationsKey) {
-                await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: data.s3AnnotationsKey }));
-            }
+        // Delete local files
+        if (data?.s3PdfKey && fs.existsSync(data.s3PdfKey)) {
+            fs.unlinkSync(data.s3PdfKey);
+        }
+        if (data?.s3AnnotationsKey && fs.existsSync(data.s3AnnotationsKey)) {
+            fs.unlinkSync(data.s3AnnotationsKey);
+        }
+        if (data?.s3Prefix && fs.existsSync(data.s3Prefix)) {
+            fs.rmSync(data.s3Prefix, { recursive: true, force: true });
         }
 
         await docRef.delete();
@@ -509,13 +426,13 @@ router.delete('/folders/:folderId', requireAuth, async (req, res) => {
             await aclDoc.ref.delete();
         }
 
-        // 5. Delete S3 objects
-        console.log(`[DeleteFolder] Deleting ${s3KeysToDelete.length} S3 objects...`);
+        // 5. Delete local objects
+        console.log(`[DeleteFolder] Deleting ${s3KeysToDelete.length} local objects...`);
         for (const key of s3KeysToDelete) {
             try {
-                await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key }));
-            } catch (s3Err) {
-                console.warn(`[DeleteFolder] Failed to delete S3 key ${key}:`, s3Err);
+                if (fs.existsSync(key)) fs.unlinkSync(key);
+            } catch (err) {
+                console.warn(`[DeleteFolder] Failed to delete local key ${key}:`, err);
             }
         }
 
@@ -619,26 +536,18 @@ router.post('/:fileId/open', requireAuth, async (req, res) => {
             return res.status(500).json({ error: 'File metadata incomplete', details: 'Missing PDF storage key' });
         }
 
-        // 1. Get PDF URL
-        console.log('[OPEN] Generating presigned URL for:', pdfKey);
-        const pdfCommand = new GetObjectCommand({ Bucket: S3_BUCKET, Key: pdfKey });
-        const pdfUrl = await getSignedUrl(s3, pdfCommand, { expiresIn: 300 });
+        // 1. Get PDF URL (point to local download route)
+        // Ensure BACKEND_URL is used by the frontend to fetch this.
+        const pdfUrl = `http://localhost:4000/api/files/${fileId}/download`;
 
         // 2. Get Annotations JSON Content
         let annotations = null;
-        if (annotationsKey) {
+        if (annotationsKey && fs.existsSync(annotationsKey)) {
             try {
-                // Fetch from S3 directly server-side to return JSON
-                const s3Item = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: annotationsKey }));
-                const str = await s3Item.Body?.transformToString();
-                if (str) {
-                    annotations = JSON.parse(str);
-                }
+                const str = fs.readFileSync(annotationsKey, 'utf8');
+                annotations = JSON.parse(str);
             } catch (e: any) {
-                if (e.name !== 'NoSuchKey' && e.name !== 'NotFound') {
-                    console.warn('Failed to load annotation content', e);
-                }
-                // If not found, return null (empty)
+                console.warn('Failed to load annotation content', e);
             }
         }
 
@@ -731,28 +640,20 @@ router.get('/download/zip', requireAuth, async (req, res) => {
 
         archive.pipe(res);
 
-        // 3. Recursive Helper
-        const { s3, S3_BUCKET } = await import('../lib/storage');
-        const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-
         const processFolder = async (folderRef: any, basePath: string) => {
             const childrenSnap = await folderRef.collection('children').get();
 
-            // Parallelize? Be careful with S3 limits. Sequential is safer for reliability.
             for (const doc of childrenSnap.docs) {
                 const data = doc.data();
                 const type = data.type || (data.mimeType ? 'file' : 'folder');
 
-                // Skip trash if implemented
                 if (data.trash) continue;
 
                 if (type === 'file' && data.s3PdfKey) {
                     const filePath = basePath + (data.name || 'file') + '.pdf';
                     try {
-                        const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: data.s3PdfKey });
-                        const s3Item = await s3.send(command);
-                        if (s3Item.Body) {
-                            archive.append(s3Item.Body as any, { name: filePath });
+                        if (fs.existsSync(data.s3PdfKey)) {
+                            archive.append(fs.createReadStream(data.s3PdfKey), { name: filePath });
                         }
                     } catch (e) {
                         console.error(`Failed to zip file ${data.id}:`, e);
@@ -786,6 +687,38 @@ router.get('/download/zip', requireAuth, async (req, res) => {
     } catch (err) {
         console.error('Zip download failed:', err);
         if (!res.headersSent) res.status(500).json({ error: 'Download failed' });
+    }
+});
+
+// GET /api/files/:fileId/download
+router.get('/:fileId/download', requireAuth, async (req, res) => {
+    try {
+        const uid = req.user!.uid;
+        const { fileId } = req.params;
+        const folderId = req.query.folderId as string;
+        const ownerId = req.query.ownerId as string;
+
+        const { findFileDoc } = await import('../lib/firestore-helpers');
+        const doc = await findFileDoc(uid, fileId, folderId, ownerId);
+        
+        if (!doc || !doc.exists) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const hasAccess = await verifyAccess(uid, doc);
+        if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+        const data = doc.data();
+        const pdfKey = data?.s3PdfKey || data?.pdfRef;
+
+        if (pdfKey && fs.existsSync(pdfKey)) {
+            res.download(pdfKey);
+        } else {
+            res.status(404).json({ error: 'File not found on disk' });
+        }
+    } catch (e) {
+        console.error('Download failed:', e);
+        res.status(500).json({ error: 'Download failed' });
     }
 });
 

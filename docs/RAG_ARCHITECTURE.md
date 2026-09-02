@@ -3,8 +3,8 @@
 This document locks down the architecture for the Local RAG system as implemented in `rag-service/`.
 
 ## 1. Model Decision
-- **Model**: `DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf`
-- **Source**: `bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF`
+- **Model**: `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
+- **Source**: `bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`
 - **Placement**: `rag-service/models/`
 - **Loader**: `llama.cpp` server (Docker: `ghcr.io/ggerganov/llama.cpp:server`)
 

@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List
 from schemas import QueryRequest, QueryResponse
 from graph import run_graph
 from ingest import process_ingest, check_status, IngestRequest, IngestResponse, StatusResponse
+from embedder import get_embedding
 
 app = FastAPI(title="Local RAG API", version="1.0.0")
 
@@ -14,9 +17,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class EmbedRequest(BaseModel):
+    text: str
+
+class EmbedResponse(BaseModel):
+    embedding: List[float]
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.post("/embed", response_model=EmbedResponse)
+def embed_endpoint(req: EmbedRequest):
+    """Generate embedding for a single text query."""
+    embedding = get_embedding(req.text)
+    return EmbedResponse(embedding=embedding)
 
 @app.post("/query", response_model=QueryResponse)
 async def query_endpoint(req: QueryRequest):
@@ -26,6 +41,7 @@ async def query_endpoint(req: QueryRequest):
         import traceback
         traceback.print_exc()
         raise e
+
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest_endpoint(req: IngestRequest):

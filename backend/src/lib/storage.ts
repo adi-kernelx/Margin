@@ -1,6 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { S3Client } from '@aws-sdk/client-s3';
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
@@ -17,7 +16,7 @@ declare global {
 }
 
 // Configs
-export const S3_BUCKET = process.env.S3_BUCKET!;
+export const S3_BUCKET = process.env.S3_BUCKET || 'fallback-bucket';
 export const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 export const S3_SIGNED_URL_EXP = parseInt(process.env.S3_SIGNED_URL_EXP || '300');
 
@@ -46,22 +45,3 @@ if (!serviceAccountPath || !fs.existsSync(serviceAccountPath)) {
 }
 
 export const firestore = admin.firestore();
-
-// Initialize S3
-export const s3 = new S3Client({
-    region: AWS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-    }
-});
-
-// Initialize SQS
-import { SQSClient } from '@aws-sdk/client-sqs';
-export const sqs = new SQSClient({
-    region: AWS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-    }
-});

@@ -26,7 +26,7 @@ AI PDF Reader is a comprehensive document management and annotation platform des
 - **Invisible Text Layer**: OCR results rendered as selectable text overlay
 
 ### 🤖 AI-Powered RAG System
-- **Local LLM**: Runs DeepSeek-R1-Distill-Qwen-1.5B via llama.cpp
+- **Local LLM**: Runs Meta-Llama-3.1-8B-Instruct via llama.cpp
 - **LangGraph Workflow**: Retrieve → Rerank → Generate pipeline
 - **Context-Aware Q&A**: Ask questions about document content with source citations
 - **Embedding Cache**: SQLite-based caching to avoid re-embedding
@@ -75,7 +75,7 @@ AI PDF Reader is a comprehensive document management and annotation platform des
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | OCR | PaddleOCR | Text extraction |
-| LLM | llama.cpp (DeepSeek) | Local inference |
+| LLM | llama.cpp (Llama 3.1) | Local inference |
 | Embeddings | Sentence Transformers | Text embeddings |
 | RAG Framework | LangGraph | Query orchestration |
 

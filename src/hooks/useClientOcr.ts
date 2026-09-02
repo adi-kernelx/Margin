@@ -82,14 +82,17 @@ export function useClientOcr(fileId: string, pdfDoc: pdfjsLib.PDFDocumentProxy |
                 if (fingerprint) {
                     const cachedOcr = await localFileDB.getOcrCacheByFingerprint(fingerprint);
                     if (cachedOcr) {
-                        console.log('[useClientOcr] Loaded from cache (by fingerprint):', Object.keys(cachedOcr).length, 'pages');
-                        startedRef.current = fileId;
-                        setState(prev => ({
-                            ...prev,
-                            status: 'complete',
-                            progress: 1,
-                            pages: cachedOcr as Record<number, OcrPageResult>
-                        }));
+                        // Only use cache if it has actual OCR tokens
+                        const hasTokens = Object.values(cachedOcr).some((p: any) => p.tokens && p.tokens.length > 0);
+                        if (hasTokens) {
+                            console.log('[useClientOcr] Loaded from cache (by fingerprint):', Object.keys(cachedOcr).length, 'pages');
+                            startedRef.current = fileId;
+                            setState(prev => ({
+                                ...prev,
+                                status: 'complete',
+                                progress: 1,
+                                pages: cachedOcr as Record<number, OcrPageResult>
+                            }));
 
                         // Auto-ingest if not already in Qdrant
                         if (fingerprint) {
@@ -99,7 +102,10 @@ export function useClientOcr(fileId: string, pdfDoc: pdfjsLib.PDFDocumentProxy |
                                 await ingestOcrData(fileId, fingerprint, cachedOcr as Record<number, OcrPageResult>);
                             }
                         }
-                        return;
+                            return;
+                        } else {
+                            console.log('[useClientOcr] Fingerprint cache has no tokens, will re-run OCR');
+                        }
                     }
                 }
             }
@@ -150,18 +156,24 @@ export function useClientOcr(fileId: string, pdfDoc: pdfjsLib.PDFDocumentProxy |
         if (fingerprint) {
             const cachedOcr = await localFileDB.getOcrCacheByFingerprint(fingerprint);
             if (cachedOcr && Object.keys(cachedOcr).length > 0) {
-                console.log('[useClientOcr] Found existing cache by fingerprint, skipping OCR for', fileId);
-                startedRef.current = fileId;
-                setState(prev => ({
-                    ...prev,
-                    status: 'complete',
-                    progress: 1,
-                    pages: cachedOcr as Record<number, OcrPageResult>
-                }));
+                // Only use cache if it has actual OCR tokens
+                const hasTokens = Object.values(cachedOcr).some((p: any) => p.tokens && p.tokens.length > 0);
+                if (hasTokens) {
+                    console.log('[useClientOcr] Found existing cache by fingerprint, skipping OCR for', fileId);
+                    startedRef.current = fileId;
+                    setState(prev => ({
+                        ...prev,
+                        status: 'complete',
+                        progress: 1,
+                        pages: cachedOcr as Record<number, OcrPageResult>
+                    }));
 
-                // Also link this fileId to the fingerprint for future lookups
-                await localFileDB.updateLocalFile(fileId, { pdfFingerprint: fingerprint, ocrData: cachedOcr });
-                return;
+                    // Also link this fileId to the fingerprint for future lookups
+                    await localFileDB.updateLocalFile(fileId, { pdfFingerprint: fingerprint, ocrData: cachedOcr });
+                    return;
+                } else {
+                    console.log('[useClientOcr] Fingerprint cache has no tokens, re-running OCR for', fileId);
+                }
             }
         }
 
@@ -248,8 +260,12 @@ export function useClientOcr(fileId: string, pdfDoc: pdfjsLib.PDFDocumentProxy |
                 // Enqueue to Global Queue (Sequential)
                 const result = await globalOcrQueue.add(fileId, i, pCanvas);
 
-                // Save and Update State
-                await localFileDB.savePageOcr(fileId, i, result);
+                // Only save and cache results that have actual tokens
+                if (result.tokens && result.tokens.length > 0) {
+                    await localFileDB.savePageOcr(fileId, i, result);
+                } else {
+                    console.warn(`[useClientOcr] Page ${i} returned 0 tokens, not caching`);
+                }
 
                 setState(prev => ({
                     ...prev,

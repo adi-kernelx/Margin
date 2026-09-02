@@ -8,7 +8,6 @@ import { operationManager } from '@/lib/annotations/operation-manager';
 import { saveManager } from '@/lib/saving/save-manager';
 import { useDocModified } from '@/components/SaveButton';
 import { SaveOptionsModal } from '@/components/SaveOptionsModal';
-import { CollabUserList } from '@/components/CollabUserList';
 
 interface DocumentPaneProps {
     doc: DocumentEntry;
@@ -131,11 +130,6 @@ function PaneContent({ doc, replicateToolbar }: DocumentPaneProps) {
                     role={doc.role}
                     displayName={doc.name}
                 />
-
-                {/* Active Users Overlay */}
-                {doc.parentFolderId && (
-                    <CollabUserList fileId={doc.id} />
-                )}
             </div>
         </div>
     );

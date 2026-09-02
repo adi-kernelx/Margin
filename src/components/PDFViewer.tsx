@@ -14,13 +14,11 @@ import type { Annotation } from '@/lib/annotations/models';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractAnnotations, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
-import { joinCollabSession, type CollabSession } from '@/lib/collab/collab-provider';
-import { useCollabStore } from '@/lib/collab-store';
-import { useAuthStore } from '@/lib/auth-store';
 import { useOcr } from '@/hooks/useOcr';
 import { useClientOcr } from '@/hooks/useClientOcr';
 import { OcrTextLayer } from './OcrTextLayer';
 import type { OcrPageResult } from '@/lib/ocr/client-ocr';
+import { localSearchRegistry } from '@/lib/search/local-search';
 
 // Configure worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -44,10 +42,9 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const [pages, setPages] = useState<number[]>([]);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const [showMathModal, setShowMathModal] = useState(false);
-
-    // Collab State
-    const [collabSession, setCollabSession] = useState<CollabSession | null>(null);
-    const [_isCollabConnected, setIsCollabConnected] = useState(false);
+    
+    // To prevent "unused variable" warnings
+    console.log(shareId, linkToken);
 
     // Throttled save ref
     const saveTimeoutRef = useRef<number | undefined>(undefined);
@@ -79,12 +76,20 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useClientOcr(fileId, pdfDoc);
 
-    // Auto-start Client OCR for local files
+    // Auto-start Client OCR / Global Store Sync
     useEffect(() => {
         if (!parentFolderId && fileId && pdfDoc) {
+            // Register for local search
+            const fingerprint = pdfDoc.fingerprints?.[0] || fileId;
+            localSearchRegistry.register(fileId, fingerprint, pdfDoc, () => ocrPages);
+            
             startOcr();
+            
+            return () => {
+                localSearchRegistry.unregister(fileId);
+            };
         }
-    }, [fileId, parentFolderId, pdfDoc, startOcr]);
+    }, [fileId, parentFolderId, pdfDoc, ocrPages, startOcr]);
 
     // Use displayName for cloud files, fallback to local logic
     const fileName = displayName || file?.name || 'document.pdf';
@@ -203,111 +208,13 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     }, [file, fileUrl, fileId]);
 
     // ------------------------------------------------------------------------
-    // REAL-TIME COLLABORATION SETUP
+    // REAL-TIME COLLABORATION SETUP (REMOVED)
     // ------------------------------------------------------------------------
-    useEffect(() => {
-        // Only join collab if it's a cloud file
-        if (!parentFolderId || !fileId) return;
 
-        let session: CollabSession | null = null;
-        let mounted = true;
-
-        const initCollab = async () => {
-            try {
-                console.log('[Collab] Joining session for:', fileId);
-                session = await joinCollabSession(fileId, shareId, linkToken, parentFolderId);
-
-                if (!mounted) {
-                    session.disconnect();
-                    return;
-                }
-
-                setCollabSession(session);
-                setIsCollabConnected(true);
-
-                // Awareness (Presence)
-                const user = useAuthStore.getState().user;
-                const updateUsers = useCollabStore.getState().updateUsers;
-                const awareness = session.awareness;
-
-                const myColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-                const myName = user?.displayName || (user ? user.email?.split('@')[0] : 'Anonymous ' + Math.floor(Math.random() * 1000));
-
-                awareness.setLocalState({
-                    user: {
-                        name: myName,
-                        email: user?.email, // Add email for hover tooltip
-                        uid: user?.uid || 'anon',
-                        color: myColor,
-                        fileId: fileId,
-                        connectedAt: Date.now()
-                    }
-                });
-
-                const handleAwarenessChange = () => {
-                    const states = Array.from(awareness.getStates().values()) as any[];
-                    // Map to our UserInfo structure
-                    const activeUsers = states
-                        .map(s => s.user)
-                        .filter(u => u) // u might be undefined if state is empty
-                        .sort((a, b) => a.connectedAt - b.connectedAt);
-
-                    updateUsers(fileId, activeUsers);
-                };
-
-                awareness.on('change', handleAwarenessChange);
-                // Initial sync
-                handleAwarenessChange();
-
-
-                // Observe Annotations
-                const yAnnotations = session.doc.getArray<Annotation>('annotations');
-
-                // ... rest of code
-
-                // Initial Load from Yjs
-                // If Yjs is NOT empty, we use it as source of truth.
-                // If Yjs IS empty, we wait for 'synced' event or timeout?
-                // Actually y-indexeddb might load data.
-
-                // Observer
-                yAnnotations.observe((_event) => {
-                    // On ANY change, we just clone the array to React state for simplicity (MVP)
-                    // Optimization: Use delta to update state incrementally if list is huge.
-                    if (!mounted) return;
-                    const current = yAnnotations.toArray();
-                    setAnnotations(current);
-                });
-
-                // Awareness? (Cursors) - To be implemented
-
-            } catch (err) {
-                console.error('[Collab] Failed to join:', err);
-                // Fallback to offline/standard mode?
-            }
-        };
-
-        initCollab();
-
-        return () => {
-            mounted = false;
-            if (session) {
-                console.log('[Collab] Disconnecting session');
-                session.disconnect();
-            }
-            setIsCollabConnected(false);
-            setCollabSession(null);
-        };
-    }, [fileId, parentFolderId]);
-
-    // Load Annotations (Hybrid: Collab or Legacy)
+    // Load Annotations (Legacy/API)
     useEffect(() => {
         let mounted = true;
         const loadAnnotations = async () => {
-            // If Collab is active, Yjs drives state. 
-            // BUT: If Yjs starts empty (new doc), we might want to populate it from "Legacy Cloud Source" (API).
-            // We check this here.
-
             console.log('[PDFViewer] Loading annotations logic for:', stableId);
 
             // SHARED LINK with annotationsUrl - load annotations directly from URL
@@ -330,30 +237,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             }
 
             if (parentFolderId) {
-                // Cloud / Shared
-                if (collabSession) {
-                    // We rely on Collab. 
-                    // Check if empty?
-                    const yArr = collabSession.doc.getArray('annotations');
-                    if (yArr.length === 0) {
-                        // Try to load from API to bootstrap Yjs?
-                        // Only if we are OWNER or EDITOR?
-                        // If we are viewer, we just wait.
-                        try {
-                            const { annotationService } = await import('@/lib/annotation-service');
-                            const remote = await annotationService.loadAnnotations(fileId, parentFolderId);
-                            if (remote && remote.length > 0 && yArr.length === 0) {
-                                // Populate Yjs
-                                collabSession.doc.transact(() => {
-                                    yArr.push(remote);
-                                });
-                                console.log('[Collab] Bootstrapped Yjs from API');
-                            }
-                        } catch (e) { /* ignore */ }
-                    }
-                    return;
-                }
-
                 // Also try loading from annotationsUrl if provided (for shared links)
                 if (annotationsUrl) {
                     try {
@@ -372,11 +255,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     }
                     return;
                 }
-
-                // Fallback if collab not ready yet? Or failed?
-                // We let the collab effect handle it.
-                // But what if we want to show something while connecting?
-                // ...
             }
 
             // LEGACY / LOCAL LOGIC
@@ -480,7 +358,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         return () => {
             mounted = false;
         };
-    }, [stableId, file, fileId, parentFolderId, collabSession]); // Depend on collabSession to re-run bootstrap logic
+    }, [stableId, file, fileId, parentFolderId]); 
 
     // External JSON Load Event Listener
     useEffect(() => {
@@ -488,24 +366,15 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             if (e.detail.docId === fileId) {
                 console.log('[PDFViewer] External JSON loaded:', e.detail.annotations.length);
 
-                if (collabSession) {
-                    // In collab, external load = Replace All
-                    const yArr = collabSession.doc.getArray('annotations');
-                    collabSession.doc.transact(() => {
-                        yArr.delete(0, yArr.length);
-                        yArr.push(e.detail.annotations);
-                    });
-                } else {
-                    setAnnotations(e.detail.annotations);
-                    annotationStorage.saveSidecar(stableId, e.detail.annotations);
-                }
+                setAnnotations(e.detail.annotations);
+                annotationStorage.saveSidecar(stableId, e.detail.annotations);
                 saveManager.markDirty(fileId);
             }
         };
 
         window.addEventListener('pdf-editor:load-json' as any, handleExternalLoad as any);
         return () => window.removeEventListener('pdf-editor:load-json' as any, handleExternalLoad as any);
-    }, [fileId, stableId, collabSession]);
+    }, [fileId, stableId]);
 
     // Operation Manager & Subscription
     useEffect(() => {
@@ -524,8 +393,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Throttled Save Sidecar (Local cache only - SaveManager handles actual saves)
     const scheduleSidecarSave = useCallback((currentAnnotations: Annotation[]) => {
-        if (collabSession) return; // Skip sidecar if collab (Yjs handles persistence)
-
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
         saveTimeoutRef.current = window.setTimeout(async () => {
@@ -533,7 +400,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             await annotationStorage.saveSidecar(stableId, currentAnnotations);
         }, 2000);
 
-    }, [stableId, fileId, parentFolderId, collabSession]);
+    }, [stableId, fileId, parentFolderId]);
 
 
     // PDF Generation (Smart Save: Embedded vs Flattened)
@@ -665,7 +532,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     }, [fileId, fileName, parentFolderId, stableId, role]);
 
 
-    // Annotation Handlers (COLLAB-AWARE)
+    // Annotation Handlers
     const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
         // Optimistic update (Local State)
         setAnnotations(prev => {
@@ -678,45 +545,19 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 next = [...prev, annotation];
             }
 
-            if (collabSession && role !== 'viewer') {
-                // COLLAB UPDATE - Only if not viewer
-                const yArr = collabSession.doc.getArray<Annotation>('annotations');
-                collabSession.doc.transact(() => {
-                    // For Yjs Array, we must find index to replace. 
-                    // Y.Array does not support finding by object property natively efficiently, we iterate.
-                    // Or maintain a map? For < 1000 items, iteration is fine.
-                    // Actually, if we use y-map top level, it's easier. But we used y-array.
-                    let yIndex = -1;
-                    // We need to convert to array to find index? No, yArr has get/length. 
-                    // Optimization: `yArr.toArray()` creates copy. 
-                    const arr = yArr.toArray();
-                    yIndex = arr.findIndex(a => a.id === annotation.id);
-
-                    if (yIndex >= 0) {
-                        yArr.delete(yIndex, 1);
-                        yArr.insert(yIndex, [annotation]);
-                    } else {
-                        yArr.push([annotation]);
-                    }
-                });
-                // No need to setDirty for Yjs persistence (auto), but for SaveManager (Snapshots) yes.
-            } else {
-                // LOCAL SIDE CAR (or Viewer Local Mode)
-                scheduleSidecarSave(next);
-            }
+            // LOCAL SIDE CAR (or Viewer Local Mode)
+            scheduleSidecarSave(next);
 
             saveManager.markDirty(fileId);
             setIsDirty(true);
 
             // Operations (In-Memory Only) -> Keep this for Undo/Redo? 
-            // Undo/Redo with Collab is complex (Yjs has UndoManager).
-            // For now, keep local operation manager for session undo, but it might conflict with remote ops.
             const op = createAddOperation({ ...annotation, fileId } as any, fileId);
             operationManager.addOperation(op);
 
             return next;
         });
-    }, [fileId, scheduleSidecarSave, setIsDirty, collabSession]);
+    }, [fileId, scheduleSidecarSave, setIsDirty]);
 
     const handleAnnotationDelete = useCallback(async (id: string) => {
         setAnnotations(prev => {
@@ -725,18 +566,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
             const next = prev.filter(a => a.id !== id);
 
-            if (collabSession && role !== 'viewer') {
-                const yArr = collabSession.doc.getArray<Annotation>('annotations');
-                collabSession.doc.transact(() => {
-                    const arr = yArr.toArray();
-                    const yIndex = arr.findIndex(a => a.id === id);
-                    if (yIndex >= 0) {
-                        yArr.delete(yIndex, 1);
-                    }
-                });
-            } else {
-                scheduleSidecarSave(next);
-            }
+            scheduleSidecarSave(next);
 
             saveManager.markDirty(fileId);
             setIsDirty(true);
@@ -746,7 +576,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
             return next;
         });
-    }, [fileId, scheduleSidecarSave, setIsDirty, collabSession]);
+    }, [fileId, scheduleSidecarSave, setIsDirty]);
 
     // ... (Remainder unchanged) ...
 
@@ -828,6 +658,7 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
     const searchHighlight = useAppStore(state => state.searchHighlight);
     const [viewport, setViewport] = useState<any>(null);
     const [isRendered, setIsRendered] = useState(false);
+    const [nativeTextContent, setNativeTextContent] = useState<any>(null);
 
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
@@ -869,6 +700,7 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
                 await renderTaskRef.current.promise;
 
                 const textContent = await page.getTextContent();
+                if (isMounted) setNativeTextContent(textContent);
                 textLayerDiv.innerHTML = '';
                 textLayerDiv.style.setProperty('--scale-factor', `${scale * dpr}`);
                 const textLayer = new (pdfjsLib as any).TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport: vp, textDivs: [] });
@@ -919,13 +751,13 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
                 ref={textLayerRef}
                 className="textLayer absolute inset-0 mix-blend-multiply"
                 style={{
-                    zIndex: shouldDisableCanvasEvents ? 5 : 1,
+                    zIndex: shouldDisableCanvasEvents ? 15 : 1,
                     pointerEvents: shouldDisableCanvasEvents ? 'auto' : 'none'
                 }}
             />
 
             {/* OCR Text Layer Overlay - Only if we have OCR data, takes priority over native */}
-            {ocrData && ocrData.tokens.length > 0 && viewport && (
+            {ocrData && ocrData.tokens.length > 0 && viewport && nativeTextContent && (
                 <OcrTextLayer
                     tokens={ocrData.tokens}
                     width={viewport.width}
@@ -933,11 +765,13 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
                     scale={scale}
                     debug={false}
                     annotationMode={annotationMode}
+                    nativeTextContent={nativeTextContent}
+                    viewport={viewport}
                 />
             )}
 
             {viewport && (
-                <div style={{ position: 'absolute', left: '-2.5%', top: '-2.5%', width: '105%', height: '105%', pointerEvents: shouldDisableCanvasEvents ? 'none' : 'auto' }}>
+                <div style={{ position: 'absolute', left: '-2.5%', top: '-2.5%', width: '105%', height: '105%', zIndex: shouldDisableCanvasEvents ? 1 : 8, pointerEvents: shouldDisableCanvasEvents ? 'none' : 'auto' }}>
                     <AnnotationCanvas
                         pageNum={pageNum}
                         viewport={viewport}

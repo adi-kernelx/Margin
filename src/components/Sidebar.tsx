@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Toolbar } from './Toolbar';
 import { cn } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
+
 import { operationManager } from '@/lib/annotations/operation-manager';
 import { saveManager } from '@/lib/saving/save-manager';
 import { useGlobalModified } from '@/components/SaveButton';
@@ -13,7 +13,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ replicateToolbar, setReplicateToolbar }: SidebarProps) {
-    const { isDarkMode } = useAppStore();
     const isGlobalModified = useGlobalModified();
     const [showSaveOptions, setShowSaveOptions] = useState(false);
 
@@ -43,12 +42,7 @@ export function Sidebar({ replicateToolbar, setReplicateToolbar }: SidebarProps)
     }
 
     return (
-        <div
-            className={cn(
-                "w-20 border-r flex flex-col items-center py-4 gap-4 z-40 overflow-y-auto overflow-x-hidden",
-                isDarkMode ? "bg-gray-900 text-white border-gray-800" : "bg-white text-gray-900 border-gray-200"
-            )}
-        >
+        <>
             <Toolbar
                 replicateToolbar={replicateToolbar}
                 onToggleReplicate={() => setReplicateToolbar(!replicateToolbar)}
@@ -66,6 +60,6 @@ export function Sidebar({ replicateToolbar, setReplicateToolbar }: SidebarProps)
                 onClose={() => setShowSaveOptions(false)}
                 mode="global"
             />
-        </div>
+        </>
     );
 }

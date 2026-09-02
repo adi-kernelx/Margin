@@ -12,12 +12,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.966.0",
-    "@aws-sdk/client-s3": "^3.958.0",
-    "@aws-sdk/client-secrets-manager": "^3.962.0",
-    "@aws-sdk/client-sqs": "^3.962.0",
-    "@aws-sdk/lib-storage": "^3.958.0",
-    "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@google-cloud/vision": "^5.3.4",
     "@qdrant/js-client-rest": "^1.16.2",
     "@types/archiver": "^7.0.0",
@@ -35,9 +29,7 @@
     "typesense": "^2.1.0",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
-    "ws": "^8.18.3",
-    "y-websocket": "^1.5.4",
-    "yjs": "^13.6.28"
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

@@ -7,7 +7,7 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-runtime:8081/v1")
 llm = ChatOpenAI(
     base_url=LLM_BASE_URL,
     api_key="sk-no-key-required",
-    model="deepseek-r1-distill-qwen-1.5b",
+    model="meta-llama-3.1-8b-instruct",
     temperature=0.1,
     max_tokens=2048
 )

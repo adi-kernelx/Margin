@@ -1,21 +1,16 @@
 import { Router } from 'express';
-import { PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3, S3_BUCKET, firestore } from '../../lib/storage';
+import { firestore } from '../../lib/storage';
+import fs from 'fs';
+import path from 'path';
 import { requireAuth } from '../../middleware/auth';
 import admin from 'firebase-admin';
 import { findFileDoc, getEffectiveRole } from '../../lib/firestore-helpers';
 
 const router = Router({ mergeParams: true }); // Access parent :fileId
 
-// Helper: Check S3 object existence
+// Helper: Check local file existence
 async function objectExists(key: string) {
-    try {
-        await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
-        return true;
-    } catch (e) {
-        return false;
-    }
+    return fs.existsSync(key);
 }
 
 // Helper: Resolve file (owned or shared) and verify Edit access
@@ -89,16 +84,8 @@ router.post('/save-request', requireAuth, async (req, res) => {
             }
         }
 
-        // Generate Presigned PUT URL
-        // Content-Type MUST match what client sends (application/json)
-        const command = new PutObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: annotationsRef,
-            ContentType: 'application/json'
-        });
-
-        // 5 minute exp
-        const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+        // Use the local API endpoint
+        const uploadUrl = `http://localhost:4000/api/files/${fileId}/annotations/upload`;
 
         res.json({ ok: true, uploadUrl, annotationsRef }); // Client needs uploadUrl. annotationsRef optional return.
 
@@ -141,6 +128,33 @@ router.post('/confirm', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Confirm save failed:', error);
         res.status(500).json({ error: 'Confirm failed' });
+    }
+});
+
+import express from 'express';
+
+// PUT /api/files/:fileId/annotations/upload
+router.put('/upload', requireAuth, express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        const uid = req.user!.uid;
+
+        const { doc, error } = await resolveFileForEdit(uid, fileId);
+        if (error) return res.status(error.status).json({ error: error.msg });
+
+        const data = doc!.data()!;
+        let annotationsRef = data?.s3AnnotationsKey || data?.annotationsRef;
+
+        if (!annotationsRef) {
+            return res.status(500).json({ error: 'No annotations path configured' });
+        }
+
+        // Write the body to the file
+        fs.writeFileSync(annotationsRef, JSON.stringify(req.body));
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Upload annotations failed:', error);
+        res.status(500).json({ error: 'Upload failed' });
     }
 });
 

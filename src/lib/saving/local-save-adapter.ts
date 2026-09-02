@@ -13,6 +13,7 @@ async function hashAnnotationData(data: any): Promise<string> {
 export class LocalSaveAdapter implements SaveAdapter {
     private localFileId: string;
     private idb: LocalFileDB;
+    private pristinePdfBytes: ArrayBuffer | null = null; // Cache of original PDF before any flatten
 
     constructor(
         localFileId: string,
@@ -52,9 +53,8 @@ export class LocalSaveAdapter implements SaveAdapter {
                 // Determine Filename
                 const baseName = state.displayName.replace(/\.pdf$/i, '');
 
-                // A. Get Original PDF
-                const pdfFile = await state.pdfFileHandle.getFile();
-                const pdfBytes = await pdfFile.arrayBuffer();
+                // A. Get Original PDF (use pristine if available)
+                const pdfBytes = await this.getPristinePdfBytes(state.pdfFileHandle);
 
                 // B. Flatten PDF
                 const { flattenLocalPDF } = await import('./flatten-service'); // Dynamic load
@@ -92,19 +92,37 @@ export class LocalSaveAdapter implements SaveAdapter {
         }
 
         try {
-            // 1. Read Original PDF
-            const file = await state.pdfFileHandle.getFile();
-            const pdfBytes = await file.arrayBuffer();
+            // 1. Get the PRISTINE (pre-flatten) PDF bytes — never the already-flattened file
+            const pdfBytes = await this.getPristinePdfBytes(state.pdfFileHandle);
 
             // 2. Import service
             const { flattenLocalPDF } = await import('./flatten-service');
 
-            // 3. Generate Flattened Blob
+            // 3. Generate Flattened Blob from pristine base + current annotations
             const blob = await flattenLocalPDF(pdfBytes, job.payload);
 
-            // 4. Download
-            const name = state.displayName.replace(/\.pdf$/i, '');
-            this.downloadBlob(blob, `${name}-flattened.pdf`);
+            // 4. Write back to the ORIGINAL file location (overwrite in-place)
+            try {
+                // Request write permission on the original handle
+                const permission = await (state.pdfFileHandle as any).requestPermission({ mode: 'readwrite' });
+                if (permission !== 'granted') {
+                    throw new Error('Write permission denied');
+                }
+
+                // Write the flattened PDF directly to the original file
+                const writable = await state.pdfFileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+
+                console.log('[LocalSaveAdapter] Flattened PDF saved back to original location:', state.displayName);
+
+            } catch (writeErr) {
+                // Fallback: if File System Access write fails (e.g. permission denied, unsupported),
+                // fall back to a regular download
+                console.warn('[LocalSaveAdapter] Could not write back to original file, falling back to download:', writeErr);
+                const name = state.displayName.replace(/\.pdf$/i, '');
+                this.downloadBlob(blob, `${name}-flattened.pdf`);
+            }
 
             // 5. Update Metadata
             await this.idb.updateLocalFile(this.localFileId, {
@@ -114,6 +132,21 @@ export class LocalSaveAdapter implements SaveAdapter {
         } catch (e) {
             console.error('[LocalSaveAdapter] Flatten failed:', e);
         }
+    }
+
+    /**
+     * Get the pristine (original, pre-flatten) PDF bytes.
+     * On first call, reads from the file handle and caches the bytes.
+     * On subsequent calls, returns the cached copy so we never read
+     * an already-flattened file from disk.
+     */
+    private async getPristinePdfBytes(handle: FileSystemFileHandle): Promise<ArrayBuffer> {
+        if (!this.pristinePdfBytes) {
+            const file = await handle.getFile();
+            this.pristinePdfBytes = await file.arrayBuffer();
+            console.log('[LocalSaveAdapter] Cached pristine PDF bytes:', this.pristinePdfBytes.byteLength, 'bytes');
+        }
+        return this.pristinePdfBytes;
     }
 
     private downloadBlob(blob: Blob, filename: string) {

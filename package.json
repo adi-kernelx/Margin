@@ -28,10 +28,6 @@
     "react-router-dom": "^7.10.1",
     "tailwind-merge": "^3.4.0",
     "tesseract.js": "^7.0.0",
-    "y-indexeddb": "^9.0.12",
-    "y-presence": "^0.2.3",
-    "y-websocket": "^1.5.4",
-    "yjs": "^13.6.28",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

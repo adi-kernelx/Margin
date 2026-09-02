@@ -51,7 +51,6 @@ import annotationsRouter from './routes/annotations';
 import adminVipRouter from './routes/admin/vip';
 import usersRouter from './routes/users';
 import shareRouter from './routes/share';
-import collabRouter from './routes/collab';
 import ingestRouter from './routes/ingest';
 import ocrRouter from './routes/ocr';
 import testSearchRouter from './routes/test-search';
@@ -62,7 +61,6 @@ app.use('/api/files/:fileId/annotations', annotationsRouter);
 app.use('/api/admin', adminLimiter, adminVipRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/share', shareLimiter, shareRouter);
-app.use('/api/collab', collabRouter);
 app.use('/api/ingest', processLimiter, ingestRouter);
 app.use('/api', processLimiter, ocrRouter);
 app.use('/api/test-search', searchLimiter, testSearchRouter);
@@ -82,7 +80,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     }
 });
 
-import { setupCollabServer } from './lib/collab-server';
 import { firestore } from './lib/storage';
 
 // Auto-migration: Add ownerUid to folders that are missing it
@@ -116,5 +113,3 @@ async function migrateExistingFolders() {
 const server = app.listen(PORT, () => {
     console.log(`Backend listening on ${PORT} — health: http://localhost:${PORT}/health`);
 });
-
-setupCollabServer(server);

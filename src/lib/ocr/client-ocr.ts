@@ -117,7 +117,7 @@ export async function runClientOcr(image: Blob | HTMLCanvasElement): Promise<Ocr
         formData.append('page', '1');
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout (PaddleOCR cold start can be slow)
 
         console.log('[ClientOCR] Using Local PaddleOCR service...');
         const res = await fetch(LOCAL_OCR_URL, {

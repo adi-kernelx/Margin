@@ -6,7 +6,7 @@ import { renderPageAnnotationsToCanvas } from '../rendering/annotation-renderer'
 export async function flattenLocalPDF(
     pdfBytes: ArrayBuffer,
     annotations: AnnotationData,
-    dpiScale: number = 2
+    dpiScale: number = 4
 ): Promise<Blob> {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfDoc.getPages();

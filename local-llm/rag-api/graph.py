@@ -70,18 +70,15 @@ def generate_step(state: GraphState):
             "metrics": {"note": "Explanation mode"}
         }
 
-    # 2. Check chunks
-    if not state["chunks"]:
-        return {
-            "answer": "Not found in the document.",
-            "confidence": 0.0,
-            "metrics": {"grounding_score": 0.0}
-        }
-    
-    # 3. Memory (Placeholder)
-    pass 
-
+    # 2. Build prompt (handles empty chunks gracefully with new prompt.py)
     prompt_text = build_prompt(state["question"], state["chunks"], mode=state["mode"])
+    
+    # 3. Check if we have meaningful context
+    has_context = bool(state["chunks"]) and len(state["chunks"]) > 0
+    
+    if not has_context:
+        print("[Graph] No chunks found, using general response mode")
+    
     prompt_hash = hashlib.sha256(prompt_text.encode()).hexdigest()
     
     # Cache Check (Answer)
@@ -90,6 +87,7 @@ def generate_step(state: GraphState):
         print("[Cache] Answer hit")
         return cached_ans
 
+    # 4. Generate LLM Response
     with Measure(monitor, "llm"):
         raw_response = llm_generate(prompt_text)
     
@@ -98,10 +96,9 @@ def generate_step(state: GraphState):
     g_score = 0.0
     note = "n/a"
     
-    if state["mode"] == "qa":
+    if state["mode"] == "qa" and has_context:
         with Measure(monitor, "validation"):
             g_score, note = validate_answer(state["question"], answer, state["chunks"])
-
 
     if state["sessionId"]:
         memory_store.add_turn(state["sessionId"], state["question"], answer)
@@ -110,7 +107,11 @@ def generate_step(state: GraphState):
     if state["chunks"]:
         avg_relevance = sum([c.get("relevance_score", 0) for c in state["chunks"]]) / len(state["chunks"])
     
-    conf = (0.5 * g_score) + (0.5 * min(max((avg_relevance + 5) / 10, 0), 1))
+    # Confidence: lower if no context
+    if has_context:
+        conf = (0.5 * g_score) + (0.5 * min(max((avg_relevance + 5) / 10, 0), 1))
+    else:
+        conf = 0.3  # Lower confidence for general responses
     
     result = {
         "answer": answer,
@@ -118,7 +119,8 @@ def generate_step(state: GraphState):
         "metrics": {
             "grounding_score": round(g_score, 2),
             "avg_relevance": round(avg_relevance, 2),
-            "validation_note": note
+            "validation_note": note,
+            "mode": "grounded" if has_context else "general"
         }
     }
     

@@ -11,11 +11,41 @@ interface OcrTextLayerProps {
     height: number; // Viewport height (px)
     debug?: boolean;
     annotationMode?: ToolMode;
+    nativeTextContent?: any;
+    viewport?: any;
 }
 
-export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({ tokens, scale: _scale, width, height, debug = false, annotationMode }) => {
+export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({ tokens, scale: _scale, width, height, debug = false, annotationMode, nativeTextContent, viewport }) => {
 
     const isSelectMode = annotationMode === 'select';
+
+    // Compute native bounding boxes for deduplication
+    const nativeRects = useMemo(() => {
+        if (!nativeTextContent?.items || !viewport) return [];
+        const rects = [];
+        for (const item of nativeTextContent.items) {
+            if (!item.str || item.str.trim() === '') continue;
+            // Native PDF points
+            const tx = item.transform[4];
+            const ty = item.transform[5];
+            const w = item.width || 0;
+            const h = Math.abs(item.transform[3]) || 12;
+
+            // Convert to viewport pixel coordinates
+            const [vx, vyBottom] = viewport.convertToViewportPoint(tx, ty);
+            const [vxRight, vyTop] = viewport.convertToViewportPoint(tx + w, ty + h);
+
+            const PADDING = 15; // 15 pixels padding for loose intersection
+
+            rects.push({
+                left: Math.min(vx, vxRight) - PADDING,
+                right: Math.max(vx, vxRight) + PADDING,
+                top: Math.min(vyTop, vyBottom) - PADDING,
+                bottom: Math.max(vyTop, vyBottom) + PADDING
+            });
+        }
+        return rects;
+    }, [nativeTextContent, viewport]);
 
     // Memoize the spans to avoid re-calc on every render if props stable
     const textSpans = useMemo(() => {
@@ -28,6 +58,16 @@ export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({ tokens, scale: _scal
             const top = y * height;
             const boxWidth = w * width;
             const boxHeight = h * height;
+            const right = left + boxWidth;
+            const bottom = top + boxHeight;
+
+            // Deduplication: skip rendering if OCR token overlaps with native text
+            const isOverlapping = nativeRects.some(nr => {
+                // Check AABB intersection
+                return !(right < nr.left || left > nr.right || bottom < nr.top || top > nr.bottom);
+            });
+
+            if (isOverlapping) return null;
             const fontSize = fontSizeNorm * height;
 
             return (
@@ -57,7 +97,7 @@ export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({ tokens, scale: _scal
                 </span>
             );
         });
-    }, [tokens, width, height, debug]);
+    }, [tokens, width, height, debug, nativeRects]);
 
     return (
         <div
@@ -70,7 +110,7 @@ export const OcrTextLayer: React.FC<OcrTextLayerProps> = ({ tokens, scale: _scal
                 height: `${height}px`,
                 // If Select Mode -> Bring forward (zIndex 20 is typically above canvas but below some UI)
                 // If Not Select -> Send backward (zIndex -1 or just below)
-                zIndex: isSelectMode ? 10 : -1,
+                zIndex: isSelectMode ? 20 : -1,
                 // Only allow interactions in select mode
                 pointerEvents: isSelectMode ? 'auto' : 'none',
                 // Debug helper

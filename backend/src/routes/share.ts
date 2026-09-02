@@ -3,7 +3,6 @@ import { requireAuth } from '../middleware/auth';
 import { firestore } from '../lib/storage';
 import admin from 'firebase-admin';
 import { logAudit } from '../lib/audit'; // Import Audit
-import { revokeUserFileAccess } from '../lib/collab-server'; // Import Revocation
 import {
     findFileDoc,
     findFolderDoc,
@@ -74,7 +73,7 @@ router.get('/link/resolve', async (req, res) => {
         // 6. Fetch Metadata
         let meta: any = null;
         let pdfUrl: string | null = null;
-        let annotationsUrl: string | null = null;
+        let annotations: any = null;
         const ownerId = linkData.creator;
 
         if (linkData.scopeType === 'folder') {
@@ -89,26 +88,26 @@ router.get('/link/resolve', async (req, res) => {
             if (doc && doc.exists) {
                 const data = doc.data()!;
                 meta = { ...data, id: doc.id };
-                // Sanitize - don't expose S3 keys
+                // Sanitize
                 delete meta.s3PdfKey;
                 delete meta.s3AnnotationsKey;
 
-                // For View/Edit: Issue short-lived presigned URLs (5 mins)
+                // For View/Edit: Issue file access URL
                 if (linkData.role === 'view' || linkData.role === 'edit') {
-                    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-                    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
-                    const { s3, S3_BUCKET } = await import('../lib/storage');
+                    pdfUrl = `http://localhost:4000/api/files/${doc.id}/download`;
 
-                    // PDF URL
-                    if (data.s3PdfKey) {
-                        const pdfCommand = new GetObjectCommand({ Bucket: S3_BUCKET, Key: data.s3PdfKey });
-                        pdfUrl = await getSignedUrl(s3, pdfCommand, { expiresIn: 300 }); // 5 minutes
-                    }
-
-                    // Annotations URL - annotations travel with the PDF
-                    if (data.s3AnnotationsKey) {
-                        const annCommand = new GetObjectCommand({ Bucket: S3_BUCKET, Key: data.s3AnnotationsKey });
-                        annotationsUrl = await getSignedUrl(s3, annCommand, { expiresIn: 300 });
+                    // Annotations
+                    const annotationsKey = data.s3AnnotationsKey || data.annotationsRef;
+                    if (annotationsKey) {
+                        try {
+                            const fs = await import('fs');
+                            if (fs.existsSync(annotationsKey)) {
+                                const str = fs.readFileSync(annotationsKey, 'utf8');
+                                annotations = JSON.parse(str);
+                            }
+                        } catch (e: any) {
+                            console.warn('Failed to load annotation content', e);
+                        }
                     }
                 }
             }
@@ -132,15 +131,6 @@ router.get('/link/resolve', async (req, res) => {
             await addToSharedByUser(linkData.creator, linkData.scopeId, uid, linkData.scopeType, 'link');
         }
 
-        // 8. Create Server-Side Share Session (for future edits/uploads/refresh)
-        // For this step, we'll return a signed JWT as the "session ID"
-        // This token allows access to /api/storage/sign for this scope
-        // Payload: { sub: uid || 'anon', scopeId, role, shareId, exp: 10 mins }
-        // Note: In a real "stored session" model, we'd write to Firestore, but JWT is standard stateless session.
-        // We will skip the "shareSessionId" implementation for this immediate response 
-        // and rely on `pdfUrl` for view and `addToSharedWithUser` (persistence) for edit.
-        // The user can re-resolve the link to refresh.
-
         logAudit({
             actor: uid || 'anonymous',
             action: 'share_access',
@@ -154,7 +144,7 @@ router.get('/link/resolve', async (req, res) => {
             meta,
             role: linkData.role,
             pdfUrl,
-            annotationsUrl, // Annotations now travel with PDF
+            annotations,
         });
 
     } catch (err) {
@@ -1077,14 +1067,6 @@ router.post('/revoke', requireAuth, async (req, res) => {
             meta: { targetUid, via: 'direct' }
         });
 
-        // 6. Kill active collab sessions
-        try {
-            const killed = revokeUserFileAccess(scopeId, targetUid);
-            if (killed > 0) console.log(`[Revoke] Terminated ${killed} active sessions.`);
-        } catch (e) {
-            console.error('Failed to kill sessions', e);
-        }
-
         res.json({ ok: true });
 
     } catch (err) {
@@ -1279,23 +1261,23 @@ router.get('/link/access-file', async (req, res) => {
 
         // 3. Generate URLs
         let pdfUrl: string | null = null;
-        let annotationsUrl: string | null = null;
+        let annotations: any = null;
 
         if (linkData.role === 'view' || linkData.role === 'edit') {
-            const { GetObjectCommand } = await import('@aws-sdk/client-s3');
-            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
-            const { s3, S3_BUCKET } = await import('../lib/storage');
+            pdfUrl = `http://localhost:4000/api/files/${fileDoc.id}/download`;
 
-            // PDF URL
-            if (fileData.s3PdfKey) {
-                const pdfCommand = new GetObjectCommand({ Bucket: S3_BUCKET, Key: fileData.s3PdfKey });
-                pdfUrl = await getSignedUrl(s3, pdfCommand, { expiresIn: 300 }); // 5 min
-            }
-
-            // Annotations URL
-            if (fileData.s3AnnotationsKey) {
-                const annCommand = new GetObjectCommand({ Bucket: S3_BUCKET, Key: fileData.s3AnnotationsKey });
-                annotationsUrl = await getSignedUrl(s3, annCommand, { expiresIn: 300 });
+            // 2. Get Annotations JSON Content
+            const annotationsKey = fileData.s3AnnotationsKey || fileData.annotationsRef;
+            if (annotationsKey) {
+                try {
+                    const fs = await import('fs');
+                    if (fs.existsSync(annotationsKey)) {
+                        const str = fs.readFileSync(annotationsKey, 'utf8');
+                        annotations = JSON.parse(str);
+                    }
+                } catch (e: any) {
+                    console.warn('Failed to load annotation content', e);
+                }
             }
         }
 
@@ -1317,7 +1299,7 @@ router.get('/link/access-file', async (req, res) => {
             },
             role: linkData.role,
             pdfUrl,
-            annotationsUrl
+            annotations
         });
 
     } catch (err) {
@@ -1396,11 +1378,9 @@ router.get('/link/zip', async (req, res) => {
         archive.pipe(res);
 
         // 4. Recursive Fetch & Stream
-        const { s3, S3_BUCKET } = await import('../lib/storage'); // Reuse existing s3 client
-        const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+        const fs = await import('fs');
 
         // Helper for recursion
-        // We traverse document references to avoid re-querying `findFolderDoc` constantly
         const processFolder = async (folderRef: any, basePath: string) => {
             const childrenSnap = await folderRef.collection('children').get();
 
@@ -1409,21 +1389,13 @@ router.get('/link/zip', async (req, res) => {
                 const type = data.type || (data.mimeType ? 'file' : 'folder');
 
                 if (type === 'file' && data.s3PdfKey && !data.trash) {
-                    const filePath = basePath + (data.name || 'file') + '.pdf'; // normalized extension
-
+                    const filePath = basePath + (data.name || 'file') + '.pdf';
                     try {
-                        const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: data.s3PdfKey });
-                        // We need a readable stream from S3. 
-                        // AWS SDK v3 returns a generic Body (ReadableStream | Readable | Blob ...).
-                        // archiver accepts Readable.
-                        const s3Item = await s3.send(command);
-                        if (s3Item.Body) {
-                            archive.append(s3Item.Body as any, { name: filePath });
+                        if (fs.existsSync(data.s3PdfKey)) {
+                            archive.file(data.s3PdfKey, { name: filePath });
                         }
                     } catch (e) {
                         console.error(`Failed to zip file ${data.id}:`, e);
-                        // Continue ensuring zip doesn't fail entire request?
-                        // Archiver might handle errors via 'error' event, but we catch generic JS errors here.
                     }
                 } else if (type === 'folder' && !data.trash) {
                     await processFolder(doc.ref, basePath + (data.name || 'folder') + '/');

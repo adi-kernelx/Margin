@@ -15,10 +15,11 @@ const TYPESENSE_CONFIG = {
 };
 
 const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
-const QDRANT_API_KEY = process.env.QDRANT_API_KEY;
+const QDRANT_API_KEY = process.env.QDRANT_API_KEY || 'my-secret-qdrant-key';
 
 export const tsClient = new TypesenseClient(TYPESENSE_CONFIG);
 export const qClient = new QdrantClient({ url: QDRANT_URL, apiKey: QDRANT_API_KEY });
+
 
 export async function searchKeyword(query: string, filterBy: string) {
     return tsClient.collections('pdf_chunks').documents().search({
