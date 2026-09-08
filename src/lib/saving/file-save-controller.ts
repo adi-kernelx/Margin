@@ -175,7 +175,7 @@ export class FileSaveController {
         this.disableAutosave();
         this.autosaveIntervalSec = intervalSec;
 
-        console.log(`[FileSaveController] Enabling autosave for ${this.file.kind === 'local' ? this.file.localFileId : this.file.fileId} every ${intervalSec}s`);
+        console.log(`[FileSaveController] Enabling autosave for ${this.file.localFileId} every ${intervalSec}s`);
 
         this.autosaveTimer = window.setInterval(() => {
             if (this.saveState === 'dirty' || this.saveState === 'idle') {

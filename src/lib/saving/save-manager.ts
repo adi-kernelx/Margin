@@ -4,7 +4,6 @@ import { type EditorFile, type AnnotationData, AUTOSAVE_DEFAULTS } from '../../t
 import { type SaveReason, type SaveResult, type SaveInit, type SaveAdapter } from './types';
 import { FileSaveController } from './file-save-controller';
 import { LocalSaveAdapter } from './local-save-adapter';
-import type { ConflictInfo } from './api-types';
 
 // ============================================
 // Types (Compat + New)
@@ -23,7 +22,6 @@ export interface SaveStoreState {
     lastSavedMsByPdf: Record<string, number>;
 
     // Conflict tracking
-    conflictByPdf: Record<string, ConflictInfo | null>;
 
     // Actions
     setSaveStatus: (id: string, status: SaveStatus) => void;
@@ -31,7 +29,6 @@ export interface SaveStoreState {
     setPermissionGranted: (id: string, granted: boolean) => void;
     setAutosaveEnabled: (id: string, enabled: boolean) => void;
     setNeedsUserAction: (id: string, action: any) => void;
-    setConflict: (id: string, conflict: ConflictInfo | null) => void;
     clearDoc: (id: string) => void;
 }
 
@@ -61,10 +58,6 @@ export const useSaveStore = create<SaveStoreState>((set) => ({
     setNeedsUserAction: (id, action) => set(state => ({
         needsUserAction: { ...state.needsUserAction, [id]: action }
     })),
-    setConflict: (id, conflict) => set(state => ({
-        conflictByPdf: { ...state.conflictByPdf, [id]: conflict },
-        saveStatusByPdf: { ...state.saveStatusByPdf, [id]: conflict ? 'conflict' : state.saveStatusByPdf[id] }
-    })),
     clearDoc: (id) => set(state => {
         const { [id]: _1, ...f } = state.fileHandleByPdf;
         const { [id]: _2, ...d } = state.isDirtyByPdf;
@@ -72,7 +65,6 @@ export const useSaveStore = create<SaveStoreState>((set) => ({
         const { [id]: _4, ...p } = state.permissionGrantedByPdf;
         const { [id]: _5, ...s } = state.saveStatusByPdf;
         const { [id]: _6, ...n } = state.needsUserAction;
-        const { [id]: _7, ...c } = state.conflictByPdf;
         return {
             fileHandleByPdf: f,
             isDirtyByPdf: d,
@@ -80,7 +72,6 @@ export const useSaveStore = create<SaveStoreState>((set) => ({
             permissionGrantedByPdf: p,
             saveStatusByPdf: s,
             needsUserAction: n,
-            conflictByPdf: c
         };
     }),
 }));
@@ -98,7 +89,7 @@ export class SaveManager {
 
     // Helper to get ID
     private getFileId(file: EditorFile): string {
-        return file.kind === 'local' ? file.localFileId : file.fileId;
+        return file.localFileId;
     }
 
     private getAutosaveKey(id: string) {
@@ -107,12 +98,6 @@ export class SaveManager {
 
     async registerFile(file: EditorFile, initialState?: SaveInit) {
         const id = this.getFileId(file);
-
-        // Step 6.7: Viewer behavior (Read-Only)
-        if (file.kind === 'cloud' && file.role === 'viewer') {
-            console.log('[SaveManager] Skipping registration for viewer (read-only):', id);
-            return;
-        }
 
         if (this.controllers.has(id)) {
             // Already registered - safe to ignore
@@ -124,22 +109,8 @@ export class SaveManager {
         if (initialState?.adapter) {
             adapter = initialState.adapter;
         } else {
-            if (file.kind === 'local') {
-                const { localFileDB } = await import('../storage/local-file-db');
-                adapter = new LocalSaveAdapter(file.localFileId, localFileDB);
-            } else {
-                // Cloud File
-                const { CloudSaveAdapter } = await import('./cloud-save-adapter');
-                // The new CloudSaveAdapter reqs: fileId, folderId, apiClient(optional?)
-                // My new CloudSaveAdapter doesn't use the apiClient passed in constructor anymore, 
-                // it uses direct `getClient()` inside. 
-                // But I kept the constructor signature: `constructor(fileId: string, folderId: string, apiClient: RealBackendClient)`
-                // Let's pass null or dummy for apiClient if it's unused, or I should have removed it.
-                // I will update the code to match the constructor I wrote.
-
-                const folderId = file.folderId || 'root'; // Fallback
-                adapter = new CloudSaveAdapter(file.fileId, folderId, file.displayName);
-            }
+            const { localFileDB } = await import('../storage/local-file-db');
+            adapter = new LocalSaveAdapter(file.localFileId, localFileDB);
         }
 
         const controller = new FileSaveController(file, adapter, () => {
@@ -243,7 +214,7 @@ export class SaveManager {
     // Compat method for UI
     getRegisteredDocs() {
         return Array.from(this.controllers.values()).map(c => ({
-            id: c.file.kind === 'local' ? c.file.localFileId : c.file.fileId,
+            id: c.file.localFileId,
             name: c.file.displayName,
             kind: c.file.kind
         }));
@@ -327,108 +298,6 @@ export class SaveManager {
         }
     }
 
-    // ============================================
-    // Conflict Resolution Methods
-    // ============================================
-
-    /**
-     * Resolve conflict by reloading server version
-     * Discards local changes and fetches latest from server
-     */
-    async resolveConflictWithReload(id: string, loadAnnotationsCallback: (annotations: any[]) => void): Promise<void> {
-        const controller = this.controllers.get(id);
-        if (!controller || controller.file.kind !== 'cloud') return;
-
-        console.log('[SaveManager] Resolving conflict with reload for:', id);
-
-        // Clear conflict state
-        useSaveStore.getState().setConflict(id, null);
-
-        // Load latest from server
-        const { CloudSaveAdapter } = await import('./cloud-save-adapter');
-        const adapter = controller.adapter as InstanceType<typeof CloudSaveAdapter>;
-
-        // Fetch latest annotations via API
-        const { annotationService } = await import('../annotation-service');
-        const cloudFile = controller.file as Extract<EditorFile, { kind: 'cloud' }>;
-
-        const annotations = await annotationService.loadAnnotations(cloudFile.fileId, cloudFile.folderId);
-
-        if (annotations) {
-            // Update editor state
-            loadAnnotationsCallback(annotations);
-
-            // Update base hash in adapter (compute hash of loaded data)
-            const json = JSON.stringify({ objects: annotations });
-            const msgBuffer = new TextEncoder().encode(json);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const newHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-            adapter.setBaseHash(newHash);
-
-            // Clear dirty state
-            controller.markClean();
-
-            // Resume autosave
-            if (controller.payloadProvider) {
-                controller.enableAutosave(60, controller.payloadProvider);
-            }
-        }
-    }
-
-    /**
-     * Resolve conflict by force-overwriting server version
-     */
-    async resolveConflictWithOverwrite(id: string): Promise<void> {
-        const controller = this.controllers.get(id);
-        if (!controller || controller.file.kind !== 'cloud') return;
-        if (!controller.payloadProvider) return;
-
-        console.log('[SaveManager] Resolving conflict with overwrite for:', id);
-
-        // Clear conflict state
-        useSaveStore.getState().setConflict(id, null);
-
-        const { CloudSaveAdapter } = await import('./cloud-save-adapter');
-        const adapter = controller.adapter as InstanceType<typeof CloudSaveAdapter>;
-
-        const payload = controller.payloadProvider();
-        await adapter.forceSave(payload);
-
-        // Clear dirty state
-        controller.markClean();
-
-        // Resume autosave
-        if (controller.payloadProvider) {
-            controller.enableAutosave(60, controller.payloadProvider);
-        }
-    }
-
-    /**
-     * Resolve conflict by saving as a copy
-     * Returns the new file ID for the caller to switch context
-     */
-    async resolveConflictWithCopy(id: string): Promise<{ newFileId: string; newDisplayName: string } | null> {
-        const controller = this.controllers.get(id);
-        if (!controller || controller.file.kind !== 'cloud') return null;
-        if (!controller.payloadProvider) return null;
-
-        console.log('[SaveManager] Resolving conflict with copy for:', id);
-
-        // Clear conflict state
-        useSaveStore.getState().setConflict(id, null);
-
-        const { CloudSaveAdapter } = await import('./cloud-save-adapter');
-        const adapter = controller.adapter as InstanceType<typeof CloudSaveAdapter>;
-
-        const payload = controller.payloadProvider();
-        const result = await adapter.saveCopy(payload);
-
-        console.log('[SaveManager] Created copy:', result);
-
-        return result;
-    }
 }
 
 export const saveManager = new SaveManager();

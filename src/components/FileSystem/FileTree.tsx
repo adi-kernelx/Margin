@@ -1,7 +1,7 @@
 
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
-import { useFileSystemStore } from '@/lib/firestore-fs-store';
+import { useFileSystemStore } from '@/lib/local-fs-store';
 import {
     Folder,
     FileText,
@@ -11,19 +11,15 @@ import {
     FilePlus,
     Trash2,
     Edit2,
-    UploadCloud,
     Loader2,
-    Download,
-    Share2
+    Download
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { type FirestoreFolder, type FirestoreFileMetadata } from '@/types/firestore';
-import { uploadService } from '@/lib/upload-service';
-import { ShareDialog } from './ShareDialog';
+import { type LibraryFolder, type LibraryFile } from '@/types/library';
 
 interface FileTreeProps {
     onSelectFolder: (id: string) => void;
-    onOpenFile?: (file: FirestoreFileMetadata) => void;
+    onOpenFile?: (file: LibraryFile) => void;
 }
 
 export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) {
@@ -33,11 +29,8 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
         currentFolderId,
         initialize,
         createFolder,
-        createFileEntry
+        importFiles
     } = useFileSystemStore();
-
-    // Dialog State
-    const [shareDialog, setShareDialog] = useState<{ id: string; type: 'file' | 'folder'; name: string } | null>(null);
 
     useEffect(() => {
         initialize();
@@ -52,17 +45,10 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
         if (name) await createFolder(name, currentFolderId);
     };
 
-    const handleCreateFile = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!currentFolderId) return;
-        const name = prompt("Enter file name (Metadata only):");
-        if (name) await createFileEntry(name, currentFolderId);
-    };
-
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [uploading, setUploading] = useState(false);
+    const [importing, setImporting] = useState(false);
 
-    const handleUploadClick = () => {
+    const handleImportClick = () => {
         if (!currentFolderId) {
             alert("Please select a folder first.");
             return;
@@ -71,17 +57,14 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !currentFolderId) return;
+        const selected = e.target.files;
+        if (!selected?.length || !currentFolderId) return;
 
-        setUploading(true);
+        setImporting(true);
         try {
-            await uploadService.uploadFile(file, currentFolderId);
-            window.location.reload(); // Refresh to show synced file
-        } catch (err: any) {
-            alert(`Upload failed: ${err.message}`);
+            await importFiles(selected, currentFolderId);
         } finally {
-            setUploading(false);
+            setImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
@@ -106,19 +89,12 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
                         <FolderPlus size={14} />
                     </button>
                     <button
-                        onClick={handleCreateFile}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-                        title="New Dummy File"
+                        onClick={handleImportClick}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded relative"
+                        title="Add PDFs"
                     >
                         <FilePlus size={14} />
-                    </button>
-                    <button
-                        onClick={handleUploadClick}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded relative"
-                        title="Upload PDF (Max 5 Free)"
-                    >
-                        <UploadCloud size={14} />
-                        {uploading && (
+                        {importing && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 rounded">
                                 <Loader2 size={10} className="animate-spin text-blue-600" />
                             </div>
@@ -133,6 +109,7 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
                 ref={fileInputRef}
                 className="hidden"
                 accept="application/pdf"
+                multiple
                 onChange={handleFileChange}
             />
 
@@ -146,62 +123,17 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
                         folder={rootFolder}
                         depth={0}
                         onOpenFile={onOpenFile}
-                        onShare={(id, name) => setShareDialog({ id, type: 'folder', name })}
-                        onShareFile={(id, name) => setShareDialog({ id, type: 'file', name })}
                     />
                 </div>
-
-                {/* Shared Sections */}
-                {folders['shared-with-me'] && (
-                    <div className="mb-2 mt-4">
-                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">
-                            Shared With You
-                        </div>
-                        <FolderNode
-                            folder={folders['shared-with-me']}
-                            depth={0}
-                            onOpenFile={onOpenFile}
-                            onShare={(id, name) => setShareDialog({ id, type: 'folder', name })}
-                            onShareFile={(id, name) => setShareDialog({ id, type: 'file', name })}
-                            hideActions={true}
-                        />
-                    </div>
-                )}
-                {folders['shared-by-me'] && (
-                    <div className="mb-2 mt-4">
-                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">
-                            Shared By You
-                        </div>
-                        <FolderNode
-                            folder={folders['shared-by-me']}
-                            depth={0}
-                            onOpenFile={onOpenFile}
-                            onShare={(id, name) => setShareDialog({ id, type: 'folder', name })}
-                            onShareFile={(id, name) => setShareDialog({ id, type: 'file', name })}
-                            hideActions={true}
-                        />
-                    </div>
-                )}
             </div>
-
-            {shareDialog && (
-                <ShareDialog
-                    scopeId={shareDialog.id}
-                    scopeType={shareDialog.type}
-                    name={shareDialog.name}
-                    onClose={() => setShareDialog(null)}
-                />
-            )}
         </div>
     );
 }
 
-function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActions }: {
-    folder: FirestoreFolder,
+function FolderNode({ folder, depth, onOpenFile, hideActions }: {
+    folder: LibraryFolder,
     depth: number,
-    onOpenFile?: (file: FirestoreFileMetadata) => void,
-    onShare: (id: string, name: string) => void,
-    onShareFile: (id: string, name: string) => void,
+    onOpenFile?: (file: LibraryFile) => void,
     hideActions?: boolean
 }) {
     const {
@@ -257,19 +189,22 @@ function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActio
         }
     };
 
-    const handleDownload = async (file: FirestoreFileMetadata) => {
-        if (file.status !== 'synced' && file.storageType !== 'cloud') return;
-        try {
-            const url = await uploadService.getDownloadUrl(file.id, file.parentFolderId, file.ownerUid);
-            window.open(url, '_blank');
-        } catch (err: any) {
-            alert(err.message);
-        }
+    const handleDownload = async (file: LibraryFile) => {
+        const blob = await useFileSystemStore.getState().openFileBlob(file.id);
+        if (!blob) return;
+
+        // Object URLs are never reclaimed by the browser on their own, so the
+        // anchor is revoked as soon as the download has been handed off.
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = file.name;
+        anchor.click();
+        URL.revokeObjectURL(url);
     };
 
-    const handleFileClick = (file: FirestoreFileMetadata) => {
-        // Relax check: allow if synced OR if it's a cloud file (assumed synced if listed)
-        if ((file.status === 'synced' || file.storageType === 'cloud') && onOpenFile) {
+    const handleFileClick = (file: LibraryFile) => {
+        if (file.status === 'ready' && onOpenFile) {
             onOpenFile(file);
         }
     };
@@ -328,35 +263,8 @@ function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActio
                         "items-center gap-1 ml-auto",
                         isSelected ? "flex" : "hidden group-hover:flex"
                     )}>
-                        <button
-                            onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                    await uploadService.downloadFolderZip(folder.id, folder.name, (folder as any).ownerUid);
-                                } catch (err: any) {
-                                    console.error(err);
-                                    if (err.message.includes('Access denied') || err.message.includes('403') || err.message.includes('410') || err.message.includes('404')) {
-                                        alert("Download unavailable. Please contact the owner to update permissions.");
-                                    } else {
-                                        alert(`Download failed: ${err.message}`);
-                                    }
-                                }
-                            }}
-                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
-                            title="Download Zip"
-                        >
-                            <Download size={12} />
-                        </button>
-
                         {!hideActions && (
                             <>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onShare(folder.id, folder.name); }}
-                                    className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-blue-500"
-                                    title="Share Folder"
-                                >
-                                    <Share2 size={12} />
-                                </button>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
@@ -383,8 +291,6 @@ function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActio
                             folder={child}
                             depth={depth + 1}
                             onOpenFile={onOpenFile}
-                            onShare={onShare}
-                            onShareFile={onShareFile}
                             hideActions={hideActions}
                         />
                     ))}
@@ -397,7 +303,6 @@ function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActio
                             onDelete={deleteFile}
                             onClick={() => handleFileClick(file)}
                             onDownload={() => handleDownload(file)}
-                            onShare={() => onShareFile(file.id, file.name)}
                             hideActions={hideActions}
                         />
                     ))}
@@ -407,14 +312,13 @@ function FolderNode({ folder, depth, onOpenFile, onShare, onShareFile, hideActio
     );
 }
 
-function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, onShare, hideActions }: {
-    file: FirestoreFileMetadata,
+function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, hideActions }: {
+    file: LibraryFile,
     depth: number,
     onRename: (fid: string, id: string, name: string) => Promise<void>,
     onDelete: (fid: string, id: string) => Promise<void>,
     onClick: () => void,
     onDownload: () => void,
-    onShare: () => void,
     hideActions?: boolean
 }) {
     const [isEditing, setIsEditing] = useState(false);
@@ -446,18 +350,14 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, onShar
             className="flex items-center group py-1 px-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             style={{ paddingLeft: `${depth * 12 + 28}px` }} // +28 for folder icon offset
             onClick={onClick}
-            title={file.storageType === 'cloud' ? "Cloud File" : "Local File"}
+            title={file.name}
         >
             <div className="mr-2">
-                {file.status === 'uploading' ? (
+                {file.status === 'importing' ? (
                     <Loader2 size={14} className="animate-spin text-blue-500" />
                 ) : (
-                    <FileText size={14} className={cn(file.status === 'synced' ? "text-blue-600" : "text-black")} />
+                    <FileText size={14} className={cn(file.status === 'failed' ? "text-red-500" : "text-blue-600")} />
                 )}
-            </div>
-            {/* Show storage type indicator */}
-            <div className="mr-1 text-[10px] text-gray-400 font-mono uppercase">
-                {file.storageType === 'cloud' ? 'Cloud' : 'Local'}
             </div>
 
             {isEditing ? (
@@ -477,15 +377,6 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, onShar
             {/* Actions (visible on hover or selected) */}
             <div className="hidden group-hover:flex items-center gap-1 ml-auto">
                 {/* Share Button (Only for Cloud) */}
-                {file.storageType === 'cloud' && !hideActions && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onShare(); }}
-                        className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-blue-500"
-                        title="Share File"
-                    >
-                        <Share2 size={12} />
-                    </button>
-                )}
 
                 <button
                     onClick={(e) => { e.stopPropagation(); onDownload(); }}

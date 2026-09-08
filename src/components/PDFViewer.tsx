@@ -14,7 +14,6 @@ import type { Annotation } from '@/lib/annotations/models';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractAnnotations, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
-import { useOcr } from '@/hooks/useOcr';
 import { useClientOcr } from '@/hooks/useClientOcr';
 import { OcrTextLayer } from './OcrTextLayer';
 import type { OcrPageResult } from '@/lib/ocr/client-ocr';
@@ -69,9 +68,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // We only trigger OCR if we have a stable docId and it is a cloud file (parentFolderId exists)
     // stableId from props is usually the hash or UUID. For cloud, fileId is the Firestore Doc ID.
     // The hook expects the Doc ID.
-    const _ocrStatus = useOcr(parentFolderId ? fileId : null);
     // Suppress unused warning
-    void _ocrStatus;
 
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useClientOcr(fileId, pdfDoc);
@@ -473,12 +470,12 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
         console.log('[PDFViewer] Register effect mounting for:', fileId);
 
-        let editorFile: EditorFile;
-        if (parentFolderId) {
-            editorFile = { kind: 'cloud', uid: 'u', folderId: parentFolderId, fileId, displayName: fileName, role };
-        } else {
-            editorFile = { kind: 'local', localFileId: fileId, pdfFingerprint: stableId, displayName: fileName };
-        }
+        const editorFile: EditorFile = {
+            kind: 'local',
+            localFileId: fileId,
+            pdfFingerprint: stableId,
+            displayName: fileName,
+        };
 
         const register = async () => {
             try {
@@ -508,13 +505,9 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     return data;
                 });
 
-                // Initialize Autosave if Cloud
-                // In Collab mode, Autosave might be strictly used for "Snapshots" (not req for persistence as Yjs does it)
-                // But keeping it ensures we have periodic full backup.
-                if (editorFile.kind === 'cloud') {
-                    console.log('[PDFViewer] Enabling autosave (Cloud)');
-                    saveManager.enableAutosave(fileId);
-                }
+                // Local files autosave to IndexedDB on the same schedule the
+                // cloud path used to, so a crash never costs more than one interval.
+                saveManager.enableAutosave(fileId);
             } catch (err) {
                 console.error('[PDFViewer] Failed to register file:', err);
             }

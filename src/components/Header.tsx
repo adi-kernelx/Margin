@@ -1,5 +1,4 @@
-import { Plus, X, Settings as SettingsIcon, LogOut, User as UserIcon, Sparkles, RotateCw } from 'lucide-react';
-import { useAuthStore } from '@/lib/auth-store';
+import { Plus, X, Settings as SettingsIcon, Sparkles, RotateCw } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { SettingsModal } from './SettingsModal';
 
@@ -21,16 +20,11 @@ interface HeaderProps {
 
 export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat }: HeaderProps) {
     const { isDarkMode, focusedDocId, setFocusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
-    const { logout, user } = useAuthStore();
     const [showSettings, setShowSettings] = useState(false);
 
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; docId: string } | null>(null);
-
-    const handleSignIn = () => {
-        window.location.href = '/login';
-    };
 
     const handleContextMenu = (e: React.MouseEvent, docId: string) => {
         e.preventDefault();
@@ -213,23 +207,6 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                 >
                     <SettingsIcon size={18} />
                 </button>
-                {user ? (
-                    <button
-                        onClick={() => logout()}
-                        className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
-                        title="Sign Out"
-                    >
-                        <LogOut size={18} />
-                    </button>
-                ) : (
-                    <button
-                        onClick={handleSignIn}
-                        className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
-                        title="Sign In"
-                    >
-                        <UserIcon size={18} />
-                    </button>
-                )}
             </div>
 
             <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />

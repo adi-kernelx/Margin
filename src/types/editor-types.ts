@@ -63,23 +63,15 @@ export interface PendingSave {
     createdAt: number;
 }
 
-// A3. Unified File Identity Model (important)
-// Introduce a runtime-only abstraction so the editor doesn’t care whether a file is local or cloud.
-export type EditorFile =
-    | {
-        kind: "local";
-        localFileId: string;
-        pdfFingerprint: string;
-        displayName: string;
-    }
-    | {
-        kind: "cloud";
-        uid: string;
-        folderId: string;
-        fileId: string;
-        displayName: string;
-        role: "owner" | "editor" | "viewer";
-    };
+// A3. Unified File Identity Model.
+// Only one kind survives now that storage is local-only; the discriminant is
+// kept so the editor keeps a single place to add a second backing store later.
+export type EditorFile = {
+    kind: "local";
+    localFileId: string;
+    pdfFingerprint: string;
+    displayName: string;
+};
 
 // A4. Annotation state contract (shared)
 // Both local and cloud save pipelines must write identical JSON.
