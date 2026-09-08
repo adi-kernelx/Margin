@@ -1,5 +1,13 @@
-import type { Annotation, Operation } from './models';
+// Storage-bound operation log.
+//
+// The command factories moved to @/core/annotations/operations so they can be
+// tested without IndexedDB; they are re-exported here so existing call sites
+// keep working.
+
+import type { Operation } from './models';
 import { annotationStorage } from './storage';
+
+export * from '@/core/annotations/operations';
 
 // Command pattern for undo/redo
 export class OperationLog {
@@ -95,80 +103,3 @@ export class OperationLog {
     }
 }
 
-// Helper functions to create operations
-export function createAddOperation(annotation: Annotation, docId: string): Operation {
-    return {
-        id: `op-${Date.now()}-${Math.random()}`,
-        docId,
-        type: 'add-annotation',
-        timestamp: Date.now(),
-        data: { annotation },
-        inverse: {
-            id: `op-${Date.now()}-${Math.random()}`,
-            docId,
-            type: 'delete-annotation',
-            timestamp: Date.now(),
-            data: { id: annotation.id },
-        },
-    };
-}
-
-export function createUpdateOperation(
-    annotation: Annotation,
-    previousState: Annotation,
-    docId: string
-): Operation {
-    return {
-        id: `op-${Date.now()}-${Math.random()}`,
-        docId,
-        type: 'update-annotation',
-        timestamp: Date.now(),
-        data: { annotation },
-        inverse: {
-            id: `op-${Date.now()}-${Math.random()}`,
-            docId,
-            type: 'update-annotation',
-            timestamp: Date.now(),
-            data: { annotation: previousState },
-        },
-    };
-}
-
-export function createDeleteOperation(annotation: Annotation, docId: string): Operation {
-    return {
-        id: `op-${Date.now()}-${Math.random()}`,
-        docId,
-        type: 'delete-annotation',
-        timestamp: Date.now(),
-        data: { id: annotation.id },
-        inverse: {
-            id: `op-${Date.now()}-${Math.random()}`,
-            docId,
-            type: 'add-annotation',
-            timestamp: Date.now(),
-            data: { annotation },
-        },
-    };
-}
-
-export function createBatchOperation(operations: Operation[], docId: string): Operation {
-    return {
-        id: `op-${Date.now()}-${Math.random()}`,
-        docId,
-        type: 'batch',
-        timestamp: Date.now(),
-        data: { operations },
-        inverse: {
-            id: `op-${Date.now()}-${Math.random()}`,
-            docId,
-            type: 'batch',
-            timestamp: Date.now(),
-            data: {
-                operations: operations
-                    .map(op => op.inverse)
-                    .filter(Boolean)
-                    .reverse(),
-            },
-        },
-    };
-}

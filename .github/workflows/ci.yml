@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      # The core/shell boundary is the one architectural rule worth failing a
+      # build over: if src/core picks up a DOM, storage or framework import it
+      # stops being testable in Node, and the split quietly stops being real.
+      # Gated at zero; the rest of the codebase still has a lint backlog.
+      - name: Core boundary
+        run: npx eslint src/core --max-warnings 0
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npx vite build

@@ -1,3 +1,4 @@
+@import './styles/tokens.css';
 @import 'pdfjs-dist/web/pdf_viewer.css';
 @tailwind base;
 @tailwind components;
