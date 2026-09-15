@@ -3,6 +3,8 @@ import { applyOperationToAnnotations } from '@/core/annotations/apply';
 import { createAddOperation, createBatchOperation, createDeleteOperation } from '@/core/annotations/operations';
 import { makeShape, strokeCovering } from '@/core/annotations/test-factories';
 import type { Annotation } from '@/core/annotations/models';
+import { applyOperationToPageDocument, createPageDocument } from '@/core/pages/document';
+import { createMovePageOperation } from '@/core/annotations/operations';
 
 vi.mock('./storage', () => ({
     annotationStorage: {
@@ -50,5 +52,21 @@ describe('OperationManager visible projection', () => {
         await manager.addOperation(batch);
         await manager.undoLocal('doc');
         expect(visible).toEqual([original]);
+    });
+
+    it('uses the same history for page operations', async () => {
+        const { OperationManager } = await import('./operation-manager');
+        const manager = new OperationManager();
+        const page = (id: string) => ({ id, kind: 'blank' as const, width: 100, height: 200, rotation: 0 as const });
+        const initial = createPageDocument([page('a'), page('b')]);
+        const operation = createMovePageOperation('a', 0, 1, 'doc');
+        let visible = applyOperationToPageDocument(initial, operation);
+        manager.subscribe('doc', command => { visible = applyOperationToPageDocument(visible, command); });
+
+        await manager.addOperation(operation);
+        await manager.undoLocal('doc');
+        expect(visible).toEqual(initial);
+        await manager.redoLocal('doc');
+        expect(visible.pages.map(item => item.id)).toEqual(['b', 'a']);
     });
 });

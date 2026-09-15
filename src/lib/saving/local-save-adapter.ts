@@ -54,7 +54,9 @@ export class LocalSaveAdapter implements SaveAdapter {
                 const baseName = state.displayName.replace(/\.pdf$/i, '');
 
                 // A. Get Original PDF (use pristine if available)
-                const pdfBytes = await this.getPristinePdfBytes(state.pdfFileHandle);
+                const pdfBytes = job.pdfBytes
+                    ? job.pdfBytes.slice().buffer
+                    : await this.getPristinePdfBytes(state.pdfFileHandle);
 
                 // B. Flatten PDF
                 const { flattenLocalPDF } = await import('./flatten-service'); // Dynamic load
@@ -93,7 +95,9 @@ export class LocalSaveAdapter implements SaveAdapter {
 
         try {
             // 1. Get the PRISTINE (pre-flatten) PDF bytes — never the already-flattened file
-            const pdfBytes = await this.getPristinePdfBytes(state.pdfFileHandle);
+            const pdfBytes = job.pdfBytes
+                ? job.pdfBytes.slice().buffer
+                : await this.getPristinePdfBytes(state.pdfFileHandle);
 
             // 2. Import service
             const { flattenLocalPDF } = await import('./flatten-service');

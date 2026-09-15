@@ -1,5 +1,7 @@
 // Core annotation data models
 
+import type { PageRecord, PageRotation } from '@/core/pages/models';
+
 export type AnnotationType =
     | 'stroke'      // Freehand drawing
     | 'highlight'   // Text/freehand highlight
@@ -32,6 +34,8 @@ export interface BaseAnnotation {
     id: string;                    // UUID
     type: AnnotationType;
     pageNum: number;
+    /** Durable page anchor. pageNum remains a derived compatibility field. */
+    pageId?: string;
     createdAt: number;
     updatedAt: number;
     author?: string;
@@ -189,6 +193,10 @@ export type OperationType =
     | 'update-annotation'
     | 'delete-annotation'
     | 'split-stroke'
+    | 'add-page'
+    | 'delete-page'
+    | 'move-page'
+    | 'rotate-page'
     | 'batch';
 
 interface OperationBase {
@@ -212,4 +220,8 @@ export type Operation =
     | (OperationBase & { type: 'update-annotation'; data: { annotation: Annotation } })
     | (OperationBase & { type: 'delete-annotation'; data: { id: string } })
     | (OperationBase & { type: 'split-stroke'; data: { originalId: string; segments: Annotation[] } })
+    | (OperationBase & { type: 'add-page'; data: { page: PageRecord; index: number } })
+    | (OperationBase & { type: 'delete-page'; data: { pageId: string } })
+    | (OperationBase & { type: 'move-page'; data: { pageId: string; toIndex: number } })
+    | (OperationBase & { type: 'rotate-page'; data: { pageId: string; rotation: PageRotation } })
     | (OperationBase & { type: 'batch'; data: { operations: Operation[] } });

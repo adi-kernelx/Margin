@@ -21,6 +21,11 @@ export function applyOperationToAnnotations(
                 ...annotations.filter(item => item.id !== operation.data.originalId),
                 ...operation.data.segments,
             ];
+        case 'add-page':
+        case 'delete-page':
+        case 'move-page':
+        case 'rotate-page':
+            return annotations;
         case 'batch':
             return operation.data.operations.reduce(applyOperationToAnnotations, annotations);
     }

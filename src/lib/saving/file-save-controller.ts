@@ -17,6 +17,7 @@ export class FileSaveController {
     file: EditorFile;
     adapter: SaveAdapter;
     payloadProvider?: () => AnnotationData;
+    pdfProvider?: () => Promise<Uint8Array>;
 
     private _saveState: SaveState = 'idle';
     onStateChange?: (state: SaveState) => void;
@@ -57,7 +58,7 @@ export class FileSaveController {
 
         // B9. Hash-based short-circuit
         const newHash = await hashAnnotationData(payload);
-        if (this.lastSavedHash === newHash && reason !== 'flatten' && reason !== 'save-as') {
+        if (this.lastSavedHash === newHash && (reason === 'manual' || reason === 'autosave')) {
             // Skip redundant save, but if it was autosave, we just return success.
             // If manual, we might want to pretend we saved or say "nothing to save".
             // The prompt says "skip save".
@@ -66,10 +67,12 @@ export class FileSaveController {
             return { success: true };
         }
 
+        const needsPdf = reason === 'flatten' || reason === 'save-as' || reason === 'download-package';
         const job: SaveJob = {
             reason,
             payload,
-            requestedAt: Date.now()
+            requestedAt: Date.now(),
+            pdfBytes: needsPdf ? await this.pdfProvider?.() : undefined,
         };
 
         this.queue.enqueue(job);

@@ -1,5 +1,6 @@
 
 import type { Annotation } from '../lib/annotations/models';
+import type { PageDocument } from '@/core/pages/models';
 
 // A2. Client-side Local File Registry (IndexedDB)
 // Local files must not pollute Firestore. All local-only state lives in IndexedDB.
@@ -82,6 +83,7 @@ export interface AnnotationData {
     pageCount: number;
 
     objects: Annotation[]; // strokes, shapes, text, images, math
+    pageDocument?: PageDocument;
 
     createdAt: number;
     updatedAt: number;

@@ -282,6 +282,12 @@ export class OperationManager {
                     await annotationStorage.saveAnnotation(segment, op.docId);
                 }
                 break;
+            case 'add-page':
+            case 'delete-page':
+            case 'move-page':
+            case 'rotate-page':
+                // Page state is persisted by the PDF viewer's page workspace.
+                break;
             case 'batch':
                 for (const subOp of op.data.operations) {
                     await this.applyInternal({ ...subOp, docId: op.docId } as Operation);

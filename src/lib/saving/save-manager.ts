@@ -245,6 +245,11 @@ export class SaveManager {
         }
     }
 
+    setPdfProvider(id: string, provider: () => Promise<Uint8Array>) {
+        const controller = this.controllers.get(id);
+        if (controller) controller.pdfProvider = provider;
+    }
+
     enableAutosave(
         fileOrId: EditorFile | string,
         getCurrentPayload?: () => AnnotationData,

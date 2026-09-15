@@ -10,6 +10,7 @@
 // `op.inverse` rather than reconstructing what the operation did.
 
 import type { Annotation, Operation } from './models';
+import type { PageRecord, PageRotation } from '@/core/pages/models';
 
 let counter = 0;
 
@@ -70,6 +71,48 @@ export function createDeleteOperation(annotation: Annotation, docId: string): Op
             type: 'add-annotation',
             timestamp: Date.now(),
             data: { annotation },
+        },
+    };
+}
+
+export function createAddPageOperation(page: PageRecord, index: number, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'add-page', timestamp: Date.now(), data: { page, index },
+        inverse: {
+            id: operationId(), docId, type: 'delete-page', timestamp: Date.now(), data: { pageId: page.id },
+        },
+    };
+}
+
+export function createDeletePageOperation(page: PageRecord, index: number, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'delete-page', timestamp: Date.now(), data: { pageId: page.id },
+        inverse: {
+            id: operationId(), docId, type: 'add-page', timestamp: Date.now(), data: { page, index },
+        },
+    };
+}
+
+export function createMovePageOperation(pageId: string, fromIndex: number, toIndex: number, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'move-page', timestamp: Date.now(), data: { pageId, toIndex },
+        inverse: {
+            id: operationId(), docId, type: 'move-page', timestamp: Date.now(), data: { pageId, toIndex: fromIndex },
+        },
+    };
+}
+
+export function createRotatePageOperation(
+    pageId: string,
+    rotation: PageRotation,
+    previousRotation: PageRotation,
+    docId: string,
+): Operation {
+    return {
+        id: operationId(), docId, type: 'rotate-page', timestamp: Date.now(), data: { pageId, rotation },
+        inverse: {
+            id: operationId(), docId, type: 'rotate-page', timestamp: Date.now(),
+            data: { pageId, rotation: previousRotation },
         },
     };
 }

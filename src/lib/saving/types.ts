@@ -14,6 +14,8 @@ export interface SaveJob {
     reason: SaveReason;
     payload: AnnotationData;
     requestedAt: number;
+    /** Current materialized PDF after page operations. Only populated for PDF exports. */
+    pdfBytes?: Uint8Array;
 }
 
 export type SaveResult = {

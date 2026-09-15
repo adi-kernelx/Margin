@@ -3,7 +3,7 @@
 A local-first reading and annotation workspace for mathematical documents — textbooks,
 papers, problem sets.
 
-> **Status: in development, week 6 of 17.** This README describes what is
+> **Status: in development, week 7 of 17.** This README describes what is
 > actually in the tree today, and says plainly what isn't built yet. The
 > [roadmap](#roadmap) is the honest version. Nothing below is aspirational; if a
 > section describes behaviour, that behaviour exists.
@@ -18,6 +18,10 @@ papers, problem sets.
   fitted cubic Bézier paths in a worker. Point erasure uses exact swept-disc
   geometry and refits the surviving stroke pieces.
 - **Undo/redo** — every edit is a command carrying its own inverse, on one stack.
+- **Page operations** — every page has a stable UUID independent of its current
+  position. The page organizer can add blanks, delete, drag-reorder, rotate,
+  merge another PDF, extract a selection, and split a document. Page edits and
+  the annotations attached to them share the same undo/redo history.
 - **Local library** — folders and files in IndexedDB. Import PDFs, organise them,
   open them. Nothing leaves the machine.
 - **Multi-document workspace** — open documents live as tabs in a recursive pane tree. Drag a tab to a pane edge to split (up to four visible panes), drag it to the centre to move it, and resize dividers with a pointer or arrow keys. Hidden tabs release their PDF renderer because only each pane's active tab is mounted.
@@ -32,7 +36,6 @@ papers, problem sets.
 
 Named explicitly, because a README that overstates is worse than one that omits:
 
-- No page operations (add, delete, reorder, rotate, merge, split).
 - No notes panel.
 - No object store, no version history, no document diffing.
 - No layout-detection or reading-order ML.
@@ -73,6 +76,7 @@ may import the core; the core may never import a shell.
 src/
   core/annotations/    models, command factories, quadtree spatial index   (pure)
   core/ink/            coordinates, exact eraser geometry, fitting, prediction (pure)
+  core/pages/          stable page identities, page commands, annotation transforms (pure)
   core/workspace/      pane-layout tree, tab movement, split and resize    (pure)
   core/ui/             virtual-list range calculations                     (pure)
   lib/annotations/     operation log, storage, autosave, pointer handling
@@ -145,7 +149,7 @@ at zero and is the part CI gates.
 | 1–2   | Demolition, core/shell split, tests, CI, design tokens |
 | 3–4   | App shell, pane grid, component primitives — complete |
 | 5–6   | Ink quality: layered canvases, Bézier fitting, latency prediction, exact eraser — complete |
-| 7     | Page operations on stable page IDs |
+| 7     | Page operations on stable page IDs — complete |
 | 8     | Notes panel, library grid, full-text search |
 | 9     | **Milestone — containerised, demoable, documented** |
 | 10–11 | Content-addressed object store, version history, document diffing |

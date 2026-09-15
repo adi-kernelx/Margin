@@ -7,7 +7,16 @@ import { saveManager } from '@/lib/saving/save-manager';
 import type { EditorFile, AnnotationData } from '@/types/editor-types';
 import { annotationStorage } from '@/lib/annotations/storage';
 import { operationManager } from '@/lib/annotations/operation-manager';
-import { createAddOperation, createBatchOperation, createDeleteOperation, createUpdateOperation } from '@/lib/annotations/operations';
+import {
+    createAddOperation,
+    createAddPageOperation,
+    createBatchOperation,
+    createDeleteOperation,
+    createDeletePageOperation,
+    createMovePageOperation,
+    createRotatePageOperation,
+    createUpdateOperation,
+} from '@/lib/annotations/operations';
 import { applyOperationToAnnotations } from '@/core/annotations/apply';
 import { AnnotationCanvas } from './AnnotationCanvas';
 import { MathModal } from './MathModal';
@@ -19,6 +28,26 @@ import { useClientOcr } from '@/hooks/useClientOcr';
 import { OcrTextLayer } from './OcrTextLayer';
 import type { OcrPageResult } from '@/lib/ocr/client-ocr';
 import { localSearchRegistry } from '@/lib/search/local-search';
+import type { PageDocument, PageRecord } from '@/core/pages/models';
+import {
+    annotationsForExistingPages,
+    applyOperationToPageDocument,
+    attachAnnotationsToPageIds,
+    createPageDocument,
+    rotateBy,
+} from '@/core/pages/document';
+import {
+    createInitialPageDocument,
+    describePdfSource,
+    downloadPdf,
+    exportPageRecords,
+    materializePageDocument,
+} from '@/lib/pages/pdf-pages';
+import { pageWorkspaceStorage } from '@/lib/pages/storage';
+import { PageOrganizer } from './PageOrganizer';
+import { Button } from './ui/Button';
+import { LayoutGrid } from 'lucide-react';
+import { rotateAnnotation } from '@/core/pages/annotations';
 
 // Configure worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -39,9 +68,20 @@ interface PDFViewerProps {
 export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, role = 'owner', displayName, annotationsUrl, shareId, linkToken }: PDFViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-    const [pages, setPages] = useState<number[]>([]);
+    const [pageDocument, setPageDocument] = useState<PageDocument | null>(null);
+    const pageDocumentRef = useRef<PageDocument | null>(null);
+    const workingPdfBytesRef = useRef<Uint8Array | null>(null);
+    const pageRenderRevisionRef = useRef(0);
+    const [showPageOrganizer, setShowPageOrganizer] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const annotationsRef = useRef<Annotation[]>([]);
+    const setLoadedAnnotations = useCallback((loaded: Annotation[]) => {
+        const document = pageDocumentRef.current;
+        const next = document ? attachAnnotationsToPageIds(loaded, document) : loaded;
+        annotationsRef.current = next;
+        setAnnotations(next);
+        void annotationStorage.saveSidecar(stableId, next);
+    }, [stableId]);
     const [showMathModal, setShowMathModal] = useState(false);
     
     // To prevent "unused variable" warnings
@@ -162,49 +202,84 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         if (editingMathAnnotation) setShowMathModal(true);
     }, [editingMathAnnotation]);
 
+    const loadSource = useCallback(
+        (sourceId: string) => pageWorkspaceStorage.loadSource(stableId, sourceId),
+        [stableId],
+    );
+
+    const displayPageDocument = useCallback(async (document: PageDocument) => {
+        const revision = ++pageRenderRevisionRef.current;
+        const bytes = await materializePageDocument(document, loadSource);
+        const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
+        const doc = await loadingTask.promise;
+        if (revision !== pageRenderRevisionRef.current) {
+            await doc.destroy();
+            return;
+        }
+
+        workingPdfBytesRef.current = bytes;
+        setPdfDoc(previous => {
+            if (previous) void previous.destroy();
+            return doc;
+        });
+        pageCountRef.current = document.pages.length;
+
+        const dims: { [key: number]: { width: number, height: number } } = {};
+        for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+            const page = await doc.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 1 });
+            dims[pageNumber] = { width: viewport.width, height: viewport.height };
+        }
+        if (revision === pageRenderRevisionRef.current) setPageDimensions(dims);
+    }, [loadSource]);
+
+    const updatePageDocument = useCallback(async (document: PageDocument) => {
+        pageDocumentRef.current = document;
+        setPageDocument(document);
+        await pageWorkspaceStorage.saveDocument(stableId, document);
+        await displayPageDocument(document);
+    }, [displayPageDocument, stableId]);
+
     // File Loading
     useEffect(() => {
         if (!file && !fileUrl) return;
+        let mounted = true;
         const loadPdf = async () => {
             try {
-                let loadingTask;
-                if (file) {
-                    const arrayBuffer = await file.arrayBuffer();
-                    loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-                } else if (fileUrl) {
-                    loadingTask = pdfjsLib.getDocument(fileUrl);
+                const bytes = file
+                    ? new Uint8Array(await file.arrayBuffer())
+                    : new Uint8Array(await (await fetch(fileUrl!)).arrayBuffer());
+                if (!mounted) return;
+
+                let document = await pageWorkspaceStorage.loadDocument(stableId);
+                if (!document) {
+                    await pageWorkspaceStorage.saveSource(stableId, 'original', bytes);
+                    document = await createInitialPageDocument(bytes);
+                    await pageWorkspaceStorage.saveDocument(stableId, document);
+                } else if (!await pageWorkspaceStorage.loadSource(stableId, 'original')) {
+                    await pageWorkspaceStorage.saveSource(stableId, 'original', bytes);
                 }
-
-                if (!loadingTask) return;
-
-                const doc = await loadingTask.promise;
-                setPdfDoc(doc);
-                const numPages = doc.numPages;
-                setPages(Array.from({ length: numPages }, (_, i) => i + 1));
-                pageCountRef.current = numPages;
+                if (!mounted) return;
+                pageDocumentRef.current = document;
+                setPageDocument(document);
+                setLoadedAnnotations(annotationsRef.current);
+                await displayPageDocument(document);
 
                 // Dispatch fingerprint for search indexing
-                const fingerprint = doc.fingerprints?.[0];
+                const fingerprint = stableId;
                 if (fingerprint && fileId) {
                     window.dispatchEvent(new CustomEvent('pdf-loaded', {
                         detail: { fileId, fingerprint }
                     }));
                 }
 
-                const dims: { [key: number]: { width: number, height: number } } = {};
-                for (let i = 1; i <= doc.numPages; i++) {
-                    const p = await doc.getPage(i);
-                    const vp = p.getViewport({ scale: 1 });
-                    dims[i] = { width: vp.width, height: vp.height };
-                }
-                setPageDimensions(dims);
-
             } catch (error) {
                 console.error('Error loading PDF:', error);
             }
         };
         loadPdf();
-    }, [file, fileUrl, fileId]);
+        return () => { mounted = false; };
+    }, [displayPageDocument, file, fileUrl, fileId, stableId]);
 
     // ------------------------------------------------------------------------
     // REAL-TIME COLLABORATION SETUP (REMOVED)
@@ -226,7 +301,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                         const annots = Array.isArray(data) ? data : (data.objects || data.annotations || []);
                         if (Array.isArray(annots) && mounted) {
                             console.log('[PDFViewer] Loaded annotations from URL:', annots.length);
-                            setAnnotations(annots);
+                            setLoadedAnnotations(annots);
                         }
                     }
                 } catch (e) {
@@ -246,7 +321,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                             const annots = Array.isArray(data) ? data : (data.objects || data.annotations || []);
                             if (Array.isArray(annots) && mounted) {
                                 console.log('[PDFViewer] Loaded annotations from URL:', annots.length);
-                                setAnnotations(annots);
+                                setLoadedAnnotations(annots);
                             }
                         }
                     } catch (e) {
@@ -278,9 +353,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                             if (Array.isArray(annots)) {
                                 console.log('[PDFViewer] Loaded from associated JSON file:', annots.length);
                                 if (mounted) {
-                                    setAnnotations(annots);
-                                    // Update sidecar for consistency
-                                    await annotationStorage.saveSidecar(stableId, annots);
+                                    setLoadedAnnotations(annots);
                                 }
                                 return;
                             }
@@ -319,7 +392,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     if (backup) {
                         console.log('[PDFViewer] Recovered backup from:', new Date(backup.updatedAt).toISOString());
                         if (backup.annotationsJSON && Array.isArray(backup.annotationsJSON.objects)) {
-                            if (mounted) setAnnotations(backup.annotationsJSON.objects);
+                            if (mounted) setLoadedAnnotations(backup.annotationsJSON.objects);
                             return;
                         }
                     }
@@ -334,9 +407,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 if (!mounted) return;
                 if (embedded) {
                     console.log('[PDFViewer] Loaded from embedded data:', embedded.length);
-                    setAnnotations(embedded);
-                    // Sync embedded data to sidecar for future local reliability
-                    await annotationStorage.saveSidecar(stableId, embedded);
+                    setLoadedAnnotations(embedded);
                     return;
                 }
             }
@@ -346,10 +417,10 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             if (!mounted) return;
             if (loaded) {
                 console.log('[PDFViewer] Sidecar found:', loaded.length, 'annotations');
-                setAnnotations(loaded);
+                setLoadedAnnotations(loaded);
             } else {
                 console.log('[PDFViewer] No sidecar or embedded data found.');
-                setAnnotations([]);
+                setLoadedAnnotations([]);
             }
         };
         loadAnnotations();
@@ -357,7 +428,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         return () => {
             mounted = false;
         };
-    }, [stableId, file, fileId, parentFolderId]); 
+    }, [stableId, file, fileId, parentFolderId, setLoadedAnnotations]);
 
     // External JSON Load Event Listener
     useEffect(() => {
@@ -365,15 +436,14 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             if (e.detail.docId === fileId) {
                 console.log('[PDFViewer] External JSON loaded:', e.detail.annotations.length);
 
-                setAnnotations(e.detail.annotations);
-                annotationStorage.saveSidecar(stableId, e.detail.annotations);
+                setLoadedAnnotations(e.detail.annotations);
                 saveManager.markDirty(fileId);
             }
         };
 
         window.addEventListener('pdf-editor:load-json' as any, handleExternalLoad as any);
         return () => window.removeEventListener('pdf-editor:load-json' as any, handleExternalLoad as any);
-    }, [fileId, stableId]);
+    }, [fileId, stableId, setLoadedAnnotations]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -396,23 +466,35 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // Undo/redo commands update the same React projection used by the canvases.
     // Storage alone cannot do this because sidecars are persisted as a document snapshot.
     useEffect(() => operationManager.subscribe(fileId, operation => {
+        const currentDocument = pageDocumentRef.current;
+        const nextDocument = currentDocument
+            ? applyOperationToPageDocument(currentDocument, operation)
+            : null;
+        if (currentDocument && nextDocument && nextDocument !== currentDocument) {
+            void updatePageDocument(nextDocument);
+        }
         setAnnotations(previous => {
-            const next = applyOperationToAnnotations(previous, operation);
+            const operated = applyOperationToAnnotations(previous, operation);
+            const next = nextDocument ? attachAnnotationsToPageIds(operated, nextDocument) : operated;
             annotationsRef.current = next;
             scheduleSidecarSave(next);
             return next;
         });
         saveManager.markDirty(fileId);
         setIsDirty(true);
-    }), [fileId, scheduleSidecarSave, setIsDirty]);
+    }), [fileId, scheduleSidecarSave, setIsDirty, updatePageDocument]);
 
 
     // PDF Generation (Smart Save: Embedded vs Flattened)
     const generatePdfBytes = useCallback(async (flatten: boolean = false): Promise<Uint8Array> => {
-        if (!file || !pdfDoc) throw new Error("No file loaded");
+        const currentBytes = workingPdfBytesRef.current;
+        if (!currentBytes || !pdfDoc) throw new Error("No file loaded");
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdfLibDoc = await PDFDocument.load(arrayBuffer);
+        const pdfLibDoc = await PDFDocument.load(currentBytes);
+        const currentDocument = pageDocumentRef.current;
+        const visibleAnnotations = currentDocument
+            ? attachAnnotationsToPageIds(annotationsForExistingPages(annotations, currentDocument), currentDocument)
+            : annotations;
 
         if (flatten) {
             // FLATTENED EXPORT (Pixels)
@@ -424,7 +506,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 const pdfPage = pdfLibDoc.getPage(i);
                 const { width, height } = pdfPage.getSize();
 
-                const pageAnnotations = annotations.filter(a => a.pageNum === pageNum);
+                const pageAnnotations = visibleAnnotations.filter(a => a.pageNum === pageNum);
                 if (pageAnnotations.length === 0) continue;
 
                 const exportScale = 2;
@@ -447,11 +529,11 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 });
             }
         } else {
-            await embedAnnotations(pdfLibDoc, annotations);
+            await embedAnnotations(pdfLibDoc, visibleAnnotations);
         }
 
         return await pdfLibDoc.save();
-    }, [file, pdfDoc, annotations]);
+    }, [pdfDoc, annotations]);
 
     // Ref for getBlob to access latest state
     const getBlobRef = useRef<(flatten?: boolean) => Promise<Blob>>(async () => new Blob());
@@ -500,14 +582,20 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     const pageCount = pageCountRef.current;
 
                     const data: AnnotationData = {
-                        schemaVersion: 1,
+                        schemaVersion: 2,
                         editorVersion: '1.0.0',
                         pageCount: pageCount > 0 ? pageCount : 1,
                         objects: currentAnnotations,
+                        pageDocument: pageDocumentRef.current ?? undefined,
                         createdAt: Date.now(),
                         updatedAt: Date.now()
                     };
                     return data;
+                });
+                saveManager.setPdfProvider(fileId, async () => {
+                    const bytes = workingPdfBytesRef.current;
+                    if (!bytes) throw new Error('PDF is not ready');
+                    return bytes;
                 });
 
                 // Local files autosave to IndexedDB on the same schedule the
@@ -542,10 +630,12 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     }, [fileId, scheduleSidecarSave, setIsDirty]);
 
     const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
-        const previous = annotationsRef.current.find(item => item.id === annotation.id);
+        const page = pageDocumentRef.current?.pages[annotation.pageNum - 1];
+        const anchored = page ? { ...annotation, pageId: page.id } : annotation;
+        const previous = annotationsRef.current.find(item => item.id === anchored.id);
         const operation = previous
-            ? createUpdateOperation(annotation, previous, fileId)
-            : createAddOperation(annotation, fileId);
+            ? createUpdateOperation(anchored, previous, fileId)
+            : createAddOperation(anchored, fileId);
         await commitAnnotationOperation(operation);
     }, [commitAnnotationOperation, fileId]);
 
@@ -560,11 +650,135 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             const annotation = annotationsRef.current.find(item => item.id === id);
             if (annotation) operations.push(createDeleteOperation(annotation, fileId));
         }
-        for (const annotation of created) operations.push(createAddOperation(annotation, fileId));
+        for (const annotation of created) {
+            const page = pageDocumentRef.current?.pages[annotation.pageNum - 1];
+            operations.push(createAddOperation(page ? { ...annotation, pageId: page.id } : annotation, fileId));
+        }
         if (operations.length > 0) {
             await commitAnnotationOperation(createBatchOperation(operations, fileId));
         }
     }, [commitAnnotationOperation, fileId]);
+
+    const commitPageOperation = useCallback(async (operation: Operation) => {
+        const current = pageDocumentRef.current;
+        if (!current) return;
+        const nextDocument = applyOperationToPageDocument(current, operation);
+        if (nextDocument === current) return;
+        const operatedAnnotations = applyOperationToAnnotations(annotationsRef.current, operation);
+        const nextAnnotations = attachAnnotationsToPageIds(operatedAnnotations, nextDocument);
+        annotationsRef.current = nextAnnotations;
+        setAnnotations(nextAnnotations);
+        scheduleSidecarSave(nextAnnotations);
+        await updatePageDocument(nextDocument);
+        saveManager.markDirty(fileId);
+        setIsDirty(true);
+        await operationManager.addOperation(operation);
+    }, [fileId, scheduleSidecarSave, setIsDirty, updatePageDocument]);
+
+    const handleAddBlankPage = useCallback(() => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        const reference = document.pages.at(-1);
+        const page: PageRecord = {
+            id: crypto.randomUUID(),
+            kind: 'blank',
+            width: reference?.width ?? 612,
+            height: reference?.height ?? 792,
+            rotation: 0,
+        };
+        void commitPageOperation(createAddPageOperation(page, document.pages.length, fileId));
+    }, [commitPageOperation, fileId]);
+
+    const handleDeletePages = useCallback((pageIds: string[]) => {
+        const document = pageDocumentRef.current;
+        if (!document || pageIds.length === 0 || pageIds.length >= document.pages.length) return;
+        const ids = new Set(pageIds);
+        const operations: Operation[] = [];
+        document.pages.map((page, index) => ({ page, index })).reverse().forEach(({ page, index }) => {
+            if (ids.has(page.id)) operations.push(createDeletePageOperation(page, index, fileId));
+        });
+        for (const annotation of annotationsRef.current) {
+            if (annotation.pageId && ids.has(annotation.pageId)) {
+                operations.push(createDeleteOperation(annotation, fileId));
+            }
+        }
+        void commitPageOperation(createBatchOperation(operations, fileId));
+    }, [commitPageOperation, fileId]);
+
+    const handleMovePage = useCallback((pageId: string, toIndex: number) => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        const fromIndex = document.pages.findIndex(page => page.id === pageId);
+        if (fromIndex < 0 || fromIndex === toIndex) return;
+        void commitPageOperation(createMovePageOperation(pageId, fromIndex, toIndex, fileId));
+    }, [commitPageOperation, fileId]);
+
+    const handleRotatePages = useCallback((pageIds: string[], delta: 90 | -90) => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        const ids = new Set(pageIds);
+        const operations = document.pages
+            .filter(page => ids.has(page.id))
+            .map(page => createRotatePageOperation(page.id, rotateBy(page.rotation, delta), page.rotation, fileId));
+        for (const annotation of annotationsRef.current) {
+            if (annotation.pageId && ids.has(annotation.pageId)) {
+                operations.push(createUpdateOperation(rotateAnnotation(annotation, delta), annotation, fileId));
+            }
+        }
+        if (operations.length) void commitPageOperation(createBatchOperation(operations, fileId));
+    }, [commitPageOperation, fileId]);
+
+    const handleMergePdf = useCallback(async (mergedFile: File) => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        try {
+            const bytes = new Uint8Array(await mergedFile.arrayBuffer());
+            const sourceId = crypto.randomUUID();
+            const importedPages = await describePdfSource(bytes, sourceId);
+            await pageWorkspaceStorage.saveSource(stableId, sourceId, bytes);
+            const operations = importedPages.map((page, offset) =>
+                createAddPageOperation(page, document.pages.length + offset, fileId));
+            if (operations.length) await commitPageOperation(createBatchOperation(operations, fileId));
+        } catch (error) {
+            console.error('Could not merge PDF:', error);
+        }
+    }, [commitPageOperation, fileId, stableId]);
+
+    const exportRecordsWithAnnotations = useCallback(async (pages: PageRecord[]) => {
+        const bytes = await exportPageRecords(pages, loadSource);
+        const selectedDocument = createPageDocument(pages);
+        const selectedAnnotations = attachAnnotationsToPageIds(
+            annotationsForExistingPages(annotationsRef.current, selectedDocument),
+            selectedDocument,
+        );
+        if (!selectedAnnotations.length) return bytes;
+        const pdf = await PDFDocument.load(bytes);
+        await embedAnnotations(pdf, selectedAnnotations);
+        return pdf.save();
+    }, [loadSource]);
+
+    const handleExtractPages = useCallback(async (pageIds: string[]) => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        const ids = new Set(pageIds);
+        const selectedPages = document.pages.filter(page => ids.has(page.id));
+        const bytes = await exportRecordsWithAnnotations(selectedPages);
+        downloadPdf(bytes, `${fileName.replace(/\.pdf$/i, '')}-extract.pdf`);
+    }, [exportRecordsWithAnnotations, fileName]);
+
+    const handleSplitPdf = useCallback(async (afterPageId: string) => {
+        const document = pageDocumentRef.current;
+        if (!document) return;
+        const splitIndex = document.pages.findIndex(page => page.id === afterPageId) + 1;
+        if (splitIndex <= 0 || splitIndex >= document.pages.length) return;
+        const baseName = fileName.replace(/\.pdf$/i, '');
+        const [left, right] = await Promise.all([
+            exportRecordsWithAnnotations(document.pages.slice(0, splitIndex)),
+            exportRecordsWithAnnotations(document.pages.slice(splitIndex)),
+        ]);
+        downloadPdf(left, `${baseName}-part-1.pdf`);
+        downloadPdf(right, `${baseName}-part-2.pdf`);
+    }, [exportRecordsWithAnnotations, fileName]);
 
     // ... (Remainder unchanged) ...
 
@@ -572,22 +786,45 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // ... Render logic (Pages) ...
     return (
         <div className={`flex-1 flex flex-col h-full relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`} ref={containerRef}>
+            <Button
+                size="sm"
+                className="absolute right-5 top-5 z-20"
+                leadingIcon={<LayoutGrid size={16} />}
+                disabled={role === 'viewer'}
+                onClick={() => setShowPageOrganizer(true)}
+            >Pages</Button>
             <div className="flex-1 overflow-y-auto w-full flex flex-col items-center gap-4 p-4">
-                {pages.map((pageNum) => (
+                {(pageDocument?.pages ?? []).map((page, index) => {
+                    const pageNum = index + 1;
+                    return (
                     <PDFPage
-                        key={`${fileId}-page-${pageNum}`}
+                        key={`${fileId}-page-${page.id}`}
                         pageNum={pageNum}
                         pdfDoc={pdfDoc}
                         scale={scale}
-                        annotations={annotations.filter(a => a.pageNum === pageNum)}
+                        annotations={annotations.filter(a => a.pageId ? a.pageId === page.id : a.pageNum === pageNum)}
                         onAnnotationSave={handleAnnotationSave}
                         onAnnotationDelete={handleAnnotationDelete}
                         onAnnotationErase={handleAnnotationErase}
                         dimensions={pageDimensions[pageNum]}
                         ocrData={ocrPages[pageNum]}
                     />
-                ))}
+                    );
+                })}
             </div>
+
+            <PageOrganizer
+                open={showPageOrganizer}
+                pages={pageDocument?.pages ?? []}
+                onClose={() => setShowPageOrganizer(false)}
+                onAddBlank={handleAddBlankPage}
+                onDelete={handleDeletePages}
+                onMove={handleMovePage}
+                onRotate={handleRotatePages}
+                onMerge={handleMergePdf}
+                onExtract={handleExtractPages}
+                onSplit={handleSplitPdf}
+            />
 
             <MathModal
                 isOpen={showMathModal}
