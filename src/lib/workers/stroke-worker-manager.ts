@@ -1,7 +1,8 @@
-import type { StrokePoint } from '../annotations/models';
+import type { CubicBezierSegment, StrokePoint } from '../annotations/models';
 
 // Worker instance (singleton)
 let worker: Worker | null = null;
+let nextRequestId = 0;
 
 function getWorker(): Worker {
     if (!worker) {
@@ -15,14 +16,17 @@ function getWorker(): Worker {
 
 export interface ProcessStrokeOptions {
     points: StrokePoint[];
-    tension?: number;
-    epsilon?: number;
+    width: number;
+    height: number;
+    epsilonPx?: number;
 }
 
 export interface ProcessedStrokeResult {
-    originalCount: number;
-    compressedCount: number;
+    sourcePointCount: number;
+    storedCoordinateCount: number;
+    compressionRatio: number;
     points: StrokePoint[];
+    beziers: CubicBezierSegment[];
 }
 
 /**
@@ -34,14 +38,18 @@ export function processStrokeAsync(
 ): Promise<ProcessedStrokeResult> {
     return new Promise((resolve, reject) => {
         const w = getWorker();
+        const requestId = ++nextRequestId;
         
         const handler = (e: MessageEvent) => {
+            if (e.data.requestId !== requestId) return;
             if (e.data.type === 'stroke-processed') {
                 w.removeEventListener('message', handler);
                 resolve({
-                    originalCount: e.data.originalCount,
-                    compressedCount: e.data.compressedCount,
+                    sourcePointCount: e.data.sourcePointCount,
+                    storedCoordinateCount: e.data.storedCoordinateCount,
+                    compressionRatio: e.data.compressionRatio,
                     points: e.data.points,
+                    beziers: e.data.beziers,
                 });
             } else if (e.data.type === 'error') {
                 w.removeEventListener('message', handler);
@@ -53,9 +61,11 @@ export function processStrokeAsync(
         
         w.postMessage({
             type: 'process-stroke',
+            requestId,
             points: options.points,
-            tension: options.tension ?? 0.5,
-            epsilon: options.epsilon ?? 0.001,
+            width: options.width,
+            height: options.height,
+            epsilonPx: options.epsilonPx ?? 0.75,
         });
     });
 }

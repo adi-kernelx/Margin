@@ -21,7 +21,7 @@ const getBaseBox = (annotation: ShapeAnnotation | ImageAnnotation) => {
 
 const getTransform = (annotation: ShapeAnnotation | ImageAnnotation) => {
     // Default to identity but with translation from boundingBox if transform matches
-    const t = (annotation.geometry as any).transform;
+    const t = annotation.geometry.transform;
     if (!t) {
         return {
             a: 1,
@@ -110,7 +110,8 @@ export const renderPageAnnotationsToCanvas = async (
 
 const drawStroke = (ctx: CanvasRenderingContext2D, annotation: StrokeAnnotation, pageWidth: number, pageHeight: number) => {
     const points = annotation.geometry.points;
-    if (points.length < 2) return;
+    const curves = annotation.geometry.beziers;
+    if (points.length < 2 && !curves?.length) return;
 
     ctx.save();
     ctx.strokeStyle = annotation.style.color;
@@ -120,11 +121,25 @@ const drawStroke = (ctx: CanvasRenderingContext2D, annotation: StrokeAnnotation,
     ctx.lineJoin = 'round';
 
     ctx.beginPath();
-    const first = denormalizePoint(points[0].x, points[0].y, pageWidth, pageHeight);
+    const firstPoint = curves?.[0]?.start || points[0];
+    const first = denormalizePoint(firstPoint.x, firstPoint.y, pageWidth, pageHeight);
     ctx.moveTo(first.x, first.y);
-    for (let i = 1; i < points.length; i++) {
-        const p = denormalizePoint(points[i].x, points[i].y, pageWidth, pageHeight);
-        ctx.lineTo(p.x, p.y);
+    if (curves?.length) {
+        for (const curve of curves) {
+            ctx.bezierCurveTo(
+                curve.control1.x * pageWidth,
+                curve.control1.y * pageHeight,
+                curve.control2.x * pageWidth,
+                curve.control2.y * pageHeight,
+                curve.end.x * pageWidth,
+                curve.end.y * pageHeight,
+            );
+        }
+    } else {
+        for (let i = 1; i < points.length; i++) {
+            const p = denormalizePoint(points[i].x, points[i].y, pageWidth, pageHeight);
+            ctx.lineTo(p.x, p.y);
+        }
     }
     ctx.stroke();
     ctx.restore();
@@ -362,7 +377,7 @@ const drawMath = async (ctx: CanvasRenderingContext2D, annotation: MathAnnotatio
                 const url = URL.createObjectURL(blob);
                 loadImg(url);
                 // Note: we're not revoking URL here to keep simple async flow, browser handles it eventually or we leak small amount during save.
-            } catch (e) {
+            } catch {
                 resolve();
             }
         }

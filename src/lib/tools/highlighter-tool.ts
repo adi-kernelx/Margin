@@ -58,7 +58,7 @@ export class HighlighterTool extends BaseTool {
         this.pageHeight = height;
     }
 
-    onPointerDown(state: PointerState, _ctx: CanvasRenderingContext2D): void {
+    onPointerDown(state: PointerState): void {
         // For text-aware mode, check if text is selected
         if (this.mode === 'text-aware') {
             const selection = window.getSelection();
@@ -107,8 +107,8 @@ export class HighlighterTool extends BaseTool {
         );
 
         const textNodes: Text[] = [];
-        let node;
-        while (node = walker.nextNode()) {
+        let node: Node | null;
+        while ((node = walker.nextNode()) !== null) {
             if (node instanceof Text) {
                 textNodes.push(node);
             }
@@ -187,7 +187,7 @@ export class HighlighterTool extends BaseTool {
         this.render(ctx);
     }
 
-    onPointerUp(state: PointerState, _ctx: CanvasRenderingContext2D): HighlightAnnotation | null {
+    onPointerUp(state: PointerState): HighlightAnnotation | null {
         if (!this.isDrawing || this.processingStroke) return null;
 
         this.isDrawing = false;
@@ -213,8 +213,9 @@ export class HighlighterTool extends BaseTool {
 
         processStrokeAsync({
             points: rawPoints,
-            tension: 0.5,
-            epsilon: 0.001,
+            width: this.pageWidth,
+            height: this.pageHeight,
+            epsilonPx: 0.75,
         }).then((result) => {
             // Create annotation with processed points
             const annotation: HighlightAnnotation = {

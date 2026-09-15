@@ -1,4 +1,5 @@
 import type { StrokePoint } from '../annotations/models';
+import { normalizedToScreen, screenToNormalized } from '@/core/ink/coordinates';
 
 /**
  * Smooth a stroke using Catmull-Rom spline interpolation
@@ -117,10 +118,7 @@ export function normalizePoint(
     pageWidth: number,
     pageHeight: number
 ): { x: number; y: number } {
-    return {
-        x: x / pageWidth,
-        y: y / pageHeight,
-    };
+    return screenToNormalized({ x, y }, pageWidth, pageHeight);
 }
 
 /**
@@ -132,8 +130,5 @@ export function denormalizePoint(
     pageWidth: number,
     pageHeight: number
 ): { x: number; y: number } {
-    return {
-        x: x * pageWidth,
-        y: y * pageHeight,
-    };
+    return normalizedToScreen({ x, y }, pageWidth, pageHeight);
 }

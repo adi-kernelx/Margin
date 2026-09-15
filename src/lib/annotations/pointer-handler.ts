@@ -65,16 +65,18 @@ export class UnifiedPointerHandler {
         this.callbacks.down?.(state);
     };
 
-    private throttledMove = throttlePointerMove((state: PointerState) => {
-        this.callbacks.move?.(state);
-    }, 60); // 60fps max
-
     private handlePointerMove = (e: PointerEvent) => {
         if (!this.activePointers.has(e.pointerId)) return;
 
-        const state = this.extractPointerState(e);
-        this.activePointers.set(e.pointerId, state);
-        this.throttledMove(state);
+        // Stylus hardware commonly samples faster than pointermove delivery.
+        // Preserve those coalesced samples; the pencil path is incremental, so
+        // accuracy no longer requires throttling the input to the display rate.
+        const samples = e.getCoalescedEvents?.() || [e];
+        for (const sample of samples.length > 0 ? samples : [e]) {
+            const state = this.extractPointerState(sample);
+            this.activePointers.set(e.pointerId, state);
+            this.callbacks.move?.(state);
+        }
     };
 
     private handlePointerUp = (e: PointerEvent) => {

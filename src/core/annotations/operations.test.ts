@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fc from 'fast-check';
 import {
     createAddOperation,
     createUpdateOperation,
@@ -134,6 +135,40 @@ describe('operation inverses', () => {
             };
 
             expect(() => createBatchOperation([uninvertible], DOC)).toThrow(/without inverses/);
+        });
+
+        it('property: arbitrary valid command sequences invert to the original state', () => {
+            fc.assert(fc.property(
+                fc.array(fc.record({
+                    action: fc.constantFrom('add', 'update', 'delete'),
+                    value: fc.integer({ min: -1000, max: 1000 }),
+                }), { minLength: 1, maxLength: 40 }),
+                (steps) => {
+                    let state: Doc = new Map();
+                    const operations: Operation[] = [];
+                    steps.forEach((step, index) => {
+                        const ids = [...state.keys()];
+                        if (step.action === 'add' || ids.length === 0) {
+                            const annotation = makeShape({ ...box, x: (step.value + 1000) / 2500 }, `generated-${index}`);
+                            const operation = createAddOperation(annotation, DOC);
+                            operations.push(operation);
+                            state = apply(state, operation);
+                            return;
+                        }
+                        const id = ids[Math.abs(step.value) % ids.length];
+                        const previous = state.get(id) as ReturnType<typeof makeShape>;
+                        const operation = step.action === 'delete'
+                            ? createDeleteOperation(previous, DOC)
+                            : createUpdateOperation({
+                                ...previous,
+                                geometry: { boundingBox: { ...previous.geometry.boundingBox, y: step.value / 2000 } },
+                            }, previous, DOC);
+                        operations.push(operation);
+                        state = apply(state, operation);
+                    });
+                    roundTrips(new Map(), createBatchOperation(operations, DOC));
+                },
+            ), { numRuns: 100 });
         });
     });
 });

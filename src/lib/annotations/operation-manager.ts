@@ -1,7 +1,7 @@
 import type { Operation } from './models';
 import { annotationStorage } from './storage';
 
-class OperationManager {
+export class OperationManager {
     // Global History: Single source of truth. Contains ALL operations.
     // Ordered by timestamp (creation time).
     // NEVER delete entries. Only toggle applied/undone flags.
@@ -11,9 +11,9 @@ class OperationManager {
     private undoStacks: Map<string, string[]> = new Map(); // Op IDs
     private redoStacks: Map<string, string[]> = new Map(); // Op IDs
 
-    private listeners: Map<string, Set<() => void>> = new Map();
+    private listeners: Map<string, Set<(operation: Operation) => void>> = new Map();
 
-    subscribe(docId: string, callback: () => void) {
+    subscribe(docId: string, callback: (operation: Operation) => void) {
         if (!this.listeners.has(docId)) {
             this.listeners.set(docId, new Set());
         }
@@ -23,8 +23,8 @@ class OperationManager {
         };
     }
 
-    private notify(docId: string) {
-        this.listeners.get(docId)?.forEach(cb => cb());
+    private notify(docId: string, operation: Operation) {
+        this.listeners.get(docId)?.forEach(cb => cb(operation));
     }
 
     async loadOperations(docId: string) {
@@ -112,7 +112,7 @@ class OperationManager {
 
         this.pushToRedoStack(entry.docId, entry.id);
 
-        this.notify(entry.docId);
+        if (entry.inverse) this.notify(entry.docId, entry.inverse);
     }
 
     async redoGlobal() {
@@ -183,7 +183,7 @@ class OperationManager {
 
         this.pushToUndoStack(entry.docId, entry.id);
 
-        this.notify(entry.docId);
+        this.notify(entry.docId, entry);
     }
 
     // ==========================================
@@ -211,7 +211,7 @@ class OperationManager {
         // 3. Push to local REDO
         this.pushToRedoStack(docId, opId);
 
-        this.notify(docId);
+        if (entry.inverse) this.notify(docId, entry.inverse);
     }
 
     async redoLocal(docId: string) {
@@ -235,7 +235,7 @@ class OperationManager {
         // 3. Push to local UNDO
         this.pushToUndoStack(docId, opId);
 
-        this.notify(docId);
+        this.notify(docId, entry);
     }
 
     // ==========================================
@@ -276,6 +276,12 @@ class OperationManager {
             case 'delete-annotation':
                 await annotationStorage.deleteAnnotation(op.data.id);
                 break;
+            case 'split-stroke':
+                await annotationStorage.deleteAnnotation(op.data.originalId);
+                for (const segment of op.data.segments) {
+                    await annotationStorage.saveAnnotation(segment, op.docId);
+                }
+                break;
             case 'batch':
                 for (const subOp of op.data.operations) {
                     await this.applyInternal({ ...subOp, docId: op.docId } as Operation);
@@ -289,7 +295,7 @@ class OperationManager {
         // Filter out operations for this doc from global log?
         // If we want to strictly drop them:
         this.globalLog = this.globalLog.filter(op => op.docId !== docId);
-        this.notify(docId);
+        // The document unmounting owns the visible state; no listener remains.
     }
 }
 

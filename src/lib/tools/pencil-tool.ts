@@ -2,6 +2,7 @@ import { BaseTool } from './base-tool';
 import type { PointerState, StrokeAnnotation, StrokePoint } from '../annotations/models';
 import { normalizePoint } from '../rendering/stroke-smoother';
 import { processStrokeAsync } from '../workers/stroke-worker-manager';
+import { StrokePredictor } from '@/core/ink/kalman';
 
 export class PencilTool extends BaseTool {
     private currentStroke: StrokePoint[] = [];
@@ -10,7 +11,8 @@ export class PencilTool extends BaseTool {
     private color = '#000000';
     private strokeWidth = 2;
     private onStrokeComplete?: (annotation: StrokeAnnotation) => void;
-    private processingStroke = false;
+    private readonly predictor = new StrokePredictor();
+    private predictedPoint: { x: number; y: number } | null = null;
 
     constructor(
         pageWidth: number,
@@ -40,9 +42,12 @@ export class PencilTool extends BaseTool {
         this.pageHeight = height;
     }
 
-    onPointerDown(state: PointerState, _ctx: CanvasRenderingContext2D): void {
+    onPointerDown(state: PointerState): void {
         this.isDrawing = true;
         this.currentStroke = [];
+        this.predictor.reset();
+        this.predictor.update({ x: state.x, y: state.y }, state.timestamp);
+        this.predictedPoint = null;
 
         // Add first point
         const normalized = normalizePoint(state.x, state.y, this.pageWidth, this.pageHeight);
@@ -66,12 +71,13 @@ export class PencilTool extends BaseTool {
             timestamp: state.timestamp,
         });
 
-        // Render preview
-        this.render(ctx);
+        this.predictor.update({ x: state.x, y: state.y }, state.timestamp);
+        this.predictedPoint = this.predictor.predict(16);
+        this.renderLatestSegment(ctx);
     }
 
-    onPointerUp(state: PointerState, _ctx: CanvasRenderingContext2D): StrokeAnnotation | null {
-        if (!this.isDrawing || this.processingStroke) return null;
+    onPointerUp(state: PointerState): StrokeAnnotation | null {
+        if (!this.isDrawing) return null;
 
         this.isDrawing = false;
 
@@ -91,13 +97,17 @@ export class PencilTool extends BaseTool {
         }
 
         // Process stroke asynchronously in worker
-        this.processingStroke = true;
         const rawPoints = [...this.currentStroke];
+        const color = this.color;
+        const strokeWidth = this.strokeWidth;
+        this.currentStroke = [];
+        this.predictedPoint = null;
 
         processStrokeAsync({
             points: rawPoints,
-            tension: 0.5,
-            epsilon: 0.001,
+            width: this.pageWidth,
+            height: this.pageHeight,
+            epsilonPx: 0.75,
         }).then((result) => {
             // Create annotation with processed points
             const annotation: StrokeAnnotation = {
@@ -109,25 +119,22 @@ export class PencilTool extends BaseTool {
                 zIndex: 0,
                 locked: false,
                 style: {
-                    color: this.color,
+                    color,
                     opacity: 1,
-                    width: this.strokeWidth,
+                    width: strokeWidth,
                 },
                 meta: {
                     tool: 'pencil',
                     strokeSmoothness: 0.5,
-                    compressionLevel: result.compressedCount / result.originalCount,
+                    compressionLevel: result.compressionRatio,
                 },
                 geometry: {
                     points: result.points,
+                    beziers: result.beziers,
                     smoothed: true,
                     compressed: true,
                 },
             };
-
-            // Clear current stroke
-            this.currentStroke = [];
-            this.processingStroke = false;
 
             // Call completion callback if provided
             if (this.onStrokeComplete) {
@@ -135,8 +142,6 @@ export class PencilTool extends BaseTool {
             }
         }).catch((error) => {
             console.error('Stroke processing failed:', error);
-            this.processingStroke = false;
-            this.currentStroke = [];
         });
 
         // Return null immediately - annotation will be created async
@@ -175,6 +180,52 @@ export class PencilTool extends BaseTool {
 
         ctx.stroke();
         ctx.restore();
+    }
+
+    private renderLatestSegment(ctx: CanvasRenderingContext2D): void {
+        if (this.currentStroke.length < 2) return;
+        const start = this.currentStroke[this.currentStroke.length - 2];
+        const end = this.currentStroke[this.currentStroke.length - 1];
+        ctx.save();
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = this.strokeWidth * (0.5 + (end.pressure || 1) * 0.5);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(start.x * this.pageWidth, start.y * this.pageHeight);
+        ctx.lineTo(end.x * this.pageWidth, end.y * this.pageHeight);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    renderPrediction(ctx: CanvasRenderingContext2D): void {
+        const last = this.currentStroke.at(-1);
+        if (!last || !this.predictedPoint) return;
+        ctx.save();
+        ctx.strokeStyle = this.color;
+        ctx.globalAlpha = 0.7;
+        ctx.lineWidth = this.strokeWidth * (0.5 + (last.pressure || 1) * 0.5);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(last.x * this.pageWidth, last.y * this.pageHeight);
+        ctx.lineTo(this.predictedPoint.x, this.predictedPoint.y);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    getPredictionBounds(): { x: number; y: number; width: number; height: number } | null {
+        const last = this.currentStroke.at(-1);
+        if (!last || !this.predictedPoint) return null;
+        const start = { x: last.x * this.pageWidth, y: last.y * this.pageHeight };
+        const padding = this.strokeWidth + 2;
+        const minX = Math.min(start.x, this.predictedPoint.x) - padding;
+        const minY = Math.min(start.y, this.predictedPoint.y) - padding;
+        return {
+            x: minX,
+            y: minY,
+            width: Math.max(1, Math.max(start.x, this.predictedPoint.x) + padding - minX),
+            height: Math.max(1, Math.max(start.y, this.predictedPoint.y) + padding - minY),
+        };
     }
 
     getCursor(): string {

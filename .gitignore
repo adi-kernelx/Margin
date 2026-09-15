@@ -150,6 +150,15 @@ data/
 # -------------------
 .agent/
 .gemini/
+.agents/
+.claude/
+.codex/
+.gpt/
+.chatgpt/
+CLAUDE.md
+HANDOFF.md
+GPT.md
+CHATGPT.md
 *.tmp
 *.temp
 

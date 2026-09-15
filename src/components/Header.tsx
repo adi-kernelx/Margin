@@ -6,6 +6,9 @@ import { useState, useCallback } from 'react';
 import type { DocumentEntry } from '@/types';
 import { cn } from '@/lib/utils';
 import { SearchBar, type SearchResult } from './SearchBar';
+import { WORKSPACE_TAB_MIME } from '@/core/workspace/layout';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
 
 interface HeaderProps {
     onOpenPDF: () => void;
@@ -16,10 +19,11 @@ interface HeaderProps {
     onLoadJSON: (docId: string) => void;
     showAIChat: boolean;
     onToggleAIChat: () => void;
+    onFocusDocument: (docId: string) => void;
 }
 
-export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat }: HeaderProps) {
-    const { isDarkMode, focusedDocId, setFocusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
+export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat, onFocusDocument }: HeaderProps) {
+    const { focusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
     const [showSettings, setShowSettings] = useState(false);
 
 
@@ -55,7 +59,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
         // 1. Focus the document if different
         if (targetDocId !== focusedDocId) {
             console.log('[Header] Focusing different document:', targetDocId);
-            setFocusedDocId(targetDocId);
+            onFocusDocument(targetDocId);
         }
 
         // 2. Set the search highlight with spans if available
@@ -91,21 +95,20 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
             console.log('[Header] Clearing search highlight');
             clearSearchHighlight();
         }, 5000);
-    }, [documents, focusedDocId, setFocusedDocId, setSearchHighlight, clearSearchHighlight]);
+    }, [documents, focusedDocId, onFocusDocument, setSearchHighlight, clearSearchHighlight]);
 
     // Handle focusing a different document from search
     const handleFocusDocument = useCallback((docId: string) => {
-        setFocusedDocId(docId);
-    }, [setFocusedDocId]);
+        onFocusDocument(docId);
+    }, [onFocusDocument]);
 
     return (
         <header className={cn(
-            "h-12 flex items-center justify-between px-4 border-b flex-shrink-0 z-40 gap-4",
-            isDarkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"
+            "h-12 flex items-center justify-between px-4 border-b border-line bg-surface-2 text-text shadow-elev-1 flex-shrink-0 z-40 gap-4"
         )} onClick={closeContextMenu}>
             <div className="flex items-center gap-4 flex-shrink-0">
 
-                <h1 className="font-bold text-lg text-blue-600 dark:text-blue-400">PDF Reader</h1>
+                <h1 className="font-bold text-lg text-accent">Margin</h1>
             </div>
 
             {/* Document Tabs */}
@@ -113,16 +116,24 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                 {documents.map((doc) => (
                     <div
                         key={doc.id}
+                        draggable
+                        role="tab"
+                        tabIndex={0}
+                        aria-selected={doc.id === focusedDocId}
                         className={cn(
                             "flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm max-w-[200px] flex-shrink-0 group select-none cursor-pointer transition-all relative",
                             doc.id === focusedDocId
-                                ? "ring-2 ring-blue-500 border-blue-500 z-10"
-                                : "hover:border-gray-400",
-                            isDarkMode
-                                ? "bg-gray-800 border-gray-700 text-gray-200"
-                                : "bg-gray-50 border-gray-200 text-gray-700"
+                                ? "border-accent bg-accent-soft text-accent z-10"
+                                : "border-line bg-surface-1 text-text-soft hover:border-accent hover:text-text"
                         )}
-                        onClick={() => setFocusedDocId(doc.id)}
+                        onClick={() => onFocusDocument(doc.id)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') onFocusDocument(doc.id);
+                        }}
+                        onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData(WORKSPACE_TAB_MIME, doc.id);
+                        }}
                         onContextMenu={(e) => handleContextMenu(e, doc.id)}
                         title={`${doc.name}\nRight-click for options`}
                     >
@@ -134,7 +145,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                             }}
                             className={cn(
                                 "p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                                isDarkMode ? "hover:bg-gray-700 text-gray-400 hover:text-blue-400" : "hover:bg-gray-200 text-gray-400 hover:text-blue-500"
+                                "text-text-muted hover:bg-surface-3 hover:text-accent"
                             )}
                             title="Refresh from disk"
                         >
@@ -147,7 +158,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                             }}
                             className={cn(
                                 "p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                                isDarkMode ? "hover:bg-gray-700 text-gray-400 hover:text-red-400" : "hover:bg-gray-200 text-gray-400 hover:text-red-500"
+                                "text-text-muted hover:bg-danger-soft hover:text-danger"
                             )}
                         >
                             <X size={12} />
@@ -175,38 +186,34 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                 />
 
                 {/* AI Assistant Button */}
-                <button
+                <IconButton
                     onClick={onToggleAIChat}
-                    className={cn(
-                        "p-1.5 rounded-md transition-colors",
-                        showAIChat
-                            ? "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300"
-                            : "hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                    )}
+                    pressed={showAIChat}
+                    aria-label="Toggle AI assistant"
                     title="AI Assistant"
                 >
                     <Sparkles size={18} />
-                </button>
+                </IconButton>
 
 
-                <button
+                <Button
                     onClick={onOpenPDF}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors shadow-sm"
-                    disabled={documents.length >= 4}
+                    variant="primary"
+                    size="sm"
+                    leadingIcon={<Plus size={16} />}
                 >
-                    <Plus size={16} />
                     <span className="hidden sm:inline">Open</span>
-                </button>
+                </Button>
 
-                <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 mx-1" />
+                <div className="h-4 w-px bg-line mx-1" />
 
-                <button
+                <IconButton
                     onClick={() => setShowSettings(true)}
-                    className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+                    aria-label="Open settings"
                     title="Settings"
                 >
                     <SettingsIcon size={18} />
-                </button>
+                </IconButton>
             </div>
 
             <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
@@ -248,4 +255,3 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
         </header>
     );
 }
-

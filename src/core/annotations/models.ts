@@ -49,10 +49,18 @@ export interface StrokePoint {
     timestamp?: number;        // For velocity calculation
 }
 
+export interface CubicBezierSegment {
+    start: Point;
+    control1: Point;
+    control2: Point;
+    end: Point;
+}
+
 export interface StrokeAnnotation extends BaseAnnotation {
     type: 'stroke';
     geometry: {
         points: StrokePoint[];   // Ordered array
+        beziers?: CubicBezierSegment[]; // Fitted path; points remain for hit testing and old files
         smoothed?: boolean;
         compressed?: boolean;
     };

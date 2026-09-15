@@ -3,7 +3,7 @@
 A local-first reading and annotation workspace for mathematical documents — textbooks,
 papers, problem sets.
 
-> **Status: in development, week 2 of 17.** This README describes what is
+> **Status: in development, week 6 of 17.** This README describes what is
 > actually in the tree today, and says plainly what isn't built yet. The
 > [roadmap](#roadmap) is the honest version. Nothing below is aspirational; if a
 > section describes behaviour, that behaviour exists.
@@ -13,11 +13,18 @@ papers, problem sets.
 ## What works today
 
 - **Annotation** — pencil, highlighter, text, shapes, image paste, LaTeX/KaTeX
-  math, and an eraser, on a canvas layer with resize and rotate transforms.
+  math, and an eraser. Live ink is isolated from committed ink, preserves
+  coalesced stylus samples, predicts one frame ahead, and is simplified into
+  fitted cubic Bézier paths in a worker. Point erasure uses exact swept-disc
+  geometry and refits the surviving stroke pieces.
 - **Undo/redo** — every edit is a command carrying its own inverse, on one stack.
 - **Local library** — folders and files in IndexedDB. Import PDFs, organise them,
   open them. Nothing leaves the machine.
-- **Multi-document** — up to four PDFs open at once.
+- **Multi-document workspace** — open documents live as tabs in a recursive pane tree. Drag a tab to a pane edge to split (up to four visible panes), drag it to the centre to move it, and resize dividers with a pointer or arrow keys. Hidden tabs release their PDF renderer because only each pane's active tab is mounted.
+- **Consistent workspace controls** — the toolbar and settings use reusable,
+  keyboard-accessible buttons, tooltips, popovers, dialogs, segmented controls,
+  colour/stroke controls and resizable panels. A virtualised-list primitive is
+  ready for the thumbnail and notes views planned later.
 - **OCR** — PaddleOCR via a local FastAPI service, producing a selectable text layer.
 - **RAG chat** — a local llama.cpp + LangGraph service, answering over the open document.
 
@@ -65,6 +72,9 @@ may import the core; the core may never import a shell.
 ```
 src/
   core/annotations/    models, command factories, quadtree spatial index   (pure)
+  core/ink/            coordinates, exact eraser geometry, fitting, prediction (pure)
+  core/workspace/      pane-layout tree, tab movement, split and resize    (pure)
+  core/ui/             virtual-list range calculations                     (pure)
   lib/annotations/     operation log, storage, autosave, pointer handling
   lib/storage/         library-db (file tree), local-file-db (annotations, OCR cache)
   lib/saving/          save manager, adapters, flatten service
@@ -133,8 +143,8 @@ at zero and is the part CI gates.
 | Weeks | Focus |
 |-------|-------|
 | 1–2   | Demolition, core/shell split, tests, CI, design tokens |
-| 3–4   | App shell, pane grid, component primitives |
-| 5–6   | Ink quality: layered canvases, Bézier fitting, latency prediction, exact eraser |
+| 3–4   | App shell, pane grid, component primitives — complete |
+| 5–6   | Ink quality: layered canvases, Bézier fitting, latency prediction, exact eraser — complete |
 | 7     | Page operations on stable page IDs |
 | 8     | Notes panel, library grid, full-text search |
 | 9     | **Milestone — containerised, demoable, documented** |

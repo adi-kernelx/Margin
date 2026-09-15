@@ -7,10 +7,11 @@ import { saveManager } from '@/lib/saving/save-manager';
 import type { EditorFile, AnnotationData } from '@/types/editor-types';
 import { annotationStorage } from '@/lib/annotations/storage';
 import { operationManager } from '@/lib/annotations/operation-manager';
-import { createAddOperation, createDeleteOperation } from '@/lib/annotations/operations';
+import { createAddOperation, createBatchOperation, createDeleteOperation, createUpdateOperation } from '@/lib/annotations/operations';
+import { applyOperationToAnnotations } from '@/core/annotations/apply';
 import { AnnotationCanvas } from './AnnotationCanvas';
 import { MathModal } from './MathModal';
-import type { Annotation } from '@/lib/annotations/models';
+import type { Annotation, Operation } from '@/lib/annotations/models';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractAnnotations, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
@@ -40,6 +41,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
     const [pages, setPages] = useState<number[]>([]);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    const annotationsRef = useRef<Annotation[]>([]);
     const [showMathModal, setShowMathModal] = useState(false);
     
     // To prevent "unused variable" warnings
@@ -373,14 +375,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         return () => window.removeEventListener('pdf-editor:load-json' as any, handleExternalLoad as any);
     }, [fileId, stableId]);
 
-    // Operation Manager & Subscription
-    useEffect(() => {
-        if (!fileId) return;
-
-        return operationManager.subscribe(fileId, () => {
-        });
-    }, [fileId, stableId]);
-
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -398,6 +392,19 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         }, 2000);
 
     }, [stableId, fileId, parentFolderId]);
+
+    // Undo/redo commands update the same React projection used by the canvases.
+    // Storage alone cannot do this because sidecars are persisted as a document snapshot.
+    useEffect(() => operationManager.subscribe(fileId, operation => {
+        setAnnotations(previous => {
+            const next = applyOperationToAnnotations(previous, operation);
+            annotationsRef.current = next;
+            scheduleSidecarSave(next);
+            return next;
+        });
+        saveManager.markDirty(fileId);
+        setIsDirty(true);
+    }), [fileId, scheduleSidecarSave, setIsDirty]);
 
 
     // PDF Generation (Smart Save: Embedded vs Flattened)
@@ -449,8 +456,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // Ref for getBlob to access latest state
     const getBlobRef = useRef<(flatten?: boolean) => Promise<Blob>>(async () => new Blob());
     // Ref for current annotations to access in onSaveSuccess
-    const annotationsRef = useRef(annotations);
-
     useEffect(() => {
         annotationsRef.current = annotations;
     }, [annotations]);
@@ -526,50 +531,40 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
 
     // Annotation Handlers
-    const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
-        // Optimistic update (Local State)
-        setAnnotations(prev => {
-            const index = prev.findIndex(a => a.id === annotation.id);
-            let next;
-            if (index >= 0) {
-                next = [...prev];
-                next[index] = annotation;
-            } else {
-                next = [...prev, annotation];
-            }
-
-            // LOCAL SIDE CAR (or Viewer Local Mode)
-            scheduleSidecarSave(next);
-
-            saveManager.markDirty(fileId);
-            setIsDirty(true);
-
-            // Operations (In-Memory Only) -> Keep this for Undo/Redo? 
-            const op = createAddOperation({ ...annotation, fileId } as any, fileId);
-            operationManager.addOperation(op);
-
-            return next;
-        });
+    const commitAnnotationOperation = useCallback(async (operation: Operation) => {
+        const next = applyOperationToAnnotations(annotationsRef.current, operation);
+        annotationsRef.current = next;
+        setAnnotations(next);
+        scheduleSidecarSave(next);
+        saveManager.markDirty(fileId);
+        setIsDirty(true);
+        await operationManager.addOperation(operation);
     }, [fileId, scheduleSidecarSave, setIsDirty]);
+
+    const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
+        const previous = annotationsRef.current.find(item => item.id === annotation.id);
+        const operation = previous
+            ? createUpdateOperation(annotation, previous, fileId)
+            : createAddOperation(annotation, fileId);
+        await commitAnnotationOperation(operation);
+    }, [commitAnnotationOperation, fileId]);
 
     const handleAnnotationDelete = useCallback(async (id: string) => {
-        setAnnotations(prev => {
-            const annotation = prev.find(a => a.id === id);
-            if (!annotation) return prev;
+        const annotation = annotationsRef.current.find(item => item.id === id);
+        if (annotation) await commitAnnotationOperation(createDeleteOperation(annotation, fileId));
+    }, [commitAnnotationOperation, fileId]);
 
-            const next = prev.filter(a => a.id !== id);
-
-            scheduleSidecarSave(next);
-
-            saveManager.markDirty(fileId);
-            setIsDirty(true);
-
-            const op = createDeleteOperation({ ...annotation, fileId } as any, fileId);
-            operationManager.addOperation(op);
-
-            return next;
-        });
-    }, [fileId, scheduleSidecarSave, setIsDirty]);
+    const handleAnnotationErase = useCallback(async (deletedIds: string[], created: Annotation[]) => {
+        const operations: Operation[] = [];
+        for (const id of deletedIds) {
+            const annotation = annotationsRef.current.find(item => item.id === id);
+            if (annotation) operations.push(createDeleteOperation(annotation, fileId));
+        }
+        for (const annotation of created) operations.push(createAddOperation(annotation, fileId));
+        if (operations.length > 0) {
+            await commitAnnotationOperation(createBatchOperation(operations, fileId));
+        }
+    }, [commitAnnotationOperation, fileId]);
 
     // ... (Remainder unchanged) ...
 
@@ -587,6 +582,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                         annotations={annotations.filter(a => a.pageNum === pageNum)}
                         onAnnotationSave={handleAnnotationSave}
                         onAnnotationDelete={handleAnnotationDelete}
+                        onAnnotationErase={handleAnnotationErase}
                         dimensions={pageDimensions[pageNum]}
                         ocrData={ocrPages[pageNum]}
                     />
@@ -637,11 +633,12 @@ interface PDFPageProps {
     annotations: Annotation[];
     onAnnotationSave: (annotation: Annotation) => void;
     onAnnotationDelete: (id: string) => void;
+    onAnnotationErase: (deletedIds: string[], created: Annotation[]) => void;
     dimensions?: { width: number, height: number };
     ocrData?: OcrPageResult;
 }
 
-function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, dimensions, ocrData }: PDFPageProps) {
+function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, onAnnotationErase, dimensions, ocrData }: PDFPageProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const textLayerRef = useRef<HTMLDivElement>(null);
     const linkLayerRef = useRef<HTMLDivElement>(null);
@@ -771,6 +768,7 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
                         annotations={annotations}
                         onSave={onAnnotationSave}
                         onDelete={onAnnotationDelete}
+                        onErase={onAnnotationErase}
                         textLayerRef={textLayerRef as any}
                         onImageUpload={() => { }}
                     />

@@ -18,6 +18,7 @@ import { DocumentContext } from '@/contexts/DocumentContext';
 import { denormalizePoint, normalizePoint } from '@/lib/rendering/stroke-smoother';
 import { cn } from '@/lib/utils';
 import { FloatingFormatToolbar } from './FloatingFormatToolbar';
+import { renderInkOffscreen, supportsOffscreenInk } from '@/lib/workers/ink-render-worker-manager';
 
 const CANVAS_EXPANSION_RATIO = 1.05;
 const CANVAS_OFFSET_RATIO = 0.025;
@@ -60,6 +61,7 @@ interface AnnotationCanvasProps {
     annotations: Annotation[];
     onSave: (annotation: Annotation) => void;
     onDelete?: (id: string) => void;
+    onErase?: (deletedIds: string[], created: Annotation[]) => void;
     textLayerRef?: React.RefObject<HTMLDivElement>;
     onImageUpload?: (file: File) => void;
 }
@@ -70,20 +72,27 @@ export function AnnotationCanvas({
     annotations,
     onSave,
     onDelete,
+    onErase,
     textLayerRef,
     onImageUpload
 }: AnnotationCanvasProps) {
-    const canvasRef = useRef<HTMLCanvasElement>(null); // Layer 2 - Annotations (strokes/highlights/text)
+    const inkCanvasRef = useRef<HTMLCanvasElement>(null); // Layer 2 - committed strokes/highlights
+    const canvasRef = useRef<HTMLCanvasElement>(null); // Layer 2.1 - text/math and interaction target
     const imageCanvasRef = useRef<HTMLCanvasElement>(null); // Layer 3 - Images & shapes
     const previewCanvasRef = useRef<HTMLCanvasElement>(null); // Layer 2.5 - Preview
+    const predictionCanvasRef = useRef<HTMLCanvasElement>(null); // Disposable latency-compensation layer
     const containerRef = useRef<HTMLDivElement>(null);
     const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+    const [inkCtx, setInkCtx] = useState<CanvasRenderingContext2D | null>(null);
     const [imageCtx, setImageCtx] = useState<CanvasRenderingContext2D | null>(null);
     const [previewCtx, setPreviewCtx] = useState<CanvasRenderingContext2D | null>(null);
+    const [predictionCtx, setPredictionCtx] = useState<CanvasRenderingContext2D | null>(null);
     const toolRef = useRef<BaseTool | null>(null);
     const pointerHandlerRef = useRef<UnifiedPointerHandler | null>(null);
     const quadtreeRef = useRef<AnnotationQuadtree | null>(null);
     const annotationsRef = useRef<Annotation[]>(annotations); // Track latest annotations for callbacks
+    const predictionDirtyRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+    const inkRenderGenerationRef = useRef(0);
 
     // Text input overlay state
     const [textInputState, setTextInputState] = useState<{
@@ -125,10 +134,14 @@ export function AnnotationCanvas({
         highlighterMode,
         highlighterColor,
         highlighterOpacity,
+        highlighterWidth,
         eraserMode,
         pencilColor,
+        pencilWidth,
         rectangleColor,
+        rectangleWidth,
         arrowColor,
+        arrowWidth,
         textColor,
         textBackgroundColor,
         textFontSize,
@@ -194,9 +207,17 @@ export function AnnotationCanvas({
         const context = canvas.getContext('2d');
         if (!context) return;
 
+        const inkCanvas = inkCanvasRef.current;
+        const inkContext = inkCanvas?.getContext('2d');
+        if (!inkContext) return;
+
         const previewCanvas = previewCanvasRef.current;
         const previewContext = previewCanvas?.getContext('2d');
         if (!previewContext) return;
+
+        const predictionCanvas = predictionCanvasRef.current;
+        const predictionContext = predictionCanvas?.getContext('2d');
+        if (!predictionContext) return;
 
         const imageCanvas = imageCanvasRef.current;
         const imageContext = imageCanvas?.getContext('2d');
@@ -230,11 +251,15 @@ export function AnnotationCanvas({
         };
 
         if (canvas && context) updateCanvas(canvas, context);
+        if (inkCanvas && inkContext) updateCanvas(inkCanvas, inkContext);
         if (previewCanvas && previewContext) updateCanvas(previewCanvas, previewContext);
+        if (predictionCanvas && predictionContext) updateCanvas(predictionCanvas, predictionContext);
         if (imageCanvas && imageContext) updateCanvas(imageCanvas, imageContext);
 
         setCtx(context);
+        setInkCtx(inkContext);
         setPreviewCtx(previewContext);
+        setPredictionCtx(predictionContext);
         setImageCtx(imageContext);
     }, [viewport.width, viewport.height]);
 
@@ -273,12 +298,12 @@ export function AnnotationCanvas({
 
         // Create tool based on mode
         if (annotationMode === 'pencil') {
-            const { pencilColor } = getActiveState();
+            const { pencilColor, pencilWidth } = getActiveState();
             toolRef.current = new PencilTool(
                 pageWidth,
                 pageHeight,
                 pencilColor,
-                2,
+                pencilWidth,
                 (annotation) => {
                     // Handle async stroke completion
                     annotation.pageNum = pageNum;
@@ -288,12 +313,12 @@ export function AnnotationCanvas({
             );
             toolRef.current.activate();
         } else if (annotationMode === 'highlighter') {
-            const { highlighterMode, highlighterColor, highlighterOpacity } = getActiveState();
+            const { highlighterMode, highlighterColor, highlighterOpacity, highlighterWidth } = getActiveState();
             toolRef.current = new HighlighterTool(
                 pageWidth,
                 pageHeight,
                 highlighterColor,
-                12,
+                highlighterWidth,
                 (annotation) => {
                     // Handle async stroke completion
                     annotation.pageNum = pageNum;
@@ -318,17 +343,12 @@ export function AnnotationCanvas({
                 pageHeight,
                 quadtreeRef.current,
                 (deletedIds: string[], createdAnnotations: Annotation[]) => {
-                    // Batch operation for eraser session
-                    // Delete all marked annotations
-                    deletedIds.forEach(id => {
-                        onDelete?.(id);
-                    });
-
-                    // Add new split annotations
-                    createdAnnotations.forEach(annotation => {
-                        annotation.pageNum = pageNum;
-                        onSave(annotation);
-                    });
+                    createdAnnotations.forEach(annotation => { annotation.pageNum = pageNum; });
+                    if (onErase) onErase(deletedIds, createdAnnotations);
+                    else {
+                        deletedIds.forEach(id => onDelete?.(id));
+                        createdAnnotations.forEach(annotation => onSave(annotation));
+                    }
 
                     // Request immediate redraw
                     requestAnimationFrame(() => {
@@ -378,12 +398,12 @@ export function AnnotationCanvas({
             );
             toolRef.current.activate();
         } else if (annotationMode === 'rectangle') {
-            const { rectangleColor } = getActiveState();
-            toolRef.current = new RectangleTool(pageWidth, pageHeight, rectangleColor, 2);
+            const { rectangleColor, rectangleWidth } = getActiveState();
+            toolRef.current = new RectangleTool(pageWidth, pageHeight, rectangleColor, rectangleWidth);
             toolRef.current.activate();
         } else if (annotationMode === 'arrow') {
-            const { arrowColor } = getActiveState();
-            toolRef.current = new ArrowTool(pageWidth, pageHeight, arrowColor, 2);
+            const { arrowColor, arrowWidth } = getActiveState();
+            toolRef.current = new ArrowTool(pageWidth, pageHeight, arrowColor, arrowWidth);
             toolRef.current.activate();
         } else if (annotationMode === 'image') {
             toolRef.current = new ImageTool(
@@ -523,22 +543,26 @@ export function AnnotationCanvas({
             toolRef.current.setMode(highlighterMode);
             toolRef.current.setColor(highlighterColor);
             toolRef.current.setOpacity(highlighterOpacity);
+            toolRef.current.setStrokeWidth(highlighterWidth);
         } else if (annotationMode === 'eraser' && toolRef.current instanceof EraserTool) {
             toolRef.current.setMode(eraserMode);
             const pageAnnotations = annotations.filter(a => a.pageNum === pageNum);
             toolRef.current.updateAnnotations(pageAnnotations);
         } else if (annotationMode === 'pencil' && toolRef.current instanceof PencilTool) {
             toolRef.current.setColor(pencilColor);
+            toolRef.current.setStrokeWidth(pencilWidth);
         } else if (annotationMode === 'rectangle' && toolRef.current instanceof RectangleTool) {
             toolRef.current.setColor(rectangleColor);
+            toolRef.current.setStrokeWidth(rectangleWidth);
         } else if (annotationMode === 'text' && toolRef.current instanceof TextTool) {
             toolRef.current.setColor(textColor);
             toolRef.current.setFontSize(textFontSize);
             toolRef.current.setFontFamily(textFontFamily);
         } else if (annotationMode === 'arrow' && toolRef.current instanceof ArrowTool) {
             toolRef.current.setColor(arrowColor);
+            toolRef.current.setStrokeWidth(arrowWidth);
         }
-    }, [annotationMode, highlighterMode, highlighterColor, highlighterOpacity, eraserMode, textColor, textFontSize, textFontFamily, pencilColor, rectangleColor, arrowColor, annotations, pageNum]);
+    }, [annotationMode, highlighterMode, highlighterColor, highlighterOpacity, highlighterWidth, eraserMode, textColor, textFontSize, textFontFamily, pencilColor, pencilWidth, rectangleColor, rectangleWidth, arrowColor, arrowWidth, annotations, pageNum]);
 
     // Handle double-click to edit text annotations
     useEffect(() => {
@@ -818,6 +842,39 @@ export function AnnotationCanvas({
         const offsetTop = pageHeight * CANVAS_OFFSET_RATIO;
         const expansionRatio = CANVAS_EXPANSION_RATIO;
 
+        const currentAnnotations = annotationsRef.current;
+        const inkAnnotations = currentAnnotations.filter(
+            (annotation): annotation is StrokeAnnotation | HighlightAnnotation =>
+                annotation.pageNum === pageNum && (annotation.type === 'stroke' || annotation.type === 'highlight'),
+        );
+        const drawInkOnMainThread = () => {
+            if (!inkCtx) return;
+            inkCtx.clearRect(-offsetLeft, -offsetTop, pageWidth * expansionRatio, pageHeight * expansionRatio);
+            for (const annotation of inkAnnotations.filter(item => item.type === 'highlight')) {
+                drawHighlight(inkCtx, annotation, pageWidth, pageHeight);
+            }
+            for (const annotation of inkAnnotations.filter(item => item.type === 'stroke')) {
+                drawStroke(inkCtx, annotation, pageWidth, pageHeight);
+            }
+        };
+
+        if (inkCtx && supportsOffscreenInk()) {
+            const generation = ++inkRenderGenerationRef.current;
+            void renderInkOffscreen(inkAnnotations, pageWidth, pageHeight, window.devicePixelRatio || 1)
+                .then(bitmap => {
+                    if (generation !== inkRenderGenerationRef.current) {
+                        bitmap.close();
+                        return;
+                    }
+                    inkCtx.clearRect(-offsetLeft, -offsetTop, pageWidth * expansionRatio, pageHeight * expansionRatio);
+                    inkCtx.drawImage(bitmap, 0, 0, pageWidth, pageHeight);
+                    bitmap.close();
+                })
+                .catch(drawInkOnMainThread);
+        } else {
+            drawInkOnMainThread();
+        }
+
         // Clear expanded canvas (accounting for translation)
         ctx.clearRect(
             -offsetLeft,
@@ -828,8 +885,7 @@ export function AnnotationCanvas({
 
         // Draw all saved annotations for this page (Layer 2 only: strokes/highlights/text/math)
         // Use ref to get latest annotations even when called from stale closures
-        const currentAnnotations = annotationsRef.current;
-        let pageAnnotations = currentAnnotations.filter(a => a.pageNum === pageNum && a.type !== 'image' && a.type !== 'shape');
+        let pageAnnotations = currentAnnotations.filter(a => a.pageNum === pageNum && (a.type === 'text' || a.type === 'math'));
 
         if (transientAnnotation) {
             pageAnnotations = pageAnnotations.map(a =>
@@ -837,19 +893,10 @@ export function AnnotationCanvas({
             );
         }
 
-        // Sort logic to draw highlights first (behind), then strokes
-        // Exclude images - they go on Layer 3
-        const sortedAnnotations = [
-            ...pageAnnotations.filter(a => a.type === 'highlight'),
-            ...pageAnnotations.filter(a => a.type !== 'highlight')
-        ];
+        const sortedAnnotations = pageAnnotations;
 
         for (const annotation of sortedAnnotations) {
-            if (annotation.type === 'stroke') {
-                drawStroke(ctx, annotation as StrokeAnnotation, pageWidth, pageHeight);
-            } else if (annotation.type === 'highlight') {
-                drawHighlight(ctx, annotation as HighlightAnnotation, pageWidth, pageHeight);
-            } else if (annotation.type === 'text') {
+            if (annotation.type === 'text') {
                 drawText(ctx, annotation as TextAnnotation, pageWidth, pageHeight);
             } else if (annotation.type === 'math') {
                 drawMath(ctx, annotation as MathAnnotation, pageWidth, pageHeight);
@@ -1278,7 +1325,7 @@ export function AnnotationCanvas({
 
             // Clear preview layer primarily (some tools might need underlying data, but generally no)
             // Clear entire preview canvas
-            if (previewCtx && previewCanvasRef.current) {
+            if (previewCtx && previewCanvasRef.current && !(toolRef.current instanceof PencilTool)) {
                 const pageWidth = viewport.width;
                 const pageHeight = viewport.height;
                 const offsetLeft = pageWidth * CANVAS_OFFSET_RATIO;
@@ -1310,6 +1357,22 @@ export function AnnotationCanvas({
                     y: state.y - offsetTop
                 };
                 toolRef.current.onPointerMove(pageState, previewCtx);
+
+                // Prediction is isolated from the real live stroke so reconciliation
+                // never requires repainting committed or already captured ink.
+                if (predictionCtx && predictionCanvasRef.current) {
+                    const previousDirty = predictionDirtyRef.current;
+                    if (previousDirty) predictionCtx.clearRect(
+                        previousDirty.x,
+                        previousDirty.y,
+                        previousDirty.width,
+                        previousDirty.height,
+                    );
+                    if (toolRef.current instanceof PencilTool) {
+                        toolRef.current.renderPrediction(predictionCtx);
+                        predictionDirtyRef.current = toolRef.current.getPredictionBounds();
+                    }
+                }
             }
         });
 
@@ -1341,6 +1404,14 @@ export function AnnotationCanvas({
                     pageWidth * CANVAS_EXPANSION_RATIO,
                     pageHeight * CANVAS_EXPANSION_RATIO
                 );
+                const predictionDirty = predictionDirtyRef.current;
+                if (predictionDirty) predictionCtx?.clearRect(
+                    predictionDirty.x,
+                    predictionDirty.y,
+                    predictionDirty.width,
+                    predictionDirty.height,
+                );
+                predictionDirtyRef.current = null;
             }
 
             const pageWidth = viewport.width;
@@ -1371,7 +1442,7 @@ export function AnnotationCanvas({
         return () => {
             handler.detach();
         };
-    }, [ctx, pageNum, onSave, annotationMode, awaitingImagePlacement, handleImagePaste, textInputState, previewCtx, annotations, viewport, isMovingAnnotation, isResizingAnnotation, selectedAnnotationId, resizeHandle, selectionMode, shouldAllowAnnotationSelection, shouldAllowTextSelection]);
+    }, [ctx, pageNum, onSave, annotationMode, awaitingImagePlacement, handleImagePaste, textInputState, previewCtx, predictionCtx, annotations, viewport, isMovingAnnotation, isResizingAnnotation, selectedAnnotationId, resizeHandle, selectionMode, shouldAllowAnnotationSelection, shouldAllowTextSelection]);
 
 
 
@@ -1432,10 +1503,10 @@ export function AnnotationCanvas({
         };
 
         // Store handler globally so ImageOptions can call it
-        (window as any).__handleImageFileUpload = handleFileUpload;
+        window.__handleImageFileUpload = handleFileUpload;
 
         return () => {
-            delete (window as any).__handleImageFileUpload;
+            delete window.__handleImageFileUpload;
         };
     }, [onImageUpload, pageNum]);
 
@@ -2015,7 +2086,8 @@ export function AnnotationCanvas({
         pageHeight: number
     ) => {
         const points = annotation.geometry.points;
-        if (points.length < 2) return;
+        const curves = annotation.geometry.beziers;
+        if (points.length < 2 && !curves?.length) return;
 
         ctx.save();
         ctx.strokeStyle = annotation.style.color;
@@ -2026,14 +2098,26 @@ export function AnnotationCanvas({
 
         ctx.beginPath();
 
-        // Denormalize and draw first point
-        const firstDenorm = denormalizePoint(points[0].x, points[0].y, pageWidth, pageHeight);
+        const firstPoint = curves?.[0]?.start || points[0];
+        const firstDenorm = denormalizePoint(firstPoint.x, firstPoint.y, pageWidth, pageHeight);
         ctx.moveTo(firstDenorm.x, firstDenorm.y);
 
-        // Draw remaining points
-        for (let i = 1; i < points.length; i++) {
-            const denorm = denormalizePoint(points[i].x, points[i].y, pageWidth, pageHeight);
-            ctx.lineTo(denorm.x, denorm.y);
+        if (curves?.length) {
+            for (const curve of curves) {
+                ctx.bezierCurveTo(
+                    curve.control1.x * pageWidth,
+                    curve.control1.y * pageHeight,
+                    curve.control2.x * pageWidth,
+                    curve.control2.y * pageHeight,
+                    curve.end.x * pageWidth,
+                    curve.end.y * pageHeight,
+                );
+            }
+        } else {
+            for (let i = 1; i < points.length; i++) {
+                const denorm = denormalizePoint(points[i].x, points[i].y, pageWidth, pageHeight);
+                ctx.lineTo(denorm.x, denorm.y);
+            }
         }
 
         ctx.stroke();
@@ -2414,7 +2498,7 @@ export function AnnotationCanvas({
     useEffect(() => {
         redrawCanvas();
         redrawImageCanvas();
-    }, [annotations, ctx, imageCtx, viewport, pageNum, transientAnnotation, selectedAnnotationId]);
+    }, [annotations, ctx, inkCtx, imageCtx, viewport, pageNum, transientAnnotation, selectedAnnotationId]);
 
 
 
@@ -2841,6 +2925,14 @@ export function AnnotationCanvas({
 
     return (
         <div ref={containerRef} className="absolute inset-0 pointer-events-none">
+            {/* Committed ink is rasterised off the main thread when supported. */}
+            <canvas
+                ref={inkCanvasRef}
+                className="absolute inset-0 pointer-events-none annotation-layer-ink"
+                aria-hidden="true"
+                style={{ zIndex: annotationCanvasZ }}
+            />
+
             {/* Annotation Layer - Layer 2 (strokes/highlights/text only) */}
             <canvas
                 ref={canvasRef}
@@ -2876,6 +2968,13 @@ export function AnnotationCanvas({
                 style={{
                     touchAction: 'none',
                 }}
+            />
+
+            {/* Predicted points are disposable and never enter annotation state. */}
+            <canvas
+                ref={predictionCanvasRef}
+                className="absolute inset-0 pointer-events-none"
+                aria-hidden="true"
             />
 
             {/* Text Input Overlay */}

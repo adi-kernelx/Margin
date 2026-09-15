@@ -32,15 +32,23 @@ export interface AppState {
     setHighlighterColor: (color: string) => void;
     highlighterOpacity: number;
     setHighlighterOpacity: (opacity: number) => void;
+    highlighterWidth: number;
+    setHighlighterWidth: (width: number) => void;
     eraserMode: EraserMode;
     setEraserMode: (mode: EraserMode) => void;
     // Pencil, Rectangle, and Arrow colors
     pencilColor: string;
     setPencilColor: (color: string) => void;
+    pencilWidth: number;
+    setPencilWidth: (width: number) => void;
     rectangleColor: string;
     setRectangleColor: (color: string) => void;
+    rectangleWidth: number;
+    setRectangleWidth: (width: number) => void;
     arrowColor: string;
     setArrowColor: (color: string) => void;
+    arrowWidth: number;
+    setArrowWidth: (width: number) => void;
     // Text tool settings
     textColor: string;
     setTextColor: (color: string) => void;
@@ -124,15 +132,23 @@ export const createAppStoreSlice = (set: any, _get: any): AppState => ({
     setHighlighterColor: (color) => set({ highlighterColor: color }),
     highlighterOpacity: 0.25,
     setHighlighterOpacity: (opacity) => set({ highlighterOpacity: opacity }),
+    highlighterWidth: 12,
+    setHighlighterWidth: (width) => set({ highlighterWidth: width }),
     eraserMode: 'stroke',
     setEraserMode: (mode) => set({ eraserMode: mode }),
     // Tool colors
     pencilColor: '#000000', // Black
     setPencilColor: (color) => set({ pencilColor: color }),
+    pencilWidth: 2,
+    setPencilWidth: (width) => set({ pencilWidth: width }),
     rectangleColor: '#FF0000', // Red
     setRectangleColor: (color) => set({ rectangleColor: color }),
+    rectangleWidth: 2,
+    setRectangleWidth: (width) => set({ rectangleWidth: width }),
     arrowColor: '#0000FF', // Blue
     setArrowColor: (color) => set({ arrowColor: color }),
+    arrowWidth: 2,
+    setArrowWidth: (width) => set({ arrowWidth: width }),
     // Text tool settings
     textColor: '#000000', // Black
     setTextColor: (color) => set({ textColor: color }),

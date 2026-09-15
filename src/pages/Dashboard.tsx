@@ -15,8 +15,19 @@ import type { SaveStoreState } from '@/lib/saving/save-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
 import type { LocalFile } from '@/types/editor-types';
 import { computeStableId, computeStableIdForFile } from '@/lib/doc-id';
+import type { LayoutNode } from '@/core/workspace/layout';
+import {
+    activateTab,
+    addTabs,
+    createLayout,
+    firstPaneId,
+    paneIdForTab,
+    removeTab,
+    visibleTabIds,
+} from '@/core/workspace/layout';
 
 import { ToastContainer } from '@/components/ui/Toast';
+import { Button } from '@/components/ui/Button';
 
 // Pending permission request info
 interface PendingPermission {
@@ -27,16 +38,22 @@ interface PendingPermission {
 
 export default function Dashboard() {
     const [documents, setDocuments] = useState<DocumentEntry[]>([]);
+    const [workspaceLayout, setWorkspaceLayout] = useState<LayoutNode>(() => createLayout('pane-root'));
     const [replicateToolbar, setReplicateToolbar] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Permission prompt state
     const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
 
-    const { isDarkMode } = useAppStore();
+    const { isDarkMode, focusedDocId, setFocusedDocId } = useAppStore();
 
     // Global Unsaved Changes Warning
     const isDirtyByPdf = useSaveStore((state: SaveStoreState) => state.isDirtyByPdf);
+
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', isDarkMode);
+        return () => document.documentElement.classList.remove('dark');
+    }, [isDarkMode]);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -68,7 +85,20 @@ export default function Dashboard() {
         onDelete: () => { }
     });
 
-    const layout = documents.length > 0 ? documents.length : 1;
+    const addDocumentsToWorkspace = (newDocs: DocumentEntry[]) => {
+        if (newDocs.length === 0) return;
+        setDocuments((previous) => [...previous, ...newDocs]);
+        setWorkspaceLayout((current) => {
+            const targetPaneId = (focusedDocId && paneIdForTab(current, focusedDocId)) || firstPaneId(current);
+            return activateTab(addTabs(current, targetPaneId, newDocs.map((doc) => doc.id)), newDocs[0].id);
+        });
+        setFocusedDocId(newDocs[0].id);
+    };
+
+    const focusDocument = (docId: string) => {
+        setWorkspaceLayout((current) => activateTab(current, docId));
+        setFocusedDocId(docId);
+    };
 
     // Handle permission prompt response
     const handlePermissionAllow = async () => {
@@ -97,20 +127,17 @@ export default function Dashboard() {
     };
 
     const handleOpenPDF = async () => {
-        const remainingSlots = 4 - documents.length;
-        if (remainingSlots <= 0) return;
-
         if ('showOpenFilePicker' in window) {
             try {
                 const handles = await (window as any).showOpenFilePicker({
-                    multiple: remainingSlots > 1,
+                    multiple: true,
                     types: [{ description: 'PDF Documents', accept: { 'application/pdf': ['.pdf'] } }],
                 });
 
                 const newDocs: DocumentEntry[] = [];
                 let firstUnpermittedDoc: PendingPermission | null = null;
 
-                for (let i = 0; i < handles.length && i < remainingSlots; i++) {
+                for (let i = 0; i < handles.length; i++) {
                     const handle = handles[i] as FileSystemFileHandle;
                     const file = await handle.getFile();
                     const docId = crypto.randomUUID();
@@ -171,7 +198,7 @@ export default function Dashboard() {
                     });
                 }
 
-                setDocuments(prev => [...prev, ...newDocs]);
+                addDocumentsToWorkspace(newDocs);
 
                 if (firstUnpermittedDoc) {
                     setPendingPermission(firstUnpermittedDoc);
@@ -188,12 +215,9 @@ export default function Dashboard() {
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const remainingSlots = 4 - documents.length;
-            if (remainingSlots <= 0) return;
-
             const newDocs: DocumentEntry[] = [];
 
-            for (let i = 0; i < e.target.files.length && i < remainingSlots; i++) {
+            for (let i = 0; i < e.target.files.length; i++) {
                 const file = e.target.files[i];
                 const docId = crypto.randomUUID();
                 const stableId = await computeStableIdForFile(file);
@@ -209,7 +233,7 @@ export default function Dashboard() {
                 });
             }
 
-            setDocuments(prev => [...prev, ...newDocs]);
+            addDocumentsToWorkspace(newDocs);
             e.target.value = '';
         }
     };
@@ -219,6 +243,9 @@ export default function Dashboard() {
     const removeDocument = (id: string) => {
         useSaveStore.getState().clearDoc(id);
         setDocuments(prev => prev.filter(d => d.id !== id));
+        const nextLayout = removeTab(workspaceLayout, id, 'pane-root');
+        setWorkspaceLayout(nextLayout);
+        if (focusedDocId === id) setFocusedDocId(visibleTabIds(nextLayout)[0] ?? null);
     };
 
     const handleRefreshDocument = async (docId: string) => {
@@ -390,8 +417,8 @@ export default function Dashboard() {
 
     return (
         <div className={cn(
-            "flex h-screen w-screen overflow-hidden flex-col",
-            isDarkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-gray-900'
+            "flex h-screen w-screen overflow-hidden flex-col bg-ground text-text",
+            isDarkMode && 'dark'
         )}>
             <Header
                 onOpenPDF={handleOpenPDF}
@@ -401,6 +428,7 @@ export default function Dashboard() {
                 onLoadJSON={handleLoadJSON}
                 showAIChat={showAIChat}
                 onToggleAIChat={() => setShowAIChat(!showAIChat)}
+                onFocusDocument={focusDocument}
             />
 
             <input
@@ -426,26 +454,28 @@ export default function Dashboard() {
                 />
 
 
-                <div className="flex-1 overflow-hidden relative bg-white dark:bg-gray-950 flex">
+                <div className="flex-1 overflow-hidden relative bg-ground flex">
                     <div className="flex-1 overflow-hidden relative">
                         {documents.length === 0 ? (
-                            <div className={cn("flex flex-col items-center justify-center h-full text-gray-400 gap-4", isDarkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-gray-900')}>
-                                <p className="text-lg">Open a PDF to get started</p>
+                            <div className="flex flex-col items-center justify-center h-full bg-ground text-text-muted gap-4">
+                                <p className="text-lg">Open a mathematical document to get started</p>
                                 <div className="flex gap-4">
-                                    <button
+                                    <Button
                                         onClick={handleOpenPDF}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                        variant="primary"
                                     >
                                         Open Local PDF
-                                    </button>
+                                    </Button>
 
                                 </div>
                             </div>
                         ) : (
                             <DocumentsGrid
                                 documents={documents}
-                                layout={layout}
+                                layout={workspaceLayout}
+                                setLayout={setWorkspaceLayout}
                                 replicateToolbar={replicateToolbar}
+                                onFocusDocument={focusDocument}
                             />
                         )}
                     </div>

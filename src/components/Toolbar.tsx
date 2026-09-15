@@ -23,6 +23,10 @@ import { ImageOptions } from './ImageOptions';
 import { SelectOptions } from './SelectOptions';
 import { ColorPicker } from './ColorPicker';
 import { SaveButton } from './SaveButton';
+import { IconButton } from './ui/IconButton';
+import { ToolbarGroup } from './ui/ToolbarGroup';
+import { Tooltip } from './ui/Tooltip';
+import type { ToolMode } from '@/lib/store';
 
 interface ToolbarProps {
     onUndo?: () => void;
@@ -55,7 +59,7 @@ export function Toolbar({
     isModified,
     readOnly
 }: ToolbarProps) {
-    const { annotationMode, setAnnotationMode, isDarkMode, isDirty, setMathModalOpen, setScale, scale } = useDocumentStore();
+    const { annotationMode, setAnnotationMode, isDirty, setMathModalOpen, setScale, scale } = useDocumentStore();
     const [highlighterOptionsOpen, setHighlighterOptionsOpen] = useState(false);
     const effectiveIsModified = isModified !== undefined ? isModified : isDirty;
 
@@ -64,7 +68,7 @@ export function Toolbar({
     const [imageOptionsOpen, setImageOptionsOpen] = useState(false);
     const [selectOptionsOpen, setSelectOptionsOpen] = useState(false);
     const [colorPickerOpen, setColorPickerOpen] = useState<'pencil' | 'rectangle' | 'arrow' | null>(null);
-    const clickTimeoutRef = useRef<{ [key: string]: any }>({});
+    const clickTimeoutRef = useRef<Partial<Record<NonNullable<ToolMode>, ReturnType<typeof setTimeout>>>>({});
 
     const tools = [
         { icon: MousePointer2, mode: 'select' as const, label: 'Select (V)' },
@@ -78,11 +82,11 @@ export function Toolbar({
         { icon: Calculator, mode: 'math' as const, label: 'Math Equation' },
     ];
 
-    const handleToolClick = (mode: any) => {
+    const handleToolClick = (mode: NonNullable<ToolMode>) => {
         // Clear any existing timeout for this tool
         if (clickTimeoutRef.current[mode]) {
             clearTimeout(clickTimeoutRef.current[mode]!);
-            clickTimeoutRef.current[mode] = null;
+            delete clickTimeoutRef.current[mode];
         }
 
         // Set a timeout to handle single click (wait to see if double click occurs)
@@ -112,15 +116,15 @@ export function Toolbar({
             setImageOptionsOpen(false);
             setSelectOptionsOpen(false);
             setColorPickerOpen(null);
-            clickTimeoutRef.current[mode] = null;
+            delete clickTimeoutRef.current[mode];
         }, 300); // 300ms delay to detect double click
     };
 
-    const handleDoubleClick = (mode: any) => {
+    const handleDoubleClick = (mode: NonNullable<ToolMode>) => {
         // Clear the single click timeout
         if (clickTimeoutRef.current[mode]) {
             clearTimeout(clickTimeoutRef.current[mode]!);
-            clickTimeoutRef.current[mode] = null;
+            delete clickTimeoutRef.current[mode];
         }
 
         // Close all other popovers first
@@ -169,149 +173,81 @@ export function Toolbar({
             className
         )}>
             <div className={cn(
-                "p-2 flex flex-col gap-2 rounded-xl shadow-xl border overflow-y-auto scrollbar-hide",
+                "p-2 flex flex-col gap-2 rounded-xl border border-line bg-surface-2 shadow-elev-3 overflow-y-auto scrollbar-hide",
                 small ? "max-h-[60vh] scale-90 origin-top-left" : ((className?.includes('max-h-') || className?.includes('h-full')) ? "max-h-full" : "max-h-[80vh]"), // Only default to 80vh if no override
-                isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white/95 backdrop-blur border-gray-200"
             )}>
                 {/* Drawing Tools */}
-                {tools.map((tool) => {
-                    const Icon = tool.icon;
-                    const isActive = annotationMode === tool.mode;
+                <ToolbarGroup label="Annotation tools">
+                    {tools.map((tool) => {
+                        const Icon = tool.icon;
+                        const isActive = annotationMode === tool.mode;
 
-                    return (
-                        <button
-                            key={tool.mode}
-                            onClick={() => handleToolClick(tool.mode)}
-                            onDoubleClick={(e) => {
-                                e.preventDefault(); // Prevent text selection etc
-                                handleDoubleClick(tool.mode);
-                            }}
-                            className={cn(
-                                'p-3 rounded-lg transition-all',
-                                isActive
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : isDarkMode
-                                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            )}
-                            title={tool.label}
-                        >
-                            <Icon size={20} />
-                        </button>
-                    );
-                })}
-
-                {/* Separator */}
-                <div className={cn(
-                    "h-px my-1",
-                    isDarkMode ? "bg-gray-700" : "bg-gray-300"
-                )} />
+                        return (
+                            <IconButton
+                                key={tool.mode}
+                                size="lg"
+                                pressed={isActive}
+                                onClick={() => handleToolClick(tool.mode)}
+                                onDoubleClick={(event) => {
+                                    event.preventDefault();
+                                    handleDoubleClick(tool.mode);
+                                }}
+                                aria-label={tool.label}
+                                title={tool.label}
+                            >
+                                <Icon size={20} />
+                            </IconButton>
+                        );
+                    })}
+                </ToolbarGroup>
 
                 {/* Save / Export */}
-                <SaveButton
-                    onSingleClick={() => onSave?.()}
-                    onDoubleClick={() => onOpenSaveOptions?.()}
-                    isModified={effectiveIsModified}
-                    disabled={readOnly}
-                    className=""
-                />
-
-                {/* Separator */}
-                <div className={cn(
-                    "h-px my-1",
-                    isDarkMode ? "bg-gray-700" : "bg-gray-300"
-                )} />
+                <ToolbarGroup label="Save and export" separated>
+                    <SaveButton
+                        onSingleClick={() => onSave?.()}
+                        onDoubleClick={() => onOpenSaveOptions?.()}
+                        isModified={effectiveIsModified}
+                        disabled={readOnly}
+                        className=""
+                    />
+                </ToolbarGroup>
 
                 {/* Undo/Redo */}
-                <button
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    className={cn(
-                        'p-3 rounded-lg transition-all',
-                        !canUndo && 'opacity-50 cursor-not-allowed',
-                        isDarkMode
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}
-                    title="Undo (Ctrl+Z)"
-                >
-                    <Undo2 size={20} />
-                </button>
-
-                <button
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    className={cn(
-                        'p-3 rounded-lg transition-all',
-                        !canRedo && 'opacity-50 cursor-not-allowed',
-                        isDarkMode
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    )}
-                    title="Redo (Ctrl+Y)"
-                >
-                    <Redo2 size={20} />
-                </button>
-
-                {/* Separator */}
-                <div className={cn(
-                    "h-px my-1",
-                    isDarkMode ? "bg-gray-700" : "bg-gray-300"
-                )} />
+                <ToolbarGroup label="Edit history" separated>
+                    <IconButton size="lg" onClick={onUndo} disabled={!canUndo} aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)">
+                        <Undo2 size={20} />
+                    </IconButton>
+                    <IconButton size="lg" onClick={onRedo} disabled={!canRedo} aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)">
+                        <Redo2 size={20} />
+                    </IconButton>
+                </ToolbarGroup>
 
                 {/* Zoom Controls */}
-                {/* Zoom Controls */}
-                <button
-                    onClick={() => setScale(Math.min(3, scale * 1.25))}
-                    className={cn(
-                        'p-3 rounded-lg transition-all',
-                        isDarkMode
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                        small && 'p-2'
-                    )}
-                    title="Zoom In (Ctrl +)"
-                >
-                    <ZoomIn size={small ? 16 : 20} />
-                </button>
-                <button
-                    onClick={() => setScale(Math.max(0.5, scale / 1.25))}
-                    className={cn(
-                        'p-3 rounded-lg transition-all',
-                        isDarkMode
-                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                        small && 'p-2'
-                    )}
-                    title="Zoom Out (Ctrl -)"
-                >
-                    <ZoomOut size={small ? 16 : 20} />
-                </button>
+                <ToolbarGroup label="Zoom" separated>
+                    <Tooltip content="Zoom in (Ctrl +)">
+                        <IconButton size={small ? 'md' : 'lg'} onClick={() => setScale(Math.min(3, scale * 1.25))} aria-label="Zoom in (Ctrl +)">
+                            <ZoomIn size={small ? 16 : 20} />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip content="Zoom out (Ctrl -)">
+                        <IconButton size={small ? 'md' : 'lg'} onClick={() => setScale(Math.max(0.5, scale / 1.25))} aria-label="Zoom out (Ctrl -)">
+                            <ZoomOut size={small ? 16 : 20} />
+                        </IconButton>
+                    </Tooltip>
+                </ToolbarGroup>
 
                 {onToggleReplicate && (
-                    <>
-                        {/* Separator */}
-                        <div className={cn(
-                            "h-px my-1",
-                            isDarkMode ? "bg-gray-700" : "bg-gray-300"
-                        )} />
-
-                        <button
+                    <ToolbarGroup label="Pane toolbar" separated>
+                        <IconButton
+                            size={small ? 'md' : 'lg'}
                             onClick={onToggleReplicate}
-                            className={cn(
-                                'p-3 rounded-lg transition-all',
-                                replicateToolbar
-                                    ? 'bg-blue-600 text-white'
-                                    : isDarkMode
-                                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                                small && 'p-2'
-                            )}
+                            pressed={replicateToolbar}
+                            aria-label={replicateToolbar ? "Merge toolbars" : "Split toolbars"}
                             title={replicateToolbar ? "Merge Toolbars" : "Split Toolbars"}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width={small ? 16 : 20} height={small ? 16 : 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="18" x="3" y="3" rx="1" /><path d="M15 3v18" /></svg>
-                        </button>
-                    </>
+                        </IconButton>
+                    </ToolbarGroup>
                 )}
 
             </div>
