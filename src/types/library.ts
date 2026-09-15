@@ -24,6 +24,10 @@ export interface LibraryFile {
     sizeBytes: number;
     status: LibraryFileStatus;
     storageType: 'local';
+    pageCount?: number;
+    lastReadPage?: number;
+    coverThumbnail?: string;
+    lastOpenedAt?: number;
 }
 
 export const ROOT_FOLDER_ID = 'root';

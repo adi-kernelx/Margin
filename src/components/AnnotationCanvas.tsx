@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useContext } from 'react';
 import type { PageViewport } from 'pdfjs-dist';
 import type { Annotation, StrokeAnnotation, HighlightAnnotation, TextAnnotation, ShapeAnnotation, ImageAnnotation, MathAnnotation, BoundingBox, TransformMatrix } from '@/lib/annotations/models';
+import { createHighlightNote, unionHighlightBounds } from '@/core/notes/notes';
 import { UnifiedPointerHandler } from '@/lib/annotations/pointer-handler';
 import { BaseTool } from '@/lib/tools/base-tool';
 import { PencilTool } from '@/lib/tools/pencil-tool';
@@ -64,6 +65,8 @@ interface AnnotationCanvasProps {
     onErase?: (deletedIds: string[], created: Annotation[]) => void;
     textLayerRef?: React.RefObject<HTMLDivElement>;
     onImageUpload?: (file: File) => void;
+    focusedHighlightId?: string | null;
+    onHighlightFocus?: (id: string) => void;
 }
 
 export function AnnotationCanvas({
@@ -74,7 +77,9 @@ export function AnnotationCanvas({
     onDelete,
     onErase,
     textLayerRef,
-    onImageUpload
+    onImageUpload,
+    focusedHighlightId,
+    onHighlightFocus,
 }: AnnotationCanvasProps) {
     const inkCanvasRef = useRef<HTMLCanvasElement>(null); // Layer 2 - committed strokes/highlights
     const canvasRef = useRef<HTMLCanvasElement>(null); // Layer 2.1 - text/math and interaction target
@@ -2909,6 +2914,12 @@ export function AnnotationCanvas({
                 }
             };
 
+            annotation.note = createHighlightNote(
+                annotation,
+                selection.toString(),
+                referenceElement.textContent ?? '',
+            );
+
             onSave(annotation);
             selection.removeAllRanges();
         };
@@ -2932,6 +2943,33 @@ export function AnnotationCanvas({
                 aria-hidden="true"
                 style={{ zIndex: annotationCanvasZ }}
             />
+
+            {shouldAllowAnnotationSelection && onHighlightFocus && annotations
+                .filter((annotation): annotation is HighlightAnnotation => annotation.type === 'highlight')
+                .map((highlight) => {
+                    const bounds = highlight.note?.bbox ?? unionHighlightBounds(highlight);
+                    return (
+                        <button
+                            key={`note-anchor-${highlight.id}`}
+                            type="button"
+                            className={`absolute pointer-events-auto rounded-sm ${focusedHighlightId === highlight.id ? 'ring-2 ring-accent' : ''}`}
+                            style={{
+                                left: `${bounds.x * viewport.width}px`,
+                                top: `${bounds.y * viewport.height}px`,
+                                width: `${Math.max(bounds.width * viewport.width, 12)}px`,
+                                height: `${Math.max(bounds.height * viewport.height, 12)}px`,
+                                zIndex: imageCanvasZ + 1,
+                                background: 'transparent',
+                            }}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onHighlightFocus(highlight.id);
+                            }}
+                            aria-label={`Open note for highlight on page ${pageNum}`}
+                            title="Open linked note"
+                        />
+                    );
+                })}
 
             {/* Annotation Layer - Layer 2 (strokes/highlights/text only) */}
             <canvas

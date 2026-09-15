@@ -1,7 +1,23 @@
-import { PDFDocument, PDFName, PDFDict, PDFArray, PDFString, PDFStream } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFDict, PDFArray, PDFHexString, PDFString, PDFStream } from 'pdf-lib';
 import type { Annotation } from './annotations/models';
+import { addPdfAnnotations } from './pdf-annotations';
 
 const EMBEDDED_FILE_NAME = 'pdf-reader-annotations.json';
+
+function removePreviousAttachment(pdfDoc: PDFDocument) {
+    const names = pdfDoc.catalog.lookupMaybe(PDFName.of('Names'), PDFDict);
+    const embeddedFiles = names?.lookupMaybe(PDFName.of('EmbeddedFiles'), PDFDict);
+    const entries = embeddedFiles?.lookupMaybe(PDFName.of('Names'), PDFArray);
+    if (!entries) return;
+    for (let index = entries.size() - 2; index >= 0; index -= 2) {
+        const name = entries.lookup(index);
+        if ((name instanceof PDFString || name instanceof PDFHexString)
+            && name.decodeText() === EMBEDDED_FILE_NAME) {
+            entries.remove(index);
+            entries.remove(index);
+        }
+    }
+}
 
 /**
  * Embeds the annotation model into the PDF as a hidden file attachment.
@@ -10,12 +26,14 @@ const EMBEDDED_FILE_NAME = 'pdf-reader-annotations.json';
  */
 export async function embedAnnotations(pdfDoc: PDFDocument, annotations: Annotation[]): Promise<void> {
     try {
+        addPdfAnnotations(pdfDoc, annotations);
+        removePreviousAttachment(pdfDoc);
         const jsonString = JSON.stringify(annotations);
         const uint8Array = new TextEncoder().encode(jsonString);
 
         await pdfDoc.attach(uint8Array, EMBEDDED_FILE_NAME, {
             mimeType: 'application/json',
-            description: 'Editable annotation data for PDF Reader',
+            description: 'Editable annotation data for Margin',
             creationDate: new Date(),
             modificationDate: new Date(),
         });

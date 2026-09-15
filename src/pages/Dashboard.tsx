@@ -28,6 +28,9 @@ import {
 
 import { ToastContainer } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
+import { LibraryGrid } from '@/components/LibraryGrid';
+import { libraryDB } from '@/lib/storage/library-db';
+import type { LibraryFile } from '@/types/library';
 
 // Pending permission request info
 interface PendingPermission {
@@ -36,10 +39,42 @@ interface PendingPermission {
     handle: FileSystemFileHandle;
 }
 
+async function loadLibraryDocument(entry: LibraryFile): Promise<DocumentEntry | null> {
+    const blob = await libraryDB.getFileBlob(entry.id);
+    if (!blob) return null;
+    const file = new File([blob], entry.name, { type: entry.mimeType || 'application/pdf' });
+    const stableId = await computeStableIdForFile(file);
+    const now = Date.now();
+    const existing = await localFileDB.getLocalFile(entry.id);
+    if (existing) {
+        await localFileDB.updateLocalFile(entry.id, { pdfFingerprint: stableId, displayName: entry.name });
+    } else {
+        await localFileDB.createLocalFile({
+            localFileId: entry.id,
+            pdfFingerprint: stableId,
+            displayName: entry.name,
+            autosaveEnabled: false,
+            autosaveIntervalSec: 10,
+            createdAt: entry.createdAt,
+            updatedAt: now,
+        });
+    }
+    await libraryDB.updateFileMetadata(entry.id, { lastOpenedAt: now, lastReadPage: entry.lastReadPage ?? 1 });
+    return {
+        id: entry.id,
+        stableId,
+        pdfFingerprint: stableId,
+        name: entry.name,
+        file,
+        fileUrl: URL.createObjectURL(file),
+    };
+}
+
 export default function Dashboard() {
     const [documents, setDocuments] = useState<DocumentEntry[]>([]);
     const [workspaceLayout, setWorkspaceLayout] = useState<LayoutNode>(() => createLayout('pane-root'));
     const [replicateToolbar, setReplicateToolbar] = useState(false);
+    const [showLibrary, setShowLibrary] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Permission prompt state
@@ -93,6 +128,18 @@ export default function Dashboard() {
             return activateTab(addTabs(current, targetPaneId, newDocs.map((doc) => doc.id)), newDocs[0].id);
         });
         setFocusedDocId(newDocs[0].id);
+        setShowLibrary(false);
+    };
+
+    const handleOpenLibraryFile = async (entry: LibraryFile) => {
+        const alreadyOpen = documents.find(document => document.id === entry.id);
+        if (alreadyOpen) {
+            focusDocument(alreadyOpen.id);
+            setShowLibrary(false);
+            return;
+        }
+        const document = await loadLibraryDocument(entry);
+        if (document) addDocumentsToWorkspace([document]);
     };
 
     const focusDocument = (docId: string) => {
@@ -429,6 +476,7 @@ export default function Dashboard() {
                 showAIChat={showAIChat}
                 onToggleAIChat={() => setShowAIChat(!showAIChat)}
                 onFocusDocument={focusDocument}
+                onShowLibrary={() => setShowLibrary(true)}
             />
 
             <input
@@ -456,7 +504,9 @@ export default function Dashboard() {
 
                 <div className="flex-1 overflow-hidden relative bg-ground flex">
                     <div className="flex-1 overflow-hidden relative">
-                        {documents.length === 0 ? (
+                        {showLibrary ? (
+                            <LibraryGrid onOpen={handleOpenLibraryFile} />
+                        ) : documents.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full bg-ground text-text-muted gap-4">
                                 <p className="text-lg">Open a mathematical document to get started</p>
                                 <div className="flex gap-4">

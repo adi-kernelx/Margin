@@ -84,7 +84,14 @@ export function attachAnnotationsToPageIds(
         const page = document.pages[pageIndex];
         if (!page) return annotation;
         if (annotation.pageId === page.id && annotation.pageNum === pageIndex + 1) return annotation;
-        return { ...annotation, pageId: page.id, pageNum: pageIndex + 1 };
+        return {
+            ...annotation,
+            pageId: page.id,
+            pageNum: pageIndex + 1,
+            ...(annotation.type === 'highlight' && annotation.note
+                ? { note: { ...annotation.note, pageId: page.id } }
+                : {}),
+        };
     });
 }
 

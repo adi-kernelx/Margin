@@ -1,3 +1,15 @@
+import {
+    buildFullTextIndex,
+    matchBounds,
+    searchFullTextIndex,
+    type FullTextIndex,
+    type IndexedSearchPage,
+    type IndexedTextSpan,
+} from '@/core/search/index';
+import type { OcrPageResult } from '@/lib/ocr/client-ocr';
+import { searchIndexStorage } from './storage';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+
 export type SearchSpan = {
     text: string;
     bbox: { x0: number; y0: number; x1: number; y1: number };
@@ -18,138 +30,152 @@ export type SearchResult = {
 interface RegisteredDocument {
     docId: string;
     pdfFingerprint: string;
-    pdfDoc: any; // pdfjsLib.PDFDocumentProxy
-    getOcrData: () => any; // Function to get current OCR data lazily
+    documentRevision: string;
+    pdfDoc: PDFDocumentProxy;
+    getOcrData: () => Record<number, OcrPageResult>;
+    index: FullTextIndex | null;
+    ready: Promise<void>;
+}
+
+const clamp = (value: number) => Math.max(0, Math.min(1, value));
+
+async function extractPage(document: RegisteredDocument, pageNumber: number): Promise<IndexedSearchPage> {
+    const page = await document.pdfDoc.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const spans: IndexedTextSpan[] = [];
+    let text = '';
+
+    const append = (value: string, bbox: IndexedTextSpan['bbox']) => {
+        const clean = value.replace(/\s+/g, ' ').trim();
+        if (!clean) return;
+        const start = text.length ? text.length + 1 : 0;
+        text += `${text ? ' ' : ''}${clean}`;
+        spans.push({ text: clean, start, end: start + clean.length, bbox });
+    };
+
+    const native = await page.getTextContent();
+    for (const item of native.items) {
+        if (!('str' in item) || !item.str) continue;
+        const x = item.transform[4] ?? 0;
+        const y = item.transform[5] ?? 0;
+        const width = item.width ?? 0;
+        const height = item.height ?? Math.abs(item.transform[3] ?? 12);
+        append(item.str, {
+            x0: clamp(x / viewport.width),
+            y0: clamp((viewport.height - y - height) / viewport.height),
+            x1: clamp((x + width) / viewport.width),
+            y1: clamp((viewport.height - y + height * 0.2) / viewport.height),
+        });
+    }
+
+    const nativeTerms = new Set(spans.map(span => span.text.toLocaleLowerCase()));
+    for (const token of document.getOcrData()[pageNumber]?.tokens ?? []) {
+        if (!token.text || nativeTerms.has(token.text.toLocaleLowerCase())) continue;
+        append(token.text, {
+            x0: clamp(token.bbox.x),
+            y0: clamp(token.bbox.y),
+            x1: clamp(token.bbox.x + token.bbox.w),
+            y1: clamp(token.bbox.y + token.bbox.h),
+        });
+    }
+
+    return {
+        docId: document.docId,
+        pdfFingerprint: document.pdfFingerprint,
+        page: pageNumber,
+        text,
+        spans,
+    };
 }
 
 class LocalSearchRegistry {
-    private documents: Map<string, RegisteredDocument> = new Map();
+    private documents = new Map<string, RegisteredDocument>();
+    private refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-    register(docId: string, pdfFingerprint: string, pdfDoc: any, getOcrData: () => any) {
-        this.documents.set(docId, { docId, pdfFingerprint, pdfDoc, getOcrData });
+    register(
+        docId: string,
+        pdfFingerprint: string,
+        documentRevision: string,
+        pdfDoc: PDFDocumentProxy,
+        getOcrData: () => Record<number, OcrPageResult>,
+    ) {
+        const document: RegisteredDocument = {
+            docId,
+            pdfFingerprint,
+            documentRevision,
+            pdfDoc,
+            getOcrData,
+            index: null,
+            ready: Promise.resolve(),
+        };
+        document.ready = this.prepareIndex(document);
+        this.documents.set(docId, document);
     }
 
     unregister(docId: string) {
         this.documents.delete(docId);
+        const timer = this.refreshTimers.get(docId);
+        if (timer) clearTimeout(timer);
+        this.refreshTimers.delete(docId);
+    }
+
+    refresh(docId: string) {
+        const document = this.documents.get(docId);
+        if (!document) return;
+        const previous = this.refreshTimers.get(docId);
+        if (previous) clearTimeout(previous);
+        this.refreshTimers.set(docId, setTimeout(() => {
+            document.ready = this.prepareIndex(document);
+            this.refreshTimers.delete(docId);
+        }, 500));
+    }
+
+    private async prepareIndex(document: RegisteredDocument) {
+        const cached = await searchIndexStorage.load(
+            document.pdfFingerprint,
+            document.docId,
+            document.documentRevision,
+        );
+        if (cached.length === document.pdfDoc.numPages) document.index = buildFullTextIndex(cached);
+
+        const hasOcr = Object.values(document.getOcrData()).some(page => page.tokens.length > 0);
+        if (document.index && !hasOcr) return;
+
+        const pages: IndexedSearchPage[] = [];
+        for (let pageNumber = 1; pageNumber <= document.pdfDoc.numPages; pageNumber++) {
+            pages.push(await extractPage(document, pageNumber));
+        }
+        if (this.documents.get(document.docId) !== document) return;
+        document.index = buildFullTextIndex(pages);
+        await searchIndexStorage.replace(document.pdfFingerprint, document.documentRevision, pages);
     }
 
     async search(query: string, scopeIds: string[]): Promise<SearchResult[]> {
-        if (!query.trim()) return [];
-        const lowerQuery = query.toLowerCase().trim();
-        const results: SearchResult[] = [];
+        const documents = [...this.documents.values()].filter(document =>
+            scopeIds.length === 0
+            || scopeIds.includes(document.docId)
+            || scopeIds.includes(document.pdfFingerprint),
+        );
+        await Promise.all(documents.map(document => document.ready));
 
-        for (const [docId, doc] of this.documents.entries()) {
-            // scopeIds allows filtering. If empty, assume search all.
-            if (scopeIds.length > 0 && !scopeIds.includes(docId) && !scopeIds.includes(doc.pdfFingerprint)) {
-                continue;
-            }
-
-            try {
-                const docResults = await this.searchDocument(doc, lowerQuery);
-                results.push(...docResults);
-            } catch (err) {
-                console.error(`[LocalSearch] Error searching doc ${docId}:`, err);
-            }
-        }
-
-        // Sort by score
-        return results.sort((a, b) => b.score - a.score);
-    }
-
-    private async searchDocument(doc: RegisteredDocument, query: string): Promise<SearchResult[]> {
-        const results: SearchResult[] = [];
-        const numPages = doc.pdfDoc.numPages;
-        const ocrData = doc.getOcrData() || {};
-
-        for (let i = 1; i <= numPages; i++) {
-            const page = await doc.pdfDoc.getPage(i);
-            const viewport = page.getViewport({ scale: 1.0 });
-            const pageW = viewport.width;
-            const pageH = viewport.height;
-
-            // 1. Search Native Text
-            try {
-                const textContent = await page.getTextContent();
-                for (const item of textContent.items) {
-                    if (!item.str) continue;
-                    const text = item.str;
-                    if (text.toLowerCase().includes(query)) {
-                        // Extract bounds
-                        const x = item.transform[4];
-                        const y = item.transform[5];
-                        const width = item.width || 0;
-                        const height = item.height || Math.abs(item.transform[3]) || 12;
-
-                        const x0 = Math.max(0, Math.min(1, x / pageW));
-                        const x1 = Math.max(0, Math.min(1, (x + width) / pageW));
-                        
-                        // item.transform[5] (y) is the baseline from bottom
-                        const y0 = Math.max(0, Math.min(1, (pageH - y - height) / pageH));
-                        const y1 = Math.max(0, Math.min(1, (pageH - y + height * 0.2) / pageH));
-
-                        const matchIndex = text.toLowerCase().indexOf(query);
-                        let snippetStart = Math.max(0, matchIndex - 30);
-                        let snippetEnd = Math.min(text.length, matchIndex + query.length + 30);
-                        let snippet = text.substring(snippetStart, snippetEnd);
-                        if (snippetStart > 0) snippet = "..." + snippet;
-                        if (snippetEnd < text.length) snippet = snippet + "...";
-
-                        results.push({
-                            score: 1.0,
-                            docId: doc.docId,
-                            pdfFingerprint: doc.pdfFingerprint,
-                            page: i,
-                            text: snippet,
-                            bbox: { x0, y0, x1, y1 },
-                            spans: [{
-                                text: item.str,
-                                bbox: { x0, y0, x1, y1 }
-                            }]
-                        });
-                    }
-                }
-            } catch (err) {
-                console.error(`[LocalSearch] Native text extraction failed on page ${i}:`, err);
-            }
-
-            // 2. Search OCR Text
-            try {
-                const pageOcr = ocrData[i];
-                if (pageOcr && pageOcr.tokens) {
-                    for (const token of pageOcr.tokens) {
-                        if (!token.text) continue;
-                        if (token.text.toLowerCase().includes(query)) {
-                            const x0 = Math.max(0, Math.min(1, token.bbox.x));
-                            const y0 = Math.max(0, Math.min(1, token.bbox.y));
-                            const x1 = Math.max(0, Math.min(1, token.bbox.x + token.bbox.w));
-                            const y1 = Math.max(0, Math.min(1, token.bbox.y + token.bbox.h));
-
-                            results.push({
-                                score: 0.9,
-                                docId: doc.docId,
-                                pdfFingerprint: doc.pdfFingerprint,
-                                page: i,
-                                text: `[OCR] ...${token.text}...`,
-                                bbox: { x0, y0, x1, y1 },
-                                spans: [{
-                                    text: token.text,
-                                    bbox: { x0, y0, x1, y1 }
-                                }]
-                            });
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error(`[LocalSearch] OCR search failed on page ${i}:`, err);
-            }
-        }
-
-        return results;
+        return documents.flatMap(document => {
+            if (!document.index) return [];
+            return searchFullTextIndex(document.index, query).map(match => ({
+                score: match.score,
+                docId: document.docId,
+                pdfFingerprint: document.pdfFingerprint,
+                page: match.page.page,
+                text: match.snippet,
+                bbox: matchBounds(match),
+                spans: match.spans.map(span => ({
+                    text: span.text,
+                    bbox: span.bbox,
+                    char_start: span.start,
+                    char_end: span.end,
+                })),
+            }));
+        }).sort((a, b) => b.score - a.score).slice(0, 50);
     }
 }
 
 export const localSearchRegistry = new LocalSearchRegistry();
-
-if (typeof window !== 'undefined') {
-    (window as any).__LOCAL_SEARCH_REGISTRY__ = localSearchRegistry;
-}

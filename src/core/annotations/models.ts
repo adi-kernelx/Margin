@@ -79,6 +79,16 @@ export interface TextHighlightRect {
     textRunId?: string;  // Reference to text layer element
 }
 
+export interface HighlightNote {
+    body: string;
+    quote: string;
+    prefix: string;
+    suffix: string;
+    /** Union of the highlight rectangles, normalized to the page. */
+    bbox: BoundingBox;
+    pageId?: string;
+}
+
 export interface HighlightAnnotation extends BaseAnnotation {
     type: 'highlight';
     geometry: {
@@ -88,6 +98,7 @@ export interface HighlightAnnotation extends BaseAnnotation {
         // For text-aware
         rects?: TextHighlightRect[];
     };
+    note?: HighlightNote;
 }
 
 // Text Annotation

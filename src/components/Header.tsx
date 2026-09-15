@@ -20,9 +20,10 @@ interface HeaderProps {
     showAIChat: boolean;
     onToggleAIChat: () => void;
     onFocusDocument: (docId: string) => void;
+    onShowLibrary: () => void;
 }
 
-export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat, onFocusDocument }: HeaderProps) {
+export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat, onFocusDocument, onShowLibrary }: HeaderProps) {
     const { focusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
     const [showSettings, setShowSettings] = useState(false);
 
@@ -108,7 +109,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
         )} onClick={closeContextMenu}>
             <div className="flex items-center gap-4 flex-shrink-0">
 
-                <h1 className="font-bold text-lg text-accent">Margin</h1>
+                <button type="button" className="font-bold text-lg text-accent" onClick={onShowLibrary} title="Open library">Margin</button>
             </div>
 
             {/* Document Tabs */}

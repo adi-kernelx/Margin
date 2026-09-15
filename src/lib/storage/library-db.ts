@@ -136,6 +136,15 @@ class LibraryDB {
         return rows.sort((a, b) => a.name.localeCompare(b.name));
     }
 
+    async listAllFiles(): Promise<LibraryFile[]> {
+        const rows = await (await this.dbPromise).getAll('files');
+        return rows.sort((a, b) => (b.lastOpenedAt ?? b.updatedAt) - (a.lastOpenedAt ?? a.updatedAt));
+    }
+
+    async getFile(id: string): Promise<LibraryFile | undefined> {
+        return (await this.dbPromise).get('files', id);
+    }
+
     async importFile(source: File, parentFolderId: string): Promise<LibraryFile> {
         const db = await this.dbPromise;
         const now = Date.now();
@@ -164,6 +173,13 @@ class LibraryDB {
         const existing = await db.get('files', id);
         if (!existing) return;
         await db.put('files', { ...existing, name, updatedAt: Date.now() });
+    }
+
+    async updateFileMetadata(id: string, patch: Partial<LibraryFile>): Promise<void> {
+        const db = await this.dbPromise;
+        const existing = await db.get('files', id);
+        if (!existing) return;
+        await db.put('files', { ...existing, ...patch, updatedAt: Date.now() });
     }
 
     async deleteFile(id: string): Promise<void> {

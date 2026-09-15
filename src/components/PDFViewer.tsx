@@ -20,7 +20,7 @@ import {
 import { applyOperationToAnnotations } from '@/core/annotations/apply';
 import { AnnotationCanvas } from './AnnotationCanvas';
 import { MathModal } from './MathModal';
-import type { Annotation, Operation } from '@/lib/annotations/models';
+import type { Annotation, HighlightAnnotation, Operation } from '@/lib/annotations/models';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractAnnotations, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
@@ -46,8 +46,11 @@ import {
 import { pageWorkspaceStorage } from '@/lib/pages/storage';
 import { PageOrganizer } from './PageOrganizer';
 import { Button } from './ui/Button';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, StickyNote } from 'lucide-react';
 import { rotateAnnotation } from '@/core/pages/annotations';
+import { createHighlightNote } from '@/core/notes/notes';
+import { NotesPanel } from './NotesPanel';
+import { libraryDB } from '@/lib/storage/library-db';
 
 // Configure worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -73,11 +76,16 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const workingPdfBytesRef = useRef<Uint8Array | null>(null);
     const pageRenderRevisionRef = useRef(0);
     const [showPageOrganizer, setShowPageOrganizer] = useState(false);
+    const [showNotes, setShowNotes] = useState(false);
+    const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const annotationsRef = useRef<Annotation[]>([]);
     const setLoadedAnnotations = useCallback((loaded: Annotation[]) => {
         const document = pageDocumentRef.current;
-        const next = document ? attachAnnotationsToPageIds(loaded, document) : loaded;
+        const anchored = document ? attachAnnotationsToPageIds(loaded, document) : loaded;
+        const next = anchored.map(annotation => annotation.type === 'highlight' && !annotation.note
+            ? { ...annotation, note: createHighlightNote(annotation) }
+            : annotation);
         annotationsRef.current = next;
         setAnnotations(next);
         void annotationStorage.saveSidecar(stableId, next);
@@ -89,6 +97,8 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Throttled save ref
     const saveTimeoutRef = useRef<number | undefined>(undefined);
+    const readingProgressTimeoutRef = useRef<number | undefined>(undefined);
+    const restoredReadingPositionRef = useRef(false);
     // Track page count for payload provider to avoid dependency cycles
     const pageCountRef = useRef(0);
 
@@ -114,13 +124,27 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useClientOcr(fileId, pdfDoc);
+    const ocrPagesRef = useRef(ocrPages);
+    const searchDocumentRevision = pageDocument
+        ? `pages:${pageDocument.pages.map(page => `${page.id}@${page.rotation}`).join(',')}`
+        : `pdf:${pdfDoc?.numPages ?? 0}`;
+    useEffect(() => { ocrPagesRef.current = ocrPages; }, [ocrPages]);
+    useEffect(() => {
+        if (Object.keys(ocrPages).length) localSearchRegistry.refresh(fileId);
+    }, [fileId, ocrPages]);
 
     // Auto-start Client OCR / Global Store Sync
     useEffect(() => {
         if (!parentFolderId && fileId && pdfDoc) {
             // Register for local search
             const fingerprint = pdfDoc.fingerprints?.[0] || fileId;
-            localSearchRegistry.register(fileId, fingerprint, pdfDoc, () => ocrPages);
+            localSearchRegistry.register(
+                fileId,
+                fingerprint,
+                searchDocumentRevision,
+                pdfDoc,
+                () => ocrPagesRef.current,
+            );
             
             startOcr();
             
@@ -128,7 +152,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 localSearchRegistry.unregister(fileId);
             };
         }
-    }, [fileId, parentFolderId, pdfDoc, ocrPages, startOcr]);
+    }, [fileId, parentFolderId, pdfDoc, searchDocumentRevision, startOcr]);
 
     // Use displayName for cloud files, fallback to local logic
     const fileName = displayName || file?.name || 'document.pdf';
@@ -631,12 +655,24 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
         const page = pageDocumentRef.current?.pages[annotation.pageNum - 1];
-        const anchored = page ? { ...annotation, pageId: page.id } : annotation;
+        let anchored: Annotation = page ? { ...annotation, pageId: page.id } : annotation;
+        if (anchored.type === 'highlight') {
+            anchored = {
+                ...anchored,
+                note: anchored.note
+                    ? { ...anchored.note, pageId: anchored.pageId }
+                    : createHighlightNote(anchored),
+            };
+        }
         const previous = annotationsRef.current.find(item => item.id === anchored.id);
         const operation = previous
             ? createUpdateOperation(anchored, previous, fileId)
             : createAddOperation(anchored, fileId);
         await commitAnnotationOperation(operation);
+        if (!previous && anchored.type === 'highlight') {
+            setFocusedHighlightId(anchored.id);
+            setShowNotes(true);
+        }
     }, [commitAnnotationOperation, fileId]);
 
     const handleAnnotationDelete = useCallback(async (id: string) => {
@@ -780,12 +816,49 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         downloadPdf(right, `${baseName}-part-2.pdf`);
     }, [exportRecordsWithAnnotations, fileName]);
 
+    const focusHighlight = useCallback((highlight: HighlightAnnotation) => {
+        setFocusedHighlightId(highlight.id);
+        setShowNotes(true);
+        const pageElement = containerRef.current?.querySelector(`[data-page-id="${highlight.pageId ?? ''}"]`);
+        pageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, []);
+
+    const handlePagesScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+        if (readingProgressTimeoutRef.current) clearTimeout(readingProgressTimeoutRef.current);
+        const scrollContainer = event.currentTarget;
+        readingProgressTimeoutRef.current = window.setTimeout(() => {
+            const center = scrollContainer.getBoundingClientRect().top + scrollContainer.clientHeight / 2;
+            const pageElements = [...scrollContainer.querySelectorAll<HTMLElement>('[data-page-id]')];
+            const nearest = pageElements.reduce<{ element: HTMLElement; distance: number } | null>((best, element) => {
+                const bounds = element.getBoundingClientRect();
+                const distance = Math.abs(bounds.top + bounds.height / 2 - center);
+                return !best || distance < best.distance ? { element, distance } : best;
+            }, null);
+            const pageNumber = nearest?.element.querySelector<HTMLElement>('[data-page-num]')?.dataset.pageNum;
+            if (pageNumber) void libraryDB.updateFileMetadata(fileId, { lastReadPage: Number(pageNumber) });
+        }, 400);
+    }, [fileId]);
+
+    useEffect(() => {
+        if (restoredReadingPositionRef.current || !pageDocument?.pages.length) return;
+        restoredReadingPositionRef.current = true;
+        void libraryDB.getFile(fileId).then(entry => {
+            const page = entry?.lastReadPage;
+            if (!page || page <= 1) return;
+            requestAnimationFrame(() => {
+                const pageId = pageDocument.pages[Math.min(page, pageDocument.pages.length) - 1]?.id;
+                containerRef.current?.querySelector(`[data-page-id="${pageId}"]`)
+                    ?.scrollIntoView({ block: 'start' });
+            });
+        });
+    }, [fileId, pageDocument]);
+
     // ... (Remainder unchanged) ...
 
 
     // ... Render logic (Pages) ...
     return (
-        <div className={`flex-1 flex flex-col h-full relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`} ref={containerRef}>
+        <div className={`flex-1 flex flex-col h-full relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <Button
                 size="sm"
                 className="absolute right-5 top-5 z-20"
@@ -793,12 +866,20 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 disabled={role === 'viewer'}
                 onClick={() => setShowPageOrganizer(true)}
             >Pages</Button>
-            <div className="flex-1 overflow-y-auto w-full flex flex-col items-center gap-4 p-4">
+            <Button
+                size="sm"
+                className="absolute right-28 top-5 z-20"
+                leadingIcon={<StickyNote size={16} />}
+                onClick={() => setShowNotes(value => !value)}
+            >Notes</Button>
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div ref={containerRef} className="flex-1 overflow-y-auto flex flex-col items-center gap-4 p-4" onScroll={handlePagesScroll}>
                 {(pageDocument?.pages ?? []).map((page, index) => {
                     const pageNum = index + 1;
                     return (
                     <PDFPage
                         key={`${fileId}-page-${page.id}`}
+                        pageId={page.id}
                         pageNum={pageNum}
                         pdfDoc={pdfDoc}
                         scale={scale}
@@ -808,9 +889,28 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                         onAnnotationErase={handleAnnotationErase}
                         dimensions={pageDimensions[pageNum]}
                         ocrData={ocrPages[pageNum]}
+                        focusedHighlightId={focusedHighlightId}
+                        onHighlightFocus={(id) => {
+                            const highlight = annotationsRef.current.find(
+                                (annotation): annotation is HighlightAnnotation => annotation.id === id && annotation.type === 'highlight',
+                            );
+                            if (highlight) focusHighlight(highlight);
+                        }}
                     />
                     );
                 })}
+            </div>
+            {showNotes && (
+                <NotesPanel
+                    documentId={stableId}
+                    documentTitle={fileName}
+                    highlights={annotations.filter((annotation): annotation is HighlightAnnotation => annotation.type === 'highlight')}
+                    focusedId={focusedHighlightId}
+                    onClose={() => setShowNotes(false)}
+                    onFocus={focusHighlight}
+                    onChange={handleAnnotationSave}
+                />
+            )}
             </div>
 
             <PageOrganizer
@@ -865,6 +965,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
 interface PDFPageProps {
     pageNum: number;
+    pageId: string;
     pdfDoc: pdfjsLib.PDFDocumentProxy | null;
     scale: number;
     annotations: Annotation[];
@@ -873,9 +974,11 @@ interface PDFPageProps {
     onAnnotationErase: (deletedIds: string[], created: Annotation[]) => void;
     dimensions?: { width: number, height: number };
     ocrData?: OcrPageResult;
+    focusedHighlightId?: string | null;
+    onHighlightFocus?: (id: string) => void;
 }
 
-function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, onAnnotationErase, dimensions, ocrData }: PDFPageProps) {
+function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, onAnnotationErase, dimensions, ocrData, focusedHighlightId, onHighlightFocus }: PDFPageProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const textLayerRef = useRef<HTMLDivElement>(null);
     const linkLayerRef = useRef<HTMLDivElement>(null);
@@ -970,7 +1073,7 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
     const height = dimensions ? Math.floor(dimensions.height * scale) : undefined;
 
     return (
-        <div className={`relative shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} style={width ? { width: `${width}px`, height: `${height}px` } : undefined}>
+        <div data-page-id={pageId} className={`relative shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} style={width ? { width: `${width}px`, height: `${height}px` } : undefined}>
             <canvas ref={canvasRef} className="block pdf-base-canvas" data-page-num={pageNum} />
 
             {/* Native PDF.js TextLayer - Always render, selectable in select mode */}
@@ -1008,6 +1111,8 @@ function PDFPage({ pageNum, pdfDoc, scale, annotations, onAnnotationSave, onAnno
                         onErase={onAnnotationErase}
                         textLayerRef={textLayerRef as any}
                         onImageUpload={() => { }}
+                        focusedHighlightId={focusedHighlightId}
+                        onHighlightFocus={onHighlightFocus}
                     />
                 </div>
             )}

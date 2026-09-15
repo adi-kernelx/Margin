@@ -58,6 +58,14 @@ export class LocalSaveAdapter implements SaveAdapter {
                     ? job.pdfBytes.slice().buffer
                     : await this.getPristinePdfBytes(state.pdfFileHandle);
 
+                // The editable PDF contains native annotations for other PDF
+                // viewers plus Margin's JSON attachment for lossless reopening.
+                const { PDFDocument } = await import('pdf-lib');
+                const { embedAnnotations } = await import('../pdf-data-manager');
+                const editablePdf = await PDFDocument.load(pdfBytes);
+                await embedAnnotations(editablePdf, job.payload.objects);
+                const editablePdfBytes = await editablePdf.save();
+
                 // B. Flatten PDF
                 const { flattenLocalPDF } = await import('./flatten-service'); // Dynamic load
                 const flattenedBlob = await flattenLocalPDF(pdfBytes, job.payload);
@@ -68,7 +76,7 @@ export class LocalSaveAdapter implements SaveAdapter {
                 // D. Zip It
                 const JSZip = (await import('jszip')).default;
                 const zip = new JSZip();
-                zip.file(`${baseName}.pdf`, pdfBytes);
+                zip.file(`${baseName}.pdf`, editablePdfBytes);
                 zip.file(`${baseName}-flattened.pdf`, flattenedBlob);
                 zip.file(`${baseName}.json`, jsonString);
 

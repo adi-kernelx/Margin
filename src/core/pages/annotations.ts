@@ -52,6 +52,7 @@ export function rotateAnnotation(annotation: Annotation, delta: QuarterTurn): An
             return {
                 ...annotation,
                 updatedAt,
+                note: annotation.note ? { ...annotation.note, bbox: rotateBox(annotation.note.bbox, delta) } : undefined,
                 geometry: {
                     ...annotation.geometry,
                     path: annotation.geometry.path?.map(point => rotatePoint(point as StrokePoint, delta)),
@@ -82,4 +83,3 @@ export function rotateAnnotation(annotation: Annotation, delta: QuarterTurn): An
             };
     }
 }
-
