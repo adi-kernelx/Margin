@@ -1,36 +1,42 @@
 /*
- * Design tokens — the single source of truth for colour, elevation, type,
- * spacing and motion. Components reference these; no component contains a raw
- * hex value, and the same values are mirrored into tailwind.config.js.
+ * Design tokens — the single source of truth for palette, elevation, type,
+ * spacing, motion, and pseudo-3D depth.
  *
- * Two product constraints shape this palette, and neither is obvious:
+ * Two product constraints shape the palette, and neither is obvious:
  *
  *  1. The ground must be near-neutral. A tinted background makes a white PDF
  *     page look wrong, because the eye calibrates white against the field
- *     around it. Slate with almost no chroma, never mint or warm grey.
+ *     around it.
  *
  *  2. The accent must not collide with annotation colours. Highlighters are
- *     yellow, pink, green, blue and orange; ink is black, blue and red. The
- *     accent is a deepened, desaturated teal, pushed well clear of highlighter
- *     territory so the user can always tell interface from their own markup.
+ *     yellow, pink, green, blue, and orange; ink is black, blue, and red. The
+ *     accent is a deepened, desaturated teal, pushed clear of every
+ *     highlighter neighbourhood so the user can always tell interface from
+ *     their own markup.
+ *
+ * Every colour, elevation, and depth control below is a custom property.
+ * `tailwind.config.js` mirrors these values — components must never contain a
+ * raw hex, so the two cannot drift.
  */
 
 :root {
     color-scheme: light;
 
-    /* --- neutral ramp ------------------------------------------------- */
-    --ground:        #F4F6F8;   /* app background, behind everything      */
+    /* --- neutral ramp -------------------------------------------------- */
+    --ground:        #F4F6F8;
     --surface-1:     #FFFFFF;
     --surface-2:     #FFFFFF;
     --surface-3:     #FFFFFF;
     --surface-4:     #FFFFFF;
-    --sunken:        #E9EDF1;   /* wells, track backgrounds               */
+    --sunken:        #E9EDF1;
     --line:          #D6DCE3;
     --line-soft:     #E4E9EE;
 
     --text:          #0F1418;
     --text-soft:     #414B56;
-    --text-muted:    #6A7683;
+    /* Deepened from #6A7683 to hit 4.5:1 on --ground; captions and secondary
+       labels are body copy, so they must clear the AA threshold. */
+    --text-muted:    #5A6472;
     --text-on-accent:#FFFFFF;
 
     /* --- accent: deepened teal, clear of every highlighter hue --------- */
@@ -39,7 +45,7 @@
     --accent-soft:   #DCEAE8;
     --accent-ring:   #0B5E56;
 
-    /* --- status: meaning never rides on elevation alone ---------------- */
+    /* --- status ------------------------------------------------------- */
     --danger:        #A32036;
     --danger-soft:   #F9E4E7;
     --warning:       #8A5B0A;
@@ -48,25 +54,61 @@
     --success-soft:  #DEEDE5;
 
     /*
-     * --- elevation: light mode encodes depth as shadow -----------------
-     * Each level is composited from a tight contact shadow and a wider soft
-     * one. A single blurred shadow reads as a sticker; two read as an object
-     * above a surface, and that difference is most of the effect.
+     * --- annotation palette --------------------------------------------
+     *
+     * These are theme-invariant: a yellow highlight stays yellow in both
+     * modes because it is document content the user drew, not chrome. The UI
+     * accent above is deliberately far from every entry here.
      */
-    --elev-1: 0 1px 2px rgba(9, 14, 20, .06), 0 1px 1px rgba(9, 14, 20, .04);
-    --elev-2: 0 2px 4px rgba(9, 14, 20, .06), 0 4px 10px rgba(9, 14, 20, .05);
-    --elev-3: 0 8px 16px rgba(9, 14, 20, .08), 0 2px 4px rgba(9, 14, 20, .06);
-    --elev-4: 0 20px 40px rgba(9, 14, 20, .14), 0 6px 12px rgba(9, 14, 20, .08);
+    --hl-yellow: #FFD34A;
+    --hl-pink:   #FF8FB1;
+    --hl-green:  #7CE0A6;
+    --hl-blue:   #7EB6FF;
+    --hl-orange: #FFB07A;
 
-    /* Simulates a lit top edge on a raised surface. One declaration, and most
-       of the difference between a flat rectangle and a physical control. */
-    --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, .55);
+    --ink-black: #10151C;
+    --ink-blue:  #1E56BF;
+    --ink-red:   #C02040;
+
+    /*
+     * --- elevation: light mode encodes depth as three-layer shadow -----
+     *
+     * A real object above a surface casts three shadows: a tight contact
+     * shadow, a wider soft shadow, and a faint ambient spread. A single
+     * blurred shadow reads as a sticker; three read as an object above a
+     * surface. The negative spread on the ambient layer keeps the large
+     * shadow under the object rather than haloing it.
+     */
+    --elev-1: 0 1px 1px rgb(9 14 20 / .06), 0 1px 3px rgb(9 14 20 / .05), 0 0 0 1px rgb(9 14 20 / .03);
+    --elev-2: 0 1px 2px rgb(9 14 20 / .07), 0 4px 10px rgb(9 14 20 / .06), 0 10px 24px -8px rgb(9 14 20 / .06);
+    --elev-3: 0 2px 4px rgb(9 14 20 / .07), 0 10px 20px rgb(9 14 20 / .08), 0 24px 48px -12px rgb(9 14 20 / .10);
+    --elev-4: 0 3px 6px rgb(9 14 20 / .08), 0 18px 36px rgb(9 14 20 / .12), 0 40px 80px -20px rgb(9 14 20 / .18);
+
+    /* Simulates a lit top edge on a raised surface. A single declaration,
+       and most of the difference between a flat rectangle and a physical control. */
+    --edge-highlight: inset 0 1px 0 rgb(255 255 255 / .55);
+    --edge-press:     inset 0 1px 1px rgb(9 14 20 / .12);
 
     /* The page itself sits at elevation 0 with only a seating shadow. */
-    --page-shadow: 0 1px 3px rgba(9, 14, 20, .10), 0 6px 16px rgba(9, 14, 20, .07);
+    --page-shadow: 0 1px 3px rgb(9 14 20 / .10), 0 6px 16px rgb(9 14 20 / .07);
 
-    /* --- type --------------------------------------------------------- */
-    --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* Subtle top-to-bottom gradient painted onto raised surfaces so light
+       appears to come from above. Composited over the surface colour. */
+    --surface-raised-fill: linear-gradient(180deg, rgb(255 255 255 / .04) 0%, rgb(9 14 20 / .02) 100%);
+
+    /* --- depth controls ----------------------------------------------- */
+    --tilt-max:      4deg;
+    --perspective:   900px;
+    --lift:          -1px;
+    --press:         1px;
+    --sheen-opacity: 0.10;
+
+    /* The one permitted glass surface is the floating tool dock over a page. */
+    --glass-bg:   rgb(255 255 255 / .72);
+    --glass-blur: 12px;
+
+    /* --- typography --------------------------------------------------- */
+    --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
     --text-xs:   11px;
@@ -81,7 +123,7 @@
     --leading-normal: 1.5;
     --leading-relaxed: 1.65;
 
-    /* --- spacing: 4px grid -------------------------------------------- */
+    /* --- spacing: 4 px grid ------------------------------------------- */
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -96,10 +138,10 @@
     --radius-lg: 10px;
     --radius-xl: 14px;
 
-    /* --- motion: exactly three durations, no more ---------------------- */
-    --dur-state:    120ms;  /* hover, press, focus                        */
-    --dur-surface:  200ms;  /* panels sliding, elevation changes          */
-    --dur-entrance: 320ms;  /* dialogs, first paint of a region           */
+    /* --- motion: exactly three durations ------------------------------ */
+    --dur-state:    120ms;   /* hover, press, focus                       */
+    --dur-surface:  200ms;   /* panels, elevation changes                 */
+    --dur-entrance: 320ms;   /* dialogs, first paint of a region          */
     --ease:         cubic-bezier(.2, 0, 0, 1);
 
     --z-page: 0;
@@ -110,14 +152,13 @@
 }
 
 /*
- * Dark mode changes what encodes elevation, not just the colour values.
- *
- * A shadow is the absence of light; on a near-black ground there is no light to
- * remove, so shadow-based elevation collapses into invisibility. This is the
- * usual way a layered design dies when the theme flips. Here the ladder is
- * carried by surface lightness instead, with a faint top border standing in for
- * the highlight. The token names are identical, so no component ever knows
- * which mechanism is in play.
+ * Dark mode changes the mechanism of elevation, not the values inside a
+ * single mechanism. A shadow is the absence of light; on a near-black ground
+ * there is no light to remove, so shadow-encoded elevation collapses into
+ * invisibility. In dark mode elevation is carried by surface lightness, with
+ * a faint top border standing in for the edge highlight. Same token names,
+ * different mechanism behind them, so no component ever knows which theme it
+ * is in.
  */
 :root.dark {
     color-scheme: dark;
@@ -148,18 +189,23 @@
     --success:       #62C295;
     --success-soft:  #14291F;
 
-    /* Kept for depth under large surfaces, but they are no longer the signal. */
-    --elev-1: 0 1px 2px rgba(0, 0, 0, .40);
-    --elev-2: 0 2px 6px rgba(0, 0, 0, .45);
-    --elev-3: 0 8px 20px rgba(0, 0, 0, .50);
-    --elev-4: 0 20px 44px rgba(0, 0, 0, .58);
+    /* Kept for the residual depth under large surfaces; not the primary signal. */
+    --elev-1: 0 1px 2px rgb(0 0 0 / .40);
+    --elev-2: 0 2px 6px rgb(0 0 0 / .45);
+    --elev-3: 0 8px 20px rgb(0 0 0 / .50);
+    --elev-4: 0 20px 44px rgb(0 0 0 / .58);
 
-    --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, .06);
-    --page-shadow: 0 2px 10px rgba(0, 0, 0, .55);
+    --edge-highlight: inset 0 1px 0 rgb(255 255 255 / .06);
+    --edge-press:     inset 0 1px 1px rgb(0 0 0 / .45);
+    --page-shadow:    0 2px 10px rgb(0 0 0 / .55);
+    --surface-raised-fill: linear-gradient(180deg, rgb(255 255 255 / .03) 0%, rgb(0 0 0 / .10) 100%);
+
+    --sheen-opacity: 0.06;
+    --glass-bg:      rgb(23 28 35 / .72);
 }
 
 /*
- * Honour reduced motion once, globally, rather than in every component. Tilt
+ * Reduced motion, honoured once globally rather than in every component. Tilt
  * and parallax are decorative by definition, so they simply stop; everything
  * else jumps to its final state.
  */
@@ -168,6 +214,9 @@
         --dur-state: 1ms;
         --dur-surface: 1ms;
         --dur-entrance: 1ms;
+        --tilt-max: 0deg;
+        --lift: 0px;
+        --press: 0px;
     }
 
     *, *::before, *::after {
@@ -179,9 +228,9 @@
 }
 
 /*
- * Focus rings use outline, never a box-shadow ring. A shadow ring composites
- * into the elevation shadow and disappears on exactly the raised surfaces where
- * focus matters most.
+ * Focus rings always use outline, never a box-shadow ring. A shadow ring
+ * composites into elevation shadows and disappears on exactly the raised
+ * surfaces where focus matters most.
  */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid var(--accent-ring);

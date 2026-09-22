@@ -86,15 +86,14 @@ export default function Dashboard() {
     // Permission prompt state
     const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
 
-    const { isDarkMode, focusedDocId, setFocusedDocId } = useAppStore();
+    const { focusedDocId, setFocusedDocId } = useAppStore();
 
     // Global Unsaved Changes Warning
     const isDirtyByPdf = useSaveStore((state: SaveStoreState) => state.isDirtyByPdf);
 
-    useEffect(() => {
-        document.documentElement.classList.toggle('dark', isDarkMode);
-        return () => document.documentElement.classList.remove('dark');
-    }, [isDarkMode]);
+    // Theme is owned by ThemeProvider (see src/lib/theme). The old isDarkMode
+    // store field and the direct classList toggle here fought it and produced
+    // a light flash on reload; both are gone.
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -509,7 +508,6 @@ export default function Dashboard() {
     return (
         <div className={cn(
             "flex h-screen w-screen overflow-hidden flex-col bg-ground text-text",
-            isDarkMode && 'dark'
         )}>
             <Header
                 onOpenPDF={() => void handleOpenPDF()}

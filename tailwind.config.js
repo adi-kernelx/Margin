@@ -39,6 +39,22 @@ export default {
         warning: { DEFAULT: "var(--warning)", soft: "var(--warning-soft)" },
         success: { DEFAULT: "var(--success)", soft: "var(--success-soft)" },
 
+        // Annotation palette — theme-invariant. A yellow highlight is content
+        // the user drew and stays the same colour in both themes; the UI
+        // accent is deliberately kept clear of every one of these.
+        hl: {
+          yellow: "var(--hl-yellow)",
+          pink:   "var(--hl-pink)",
+          green:  "var(--hl-green)",
+          blue:   "var(--hl-blue)",
+          orange: "var(--hl-orange)",
+        },
+        ink: {
+          black: "var(--ink-black)",
+          blue:  "var(--ink-blue)",
+          red:   "var(--ink-red)",
+        },
+
         // Retained so the pre-token components keep rendering during migration.
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

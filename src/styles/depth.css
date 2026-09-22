@@ -1,0 +1,191 @@
+/*
+ * Depth utilities — the pseudo-3D toolkit, driven entirely from tokens.
+ *
+ * Every technique here is compositor-only: it writes transform, opacity, or a
+ * shadow on a static ::after layer, never anything that triggers layout. The
+ * reading zone must never use these; the elevation-0 rule for the page
+ * surface is enforced by convention and reviewed per phase.
+ */
+
+/* --- surfaces ------------------------------------------------------- */
+
+.depth-raised {
+    background-color: var(--surface-2);
+    background-image: var(--surface-raised-fill);
+    box-shadow: var(--elev-1), var(--edge-highlight);
+    border-radius: var(--radius);
+}
+
+.depth-float {
+    background-color: var(--surface-3);
+    background-image: var(--surface-raised-fill);
+    box-shadow: var(--elev-2), var(--edge-highlight);
+    border-radius: var(--radius-lg);
+}
+
+.depth-overlay {
+    background-color: var(--surface-3);
+    background-image: var(--surface-raised-fill);
+    box-shadow: var(--elev-3), var(--edge-highlight);
+    border-radius: var(--radius-lg);
+}
+
+.depth-dialog {
+    background-color: var(--surface-4);
+    background-image: var(--surface-raised-fill);
+    box-shadow: var(--elev-4), var(--edge-highlight);
+    border-radius: var(--radius-xl);
+}
+
+/* --- press-and-lift controls ---------------------------------------- */
+
+.depth-pressable {
+    position: relative;
+    background-color: var(--surface-2);
+    background-image: var(--surface-raised-fill);
+    box-shadow: var(--elev-1), var(--edge-highlight);
+    border-radius: var(--radius);
+    transition:
+        transform var(--dur-state) var(--ease),
+        box-shadow var(--dur-state) var(--ease);
+    will-change: transform;
+}
+
+.depth-pressable:hover {
+    transform: translateY(var(--lift));
+    box-shadow: var(--elev-2), var(--edge-highlight);
+}
+
+.depth-pressable:active {
+    transform: translateY(var(--press));
+    box-shadow: none, var(--edge-press);
+}
+
+/* --- tilt card ------------------------------------------------------ */
+/*
+ * The consumer sets --card-rx, --card-ry, --sheen-x, --sheen-y via the
+ * usePointerTilt hook. Everything else — perspective, transition, sheen
+ * layer — lives here so no component has to re-derive the animation.
+ */
+.depth-tilt {
+    --card-rx: 0deg;
+    --card-ry: 0deg;
+    --sheen-x: 50%;
+    --sheen-y: 50%;
+    position: relative;
+    transform-style: preserve-3d;
+    transform: perspective(var(--perspective))
+               rotateX(var(--card-rx))
+               rotateY(var(--card-ry));
+    transition: transform var(--dur-surface) var(--ease);
+}
+
+.depth-tilt::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+        280px circle at var(--sheen-x) var(--sheen-y),
+        rgb(255 255 255 / var(--sheen-opacity)),
+        transparent 60%
+    );
+    opacity: 0;
+    transition: opacity var(--dur-state) var(--ease);
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+.depth-tilt:hover::before,
+.depth-tilt:focus-within::before {
+    opacity: 1;
+}
+
+/* --- stacked paper -------------------------------------------------- */
+/*
+ * Three layers behind the card at decreasing elevation. On hover the back
+ * sheets fan out a few pixels. Applied to a parent; the card itself is the
+ * `.depth-stack__front` child.
+ */
+.depth-stack {
+    position: relative;
+    isolation: isolate;
+}
+
+.depth-stack::before,
+.depth-stack::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: inherit;
+    box-shadow: var(--elev-1);
+    z-index: -1;
+    transition: transform var(--dur-surface) var(--ease);
+}
+
+.depth-stack::before {
+    transform: translate(4px, 4px) rotate(1deg);
+}
+
+.depth-stack::after {
+    transform: translate(-3px, 6px) rotate(-1.5deg);
+    background-color: var(--surface-1);
+    z-index: -2;
+}
+
+.depth-stack:hover::before {
+    transform: translate(8px, 6px) rotate(2deg);
+}
+
+.depth-stack:hover::after {
+    transform: translate(-7px, 10px) rotate(-3deg);
+}
+
+/* --- glass surface (the tool dock only) ----------------------------- */
+
+.depth-glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--elev-2), var(--edge-highlight);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+}
+
+/* --- isometric artwork scene --------------------------------------- */
+/*
+ * Empty-state and onboarding illustrations. A handful of divs under this
+ * transform produce a stack of pages, an open folder, or a pen — no PNGs,
+ * no SVGs, themed automatically because the fills reference tokens.
+ */
+.iso-scene {
+    perspective: 1000px;
+    transform-style: preserve-3d;
+}
+
+.iso-scene > * {
+    transform: rotateX(55deg) rotateZ(-45deg);
+    transform-style: preserve-3d;
+}
+
+/* --- reduced motion (safety net) ----------------------------------- */
+/*
+ * The tokens.css @media block already zeroes durations and --tilt-max, but
+ * the fan-out on stacked paper is animated by transform values, not tokens,
+ * so it needs an explicit rule.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .depth-tilt {
+        transform: none !important;
+    }
+
+    .depth-stack:hover::before {
+        transform: translate(4px, 4px) rotate(1deg);
+    }
+
+    .depth-stack:hover::after {
+        transform: translate(-3px, 6px) rotate(-1.5deg);
+    }
+}

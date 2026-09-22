@@ -125,7 +125,15 @@ export const createAppStoreSlice = (set: any, _get: any): AppState => ({
     annotationMode: null,
     setAnnotationMode: (mode) => set({ annotationMode: mode }),
     isDarkMode: false,
-    toggleDarkMode: () => set((state: AppState) => ({ isDarkMode: !state.isDarkMode })),
+    // Delegates to the theme store, which persists the preference and applies
+    // the class. The isDarkMode field above is a read-only mirror kept in sync
+    // by ThemeProvider; components should prefer useThemeStore in new code.
+    toggleDarkMode: () => {
+        void import('@/lib/theme/theme').then(({ useThemeStore }) => {
+            const store = useThemeStore.getState();
+            store.setPreference(store.resolved === 'dark' ? 'light' : 'dark');
+        });
+    },
     highlighterMode: 'freeform',
     setHighlighterMode: (mode) => set({ highlighterMode: mode }),
     highlighterColor: '#FFEB3B', // Default yellow

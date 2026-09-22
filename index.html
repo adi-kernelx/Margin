@@ -5,7 +5,24 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>pdf-reader</title>
+  <title>Margin</title>
+
+  <!--
+    Apply the persisted theme before the first paint. Without this a dark-mode
+    user sees a light flash on every reload because React attaches the `dark`
+    class after mount. Kept intentionally small; the storage key mirrors
+    THEME_STORAGE_KEY in src/lib/theme/theme.ts.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('margin:theme');
+        var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark = stored === 'dark' || ((stored === 'system' || !stored) && systemDark);
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (_) { /* privacy-mode storage denials fall through to light */ }
+    })();
+  </script>
 </head>
 
 <body>
