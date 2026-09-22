@@ -1,6 +1,5 @@
 
 import { cn } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
 import { useFileSystemStore } from '@/lib/local-fs-store';
 import {
     Folder,
@@ -23,7 +22,6 @@ interface FileTreeProps {
 }
 
 export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) {
-    const { isDarkMode } = useAppStore();
     const {
         folders,
         currentFolderId,
@@ -76,27 +74,27 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
     return (
         <div className={cn(
             "flex flex-col h-full w-full",
-            isDarkMode ? "text-gray-300" : "text-gray-700"
+            "text-text-soft"
         )}>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-line-soft">
                 <span className="text-xs font-semibold uppercase tracking-wider">Explorer</span>
                 <div className="flex gap-1">
                     <button
                         onClick={handleCreateFolder}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                        className="p-1 hover:bg-sunken rounded"
                         title="New Folder"
                     >
                         <FolderPlus size={14} />
                     </button>
                     <button
                         onClick={handleImportClick}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded relative"
+                        className="p-1 hover:bg-sunken rounded relative"
                         title="Add PDFs"
                     >
                         <FilePlus size={14} />
                         {importing && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 rounded">
-                                <Loader2 size={10} className="animate-spin text-blue-600" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-surface-2/60 rounded">
+                                <Loader2 size={10} className="animate-spin text-accent" />
                             </div>
                         )}
                     </button>
@@ -116,7 +114,7 @@ export function FileTree({ onOpenFile }: Omit<FileTreeProps, 'onSelectFolder'>) 
             <div className="flex-1 overflow-y-auto p-2">
                 {/* My Files Section */}
                 <div className="mb-2">
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">
+                    <div className="text-[10px] font-bold text-text-muted uppercase tracking-widest px-2 mb-1">
                         My Files
                     </div>
                     <FolderNode
@@ -227,20 +225,20 @@ function FolderNode({ folder, depth, onOpenFile, hideActions }: {
                 className={cn(
                     "flex items-center group py-1 px-2 rounded-md cursor-pointer transition-colors",
                     isSelected
-                        ? "bg-blue-100 dark:bg-blue-900/30 text-black dark:text-blue-300 font-medium"
-                        : "hover:bg-gray-500 dark:hover:bg-gray-800"
+                        ? "bg-accent-soft text-accent font-medium"
+                        : "hover:bg-sunken"
                 )}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={toggleOpen}
                 onContextMenu={handleContextMenu}
             >
-                <div className="flex items-center justify-center w-4 h-4 mr-1 text-gray-400">
+                <div className="flex items-center justify-center w-4 h-4 mr-1 text-text-muted">
                     {(childFolders.length > 0 || childFiles.length > 0) && (
                         isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />
                     )}
                 </div>
 
-                <Folder size={16} className={cn("mr-2", isSelected ? "fill-blue-200 dark:fill-blue-900" : "fill-none")} />
+                <Folder size={16} className={cn("mr-2", isSelected ? "fill-accent-soft" : "fill-none")} />
 
                 {isEditing ? (
                     <input
@@ -250,7 +248,7 @@ function FolderNode({ folder, depth, onOpenFile, hideActions }: {
                         onBlur={handleRename}
                         onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 min-w-0 bg-white dark:bg-gray-950 border border-blue-500 rounded px-1 text-xs"
+                        className="flex-1 min-w-0 bg-surface-1 border border-accent rounded px-1 text-xs"
                     />
                 ) : (
                     <span className="truncate flex-1 text-sm">{folder.name}</span>
@@ -267,13 +265,13 @@ function FolderNode({ folder, depth, onOpenFile, hideActions }: {
                             <>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
+                                    className="p-1 hover:bg-sunken rounded text-text-muted"
                                 >
                                     <Edit2 size={12} />
                                 </button>
                                 <button
                                     onClick={handleDelete}
-                                    className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
+                                    className="p-1 hover:bg-danger-soft rounded text-danger"
                                 >
                                     <Trash2 size={12} />
                                 </button>
@@ -347,16 +345,16 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, hideAc
 
     return (
         <div
-            className="flex items-center group py-1 px-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center group py-1 px-2 rounded-md cursor-pointer hover:bg-sunken transition-colors"
             style={{ paddingLeft: `${depth * 12 + 28}px` }} // +28 for folder icon offset
             onClick={onClick}
             title={file.name}
         >
             <div className="mr-2">
                 {file.status === 'importing' ? (
-                    <Loader2 size={14} className="animate-spin text-blue-500" />
+                    <Loader2 size={14} className="animate-spin text-accent" />
                 ) : (
-                    <FileText size={14} className={cn(file.status === 'failed' ? "text-red-500" : "text-blue-600")} />
+                    <FileText size={14} className={cn(file.status === 'failed' ? "text-danger" : "text-accent")} />
                 )}
             </div>
 
@@ -368,10 +366,10 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, hideAc
                     onBlur={handleRename}
                     onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                     onClick={(e) => e.stopPropagation()}
-                    className="flex-1 min-w-0 bg-white dark:bg-gray-950 border border-blue-500 rounded px-1 text-xs"
+                    className="flex-1 min-w-0 bg-surface-1 border border-accent rounded px-1 text-xs"
                 />
             ) : (
-                <span className="truncate flex-1 text-sm text-gray-600 dark:text-gray-400">{file.name}</span>
+                <span className="truncate flex-1 text-sm text-text-soft">{file.name}</span>
             )}
 
             {/* Actions (visible on hover or selected) */}
@@ -380,7 +378,7 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, hideAc
 
                 <button
                     onClick={(e) => { e.stopPropagation(); onDownload(); }}
-                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
+                    className="p-1 hover:bg-sunken rounded text-text-muted"
                     title="Download PDF"
                 >
                     <Download size={12} />
@@ -390,13 +388,13 @@ function FileNode({ file, depth, onRename, onDelete, onClick, onDownload, hideAc
                     <>
                         <button
                             onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"
+                            className="p-1 hover:bg-sunken rounded text-text-muted"
                         >
                             <Edit2 size={12} />
                         </button>
                         <button
                             onClick={handleDelete}
-                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"
+                            className="p-1 hover:bg-danger-soft rounded text-danger"
                         >
                             <Trash2 size={12} />
                         </button>

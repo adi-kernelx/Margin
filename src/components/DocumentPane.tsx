@@ -92,7 +92,7 @@ function PaneContent({ doc, replicateToolbar }: DocumentPaneProps) {
 
     return (
         <div
-            className="document relative w-full h-full flex flex-col group bg-white dark:bg-gray-800 border-r border-b dark:border-gray-700"
+            className="document group relative flex h-full w-full flex-col border-b border-r border-line bg-surface-1"
             data-doc-id={doc.id}
             onMouseEnter={() => setFocusedDocId(doc.id)}
             onTouchStart={() => setFocusedDocId(doc.id)}

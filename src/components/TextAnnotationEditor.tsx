@@ -76,7 +76,7 @@ export function TextAnnotationEditor({
 }: TextAnnotationEditorProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const interactionRef = useRef<PointerInteraction | null>(null);
-    const { isDarkMode, textSubscript, textSuperscript } = useDocumentStore();
+    const { textSubscript, textSuperscript } = useDocumentStore();
 
     useLayoutEffect(() => {
         const textarea = textareaRef.current;
@@ -170,8 +170,9 @@ export function TextAnnotationEditor({
             />
             <div
                 className={cn(
-                    'relative h-full overflow-hidden rounded border-2 border-accent shadow-elev-3',
-                    isDarkMode ? 'bg-surface-2' : 'bg-white',
+                    // Dashed outline reads as a selectable edit region; the
+                    // token surface follows the theme automatically.
+                    'relative h-full overflow-hidden rounded border-2 border-dashed border-accent bg-surface-1 shadow-elev-3',
                 )}
             >
                 <div className="absolute right-1 top-1 z-10 flex gap-1">

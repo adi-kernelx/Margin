@@ -20,6 +20,7 @@ import { createFileIdentity } from '@/core/library/references';
 import {
     activateTab,
     addTabs,
+    countPanes,
     createLayout,
     firstPaneId,
     paneIdForTab,
@@ -28,6 +29,8 @@ import {
 } from '@/core/workspace/layout';
 
 import { ToastContainer } from '@/components/ui/Toast';
+import { StatusBar } from '@/components/StatusBar';
+import { startServiceHealthPolling } from '@/lib/services/health';
 import { Button } from '@/components/ui/Button';
 import { LibraryGrid } from '@/components/LibraryGrid';
 import { libraryDB } from '@/lib/storage/library-db';
@@ -94,6 +97,10 @@ export default function Dashboard() {
     // Theme is owned by ThemeProvider (see src/lib/theme). The old isDarkMode
     // store field and the direct classList toggle here fought it and produced
     // a light flash on reload; both are gone.
+
+    // Kick off service-health polling once. The store is a singleton, so a
+    // second call is a no-op.
+    useEffect(() => { startServiceHealthPolling(); }, []);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -580,6 +587,7 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            <StatusBar documents={documents} paneCount={countPanes(workspaceLayout)} />
             <ToastContainer />
         </div>
     );

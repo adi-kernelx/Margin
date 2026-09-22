@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { cn } from '@/lib/utils';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import { useDocumentStore } from '@/hooks/useDocumentStore';
@@ -125,7 +126,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const pageCountRef = useRef(0);
 
     const {
-        isDarkMode,
+        // isDarkMode moved to ThemeProvider
         annotationMode,
         setAnnotationMode,
         setAwaitingMathPlacement,
@@ -961,7 +962,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // ... Render logic (Pages) ...
     return (
-        <div className={`flex-1 flex flex-col h-full relative ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+        <div className="relative flex h-full flex-1 flex-col bg-ground">
             <Button
                 size="sm"
                 className="absolute right-5 top-5 z-20"
@@ -1093,9 +1094,10 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
     const textLayerRef = useRef<HTMLDivElement>(null);
     const linkLayerRef = useRef<HTMLDivElement>(null);
     const renderTaskRef = useRef<any>(null);
-    const { isDarkMode, selectionMode, annotationMode } = useDocumentStore(state => state);
+    const { selectionMode, annotationMode } = useDocumentStore(state => state);
     // Read searchHighlight from global AppStore (set by Header)
     const searchHighlight = useAppStore(state => state.searchHighlight);
+    const readingFilter = useAppStore(state => state.readingFilter);
     const [viewport, setViewport] = useState<any>(null);
     const [isRendered, setIsRendered] = useState(false);
     const [nativeTextContent, setNativeTextContent] = useState<any>(null);
@@ -1183,7 +1185,27 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
     const height = dimensions ? Math.floor(dimensions.height * scale) : undefined;
 
     return (
-        <div data-page-id={pageId} className={`relative shadow-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} style={width ? { width: `${width}px`, height: `${height}px` } : undefined}>
+        <div
+            data-page-id={pageId}
+            className={cn(
+                // The page is elevation 0 — it is the user's document, not
+                // chrome. One hairline edge and one seating shadow via
+                // --page-shadow are the only depth signals allowed here.
+                'relative bg-white border border-line',
+            )}
+            style={{
+                width: width ? `${width}px` : undefined,
+                height: height ? `${height}px` : undefined,
+                boxShadow: 'var(--page-shadow)',
+                // Optional per-document night-reading filter, applied to the
+                // rendered canvas only; the underlying PDF is never modified.
+                filter: readingFilter === 'dim'
+                    ? 'brightness(0.85) contrast(0.92)'
+                    : readingFilter === 'sepia'
+                        ? 'sepia(0.35)'
+                        : undefined,
+            }}
+        >
             <canvas ref={canvasRef} className="block pdf-base-canvas" data-page-num={pageNum} />
 
             {/* Native PDF.js TextLayer - Always render, selectable in select mode */}
@@ -1311,8 +1333,17 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
             })()}
 
             {!isRendered && (
-                <div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                    <div className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>Loading page {pageNum}...</div>
+                <div
+                    className={cn(
+                        // Paper-coloured placeholder at the final page size.
+                        // A single subtle shimmer only when motion is allowed
+                        // — the token media block below zeroes the duration.
+                        'absolute inset-0 flex items-center justify-center bg-sunken',
+                        'animate-pulse',
+                    )}
+                    style={{ animationDuration: '2s' }}
+                >
+                    <div className="font-mono text-xs text-text-muted">Loading page {pageNum}…</div>
                 </div>
             )}
         </div>

@@ -26,6 +26,12 @@ export interface AppState {
     setAnnotationMode: (mode: ToolMode) => void;
     isDarkMode: boolean;
     toggleDarkMode: () => void;
+    /**
+     * Optional CSS filter applied to rendered page canvases. Never modifies
+     * the underlying PDF; exports carry the original pixels.
+     */
+    readingFilter: 'none' | 'dim' | 'sepia';
+    setReadingFilter: (filter: 'none' | 'dim' | 'sepia') => void;
     highlighterMode: HighlighterMode;
     setHighlighterMode: (mode: HighlighterMode) => void;
     highlighterColor: string;
@@ -134,6 +140,8 @@ export const createAppStoreSlice = (set: any, _get: any): AppState => ({
             store.setPreference(store.resolved === 'dark' ? 'light' : 'dark');
         });
     },
+    readingFilter: 'none',
+    setReadingFilter: (filter) => set({ readingFilter: filter }),
     highlighterMode: 'freeform',
     setHighlighterMode: (mode) => set({ highlighterMode: mode }),
     highlighterColor: '#FFEB3B', // Default yellow

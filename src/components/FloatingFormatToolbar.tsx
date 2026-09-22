@@ -13,7 +13,6 @@ export function FloatingFormatToolbar({
     placement = 'above',
 }: FloatingFormatToolbarProps) {
     const {
-        isDarkMode,
         textBold, setTextBold,
         textItalic, setTextItalic,
         textUnderline, setTextUnderline,
@@ -73,21 +72,32 @@ export function FloatingFormatToolbar({
     }, [textSubscript, textSuperscript]);
 
 
+    // One reusable style for every toggle button in the toolbar. Bold/Italic/etc
+    // all press to accent-soft when active; hover uses the sunken well colour.
+    const toggleClass = (active: boolean) => cn(
+        "flex items-center justify-center rounded p-1.5 transition-colors duration-state",
+        active
+            ? "bg-accent-soft text-accent"
+            : "text-text-soft hover:bg-sunken hover:text-text",
+    );
+    const divider = "mx-1 h-4 w-px bg-line";
+    const fieldClass = "ml-1 rounded border border-line bg-surface-1 px-1 py-0.5 text-xs text-text";
+
     return (
         <div
             ref={containerRef}
             className={cn(
-                "absolute left-0 flex items-center gap-1 p-1 rounded-lg shadow-lg border z-20 pointer-events-auto text-format-toolbar",
+                // Floats above the text editor as an elevation-3 popover.
+                "text-format-toolbar pointer-events-auto absolute left-0 z-popover flex items-center gap-1",
+                "rounded-lg border border-line bg-surface-3 p-1 shadow-elev-3",
                 placement === 'above' ? '-top-12' : 'top-full mt-2',
-                isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
             )}
         >
-            {/* Drag Handle */}
             <button
                 type="button"
                 className={cn(
-                    "p-1.5 rounded transition-colors cursor-move flex items-center justify-center",
-                    isDarkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"
+                    "flex cursor-move items-center justify-center rounded p-1.5 transition-colors duration-state",
+                    "text-text-muted hover:text-text",
                 )}
                 onPointerDown={onMovePointerDown}
                 aria-label="Move text box"
@@ -96,15 +106,12 @@ export function FloatingFormatToolbar({
                 <Move size={14} />
             </button>
 
-            <div className={cn("w-px h-4 mx-1", isDarkMode ? "bg-gray-700" : "bg-gray-300")} />
+            <div className={divider} />
 
             {/* Bold */}
             <button
                 onClick={() => setTextBold(!textBold)}
-                className={cn(
-                    "p-1.5 rounded hover:bg-opacity-20 transition-colors",
-                    textBold ? "bg-blue-500 text-white" : (isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black")
-                )}
+                className={toggleClass(textBold)}
                 title="Bold (Ctrl+B)"
             >
                 <Bold size={14} />
@@ -113,10 +120,7 @@ export function FloatingFormatToolbar({
             {/* Italic */}
             <button
                 onClick={() => setTextItalic(!textItalic)}
-                className={cn(
-                    "p-1.5 rounded hover:bg-opacity-20 transition-colors",
-                    textItalic ? "bg-blue-500 text-white" : (isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black")
-                )}
+                className={toggleClass(textItalic)}
                 title="Italic (Ctrl+I)"
             >
                 <Italic size={14} />
@@ -125,24 +129,18 @@ export function FloatingFormatToolbar({
             {/* Underline */}
             <button
                 onClick={() => setTextUnderline(!textUnderline)}
-                className={cn(
-                    "p-1.5 rounded hover:bg-opacity-20 transition-colors",
-                    textUnderline ? "bg-blue-500 text-white" : (isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black")
-                )}
+                className={toggleClass(textUnderline)}
                 title="Underline (Ctrl+U)"
             >
                 <Underline size={14} />
             </button>
 
-            <div className={cn("w-px h-4 mx-1", isDarkMode ? "bg-gray-700" : "bg-gray-300")} />
+            <div className={divider} />
 
             {/* Subscript */}
             <button
                 onClick={toggleSubscript}
-                className={cn(
-                    "p-1.5 rounded hover:bg-opacity-20 transition-colors",
-                    textSubscript ? "bg-blue-500 text-white" : (isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black")
-                )}
+                className={toggleClass(textSubscript)}
                 title="Subscript (Ctrl+,)"
             >
                 <Subscript size={14} />
@@ -151,35 +149,26 @@ export function FloatingFormatToolbar({
             {/* Superscript */}
             <button
                 onClick={toggleSuperscript}
-                className={cn(
-                    "p-1.5 rounded hover:bg-opacity-20 transition-colors",
-                    textSuperscript ? "bg-blue-500 text-white" : (isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black")
-                )}
+                className={toggleClass(textSuperscript)}
                 title="Superscript (Ctrl+.)"
             >
                 <Superscript size={14} />
             </button>
 
-            <div className={cn("w-px h-4 mx-1", isDarkMode ? "bg-gray-700" : "bg-gray-300")} />
+            <div className={divider} />
 
             {/* Color */}
             <div className="relative">
                 <button
                     onClick={() => setShowColorPicker(!showColorPicker)}
-                    className={cn(
-                        "p-1.5 rounded hover:bg-opacity-20 transition-colors flex items-center gap-1",
-                        isDarkMode ? "text-gray-300 hover:bg-white" : "text-gray-600 hover:bg-black"
-                    )}
+                    className={cn(toggleClass(false), "gap-1")}
                     title="Text Color"
                 >
                     <Palette size={14} />
-                    <div className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: textColor }} />
+                    <div className="w-3 h-3 rounded-full border border-line" style={{ backgroundColor: textColor }} />
                 </button>
                 {showColorPicker && (
-                    <div className={cn(
-                        "absolute top-full left-0 mt-2 p-2 rounded-lg shadow-xl border min-w-[150px]",
-                        isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-                    )}>
+                    <div className="absolute left-0 top-full mt-2 min-w-[150px] rounded-lg border border-line bg-surface-3 p-2 shadow-elev-3">
                         <input
                             type="color"
                             value={textColor}
@@ -200,10 +189,7 @@ export function FloatingFormatToolbar({
                 }}
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={cn(
-                    "w-12 px-1 py-0.5 text-xs rounded border ml-1",
-                    isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                )}
+                className={cn(fieldClass, "w-12")}
                 min={8}
                 max={72}
                 title="Font Size"
@@ -215,10 +201,7 @@ export function FloatingFormatToolbar({
                 onChange={(e) => setTextFontFamily(e.target.value)}
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={cn(
-                    "w-20 px-1 py-0.5 text-xs rounded border ml-1",
-                    isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-black"
-                )}
+                className={cn(fieldClass, "w-20")}
             >
                 <option value="Arial">Arial</option>
                 <option value="Times New Roman">Times</option>

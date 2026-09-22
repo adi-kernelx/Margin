@@ -173,8 +173,12 @@ export function Toolbar({
             className
         )}>
             <div className={cn(
-                "p-2 flex flex-col gap-2 rounded-xl border border-line bg-surface-2 shadow-elev-3 overflow-y-auto scrollbar-hide",
-                small ? "max-h-[60vh] scale-90 origin-top-left" : ((className?.includes('max-h-') || className?.includes('h-full')) ? "max-h-full" : "max-h-[80vh]"), // Only default to 80vh if no override
+                // The tool dock is the app's one glass surface: a shallow
+                // backdrop-blur pill floating above the page. The blur is
+                // rationed per §06 of the plan — dialog scrims use a plain
+                // dim instead.
+                "depth-glass p-2 flex flex-col gap-2 overflow-y-auto scrollbar-hide",
+                small ? "max-h-[60vh] scale-90 origin-top-left" : ((className?.includes('max-h-') || className?.includes('h-full')) ? "max-h-full" : "max-h-[80vh]"),
             )}>
                 {/* Drawing Tools */}
                 <ToolbarGroup label="Annotation tools">

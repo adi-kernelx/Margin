@@ -122,10 +122,16 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                         tabIndex={0}
                         aria-selected={doc.id === focusedDocId}
                         className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm max-w-[200px] flex-shrink-0 group select-none cursor-pointer transition-all relative",
+                            // Physical tabs: the active tab is raised and
+                            // reads as continuous with the pane below it —
+                            // shared fill, lit top edge, no bottom border —
+                            // and inactive tabs sit slightly sunken.
+                            "group relative flex max-w-[200px] flex-shrink-0 cursor-pointer select-none items-center gap-2",
+                            "rounded-t-md border border-b-0 px-3 py-1.5 text-sm transition-all duration-state",
+                            "-mb-px",
                             doc.id === focusedDocId
-                                ? "border-accent bg-accent-soft text-accent z-10"
-                                : "border-line bg-surface-1 text-text-soft hover:border-accent hover:text-text"
+                                ? "z-10 border-line bg-surface-1 text-text shadow-[var(--edge-highlight)]"
+                                : "border-transparent bg-sunken text-text-muted hover:bg-surface-2 hover:text-text"
                         )}
                         onClick={() => onFocusDocument(doc.id)}
                         onKeyDown={(event) => {
@@ -222,27 +228,33 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
             {/* Context Menu */}
             {contextMenu && (
                 <div
-                    className="fixed z-50 bg-white dark:bg-gray-800 border dark:border-gray-700 shadow-xl rounded-lg py-1 w-48"
+                    role="menu"
+                    className={cn(
+                        'fixed z-popover w-48 rounded-lg border border-line bg-surface-3 py-1',
+                        'shadow-elev-3 text-sm',
+                    )}
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <button
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                        role="menuitem"
+                        className="w-full px-4 py-2 text-left text-text-soft hover:bg-sunken hover:text-text"
                         onClick={() => {
                             onRefreshDocument(contextMenu.docId);
                             closeContextMenu();
                         }}
                     >
-                        Refresh from Disk
+                        Refresh from disk
                     </button>
                     <button
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                        role="menuitem"
+                        className="w-full px-4 py-2 text-left text-text-soft hover:bg-sunken hover:text-text"
                         onClick={() => {
                             onLoadJSON(contextMenu.docId);
                             closeContextMenu();
                         }}
                     >
-                        Load Annotations (JSON)
+                        Load annotations (JSON)
                     </button>
                 </div>
             )}

@@ -8,8 +8,8 @@ that endpoint already exists, and — where it does not — the contract the
 backend should be built to.
 
 **Started:** September 22, 2026
-**Last updated:** September 22, 2026 (F1 implemented)
-**Current phase:** F1 implemented; awaiting user acceptance of the gallery
+**Last updated:** September 22, 2026 (F2 and F3 implemented)
+**Current phase:** F2 and F3 implemented; awaiting user acceptance
 **Main project log:** [`implementation_log.md`](implementation_log.md)
 
 ---
@@ -454,16 +454,182 @@ files, 6 new source files, 4 new test files, 2 new doc/screenshot artefacts.
 
 ---
 
+## Phase F2: Chrome zone — title bar, tabs, tool dock, status bar
+
+**Date:** September 22, 2026
+**Status:** Implemented; awaiting user acceptance
+**Objective:** The frame around the document reads as a native application and
+never competes with the page. Every chrome component draws from the token
+system that F1 established.
+
+### F2.1: Service health module and StatusBar
+
+**Created**
+- `src/lib/services/health.ts` — a zustand store plus a poller that probes
+  `GET :8000/health` (OCR) and `GET :9101/health` (RAG) with a 2.5 s timeout
+  and back-off (5 s while online, 30 s while offline).
+- `src/components/StatusBar.tsx` — elevation-1 bottom bar rendering active
+  document name, zoom, pane count, open-document count, save state, and one
+  colour-plus-label pip per service. Uses the existing tooltip conventions so
+  meaning never rides on the pip colour alone.
+- `src/pages/Dashboard.tsx` — mounts the status bar and starts the poller
+  once on first render.
+
+### F2.2: Chrome primitive migrations
+
+Every component in the plan's chrome-zone list moved onto tokens. Raw palette
+classes in each of these files dropped to zero:
+
+- `src/components/Header.tsx` — context menu at elevation 3.
+- `src/components/PaneHeader.tsx` — rebuilt on `IconButton` and
+  `ToolbarGroup`; zoom control replaces raw grays.
+- `src/components/DocumentPane.tsx` — pane surface uses `bg-surface-1` and
+  the token line colour.
+- `src/components/SaveButton.tsx` — key-cap style via `depth-pressable`; the
+  dirty pip uses `bg-warning` so colour and motion together carry meaning.
+- `src/components/Sidebar.tsx` — replicate-toolbar rail sits at elevation 1;
+  the toggle switches to an `accent-soft` badge.
+- `src/components/FileSystem/SideMenu.tsx` — panel at elevation 3.
+- `src/components/FileSystem/FileTree.tsx` — 42 raw classes to zero, without
+  changing behaviour; a batch script mapped every pattern to its token
+  equivalent.
+- `src/components/ui/Toast.tsx` — one surface per toast type
+  (success/danger/warning + info), each carrying colour and border together.
+- `src/components/PermissionPrompt.tsx` — rebuilt on the `Dialog` and
+  `Button` primitives.
+
+### F2.3: Physical pane tabs
+
+The Header tab-strip in `src/components/Header.tsx` now uses one of two
+treatments per tab:
+
+- **Active** — raised, sits on the pane's surface colour, has the lit top
+  edge (`--edge-highlight`), and no bottom border. It reads as continuous
+  with the pane below it.
+- **Inactive** — sunken (`bg-sunken`) with muted text; hover raises to
+  `bg-surface-2`.
+
+A `-mb-px` overlap makes the active tab visually merge with the pane border.
+
+### F2.4: Glass tool dock
+
+`src/components/Toolbar.tsx` swapped its solid `bg-surface-2 border shadow-elev-3`
+wrapper for the `.depth-glass` utility from F1. This is the only glass
+surface in the app; every other floating element uses solid tokens.
+
+### ⚡ Design Decision: no meaning-on-colour-alone in the status pips
+
+> **Reasoning:** Colour-blind users cannot distinguish red-vs-green pips.
+> Every pip is labelled in text next to the dot and again in the tooltip; the
+> pip fill is a fixed status colour and the label carries the meaning.
+
+### API register changes
+
+- E1 (`GET :8000/health`) and E2 (`GET :9101/health`) are now consumed by
+  the status bar. No contract change.
+
+---
+
+## Phase F3: Reading zone — the page as paper
+
+**Date:** September 22, 2026
+**Status:** Implemented; awaiting user acceptance
+**Objective:** The PDF page looks like paper on a desk, and every editable
+overlay on it reads as the user's own markup rather than interface.
+
+### F3.1: Page presentation
+
+**Modified — `src/components/PDFViewer.tsx`**
+- The page frame keeps `bg-white` (a page is white), plus one hairline
+  `border-line` and the single `--page-shadow` seating shadow. Nothing at the
+  page surface exceeds elevation 0.
+- The scroll container drops its raw grays and uses `bg-ground`.
+- Loading state is now a paper-coloured `bg-sunken` placeholder at the final
+  page size, with a slow `animate-pulse` shimmer; the tokens.css
+  reduced-motion block already zeroes its duration for users who opt out.
+
+### F3.2: Night reading filter
+
+**Modified**
+- `src/lib/store.ts` — new `readingFilter: 'none' | 'dim' | 'sepia'` with
+  a setter.
+- `src/components/PDFViewer.tsx` — the page frame carries an inline `filter`
+  style (`brightness/contrast` for Dim, `sepia` for Sepia). The underlying
+  PDF is never modified; exports carry the original pixels.
+- `src/components/SettingsModal.tsx` — a new segmented control exposes the
+  filter alongside the theme control, so dark-mode users can dim the page
+  itself without staring at a bright white surface.
+
+### F3.3: Text annotation editor styling
+
+**Modified — `src/components/TextAnnotationEditor.tsx`**
+- The editor frame is now `border-2 border-dashed border-accent bg-surface-1`
+  with `shadow-elev-3` — a dashed outline reads as a selectable region and
+  the token surface follows the theme.
+- Dropped the `isDarkMode` read; the surface token handles both themes.
+
+### F3.4: Floating format toolbar
+
+**Rewritten — `src/components/FloatingFormatToolbar.tsx`**
+- Container is now an elevation-3 popover.
+- 40 raw palette classes replaced by two reusable helper strings: a
+  `toggleClass(active)` that maps to `bg-accent-soft` when pressed and to
+  `hover:bg-sunken` otherwise, and a `fieldClass` for the number and select
+  inputs.
+- The colour swatch preview uses `border-line`.
+- Dropped the `isDarkMode` read entirely.
+
+### F3.5: Theme controls in Settings
+
+**Rewritten — `src/components/SettingsModal.tsx`**
+- Appearance is now a three-state control (System / Light / Dark) that
+  drives the F1 theme store directly, not the legacy toggle.
+- Reading filter joins Appearance in the same dialog.
+
+### ⚡ Design Decision: the reading filter is a CSS filter on the page frame
+
+> **Reasoning:** Dim and sepia are display concerns. They must not touch the
+> stored PDF or the exported PDF. Applying the filter to the page frame keeps
+> it perfectly reversible and free — `filter: brightness()` runs on the GPU
+> compositor and does not repaint.
+
+### API register changes
+
+- No backend contact added or changed in F3.
+
+### Verification (F2 + F3)
+
+- **Automated:** tsc, core lint, tests (118/118 across 22 files), and the
+  production build all green.
+- **Raw palette classes:** 502 → **323 across 5 files**. The eleven files
+  named in F2 and the six named in F3 are at zero. The remaining five
+  (`AIChatSidebar`, `SearchBar`, `MathModal`, `SaveModal`, `SaveOptionsModal`)
+  are gated to F6 and F7 by design.
+- **Manual acceptance (pending):**
+  1. Open a document; confirm the page reads as paper on a neutral ground
+     with no visible interface ornament near it.
+  2. Open the tool dock and confirm the glass background composites over
+     the page correctly in both themes.
+  3. Switch reading filter in Settings between Off/Dim/Sepia and confirm the
+     page canvas changes; then export and confirm the exported PDF looks
+     unaffected.
+  4. Stop the OCR service; confirm its status pip flips to danger within a
+     poll interval and the tooltip explains the impact.
+  5. Cycle System / Light / Dark from Settings and confirm the whole chrome
+     zone follows without flashes.
+
+---
+
 ## Upcoming
 
 | Phase | Status | Blocked by |
 |---|---|---|
-| F1 Foundation v2 | **Implemented; user acceptance pending** | — |
-| F2 Chrome zone | Ready to start after F1 acceptance | F1 |
-| F3 Reading zone | Not started | F2 (8R.1 done) |
-| F4 Library | Not started | F1 (8R.3 done) |
+| F1 Foundation v2 | **Implemented** | — |
+| F2 Chrome zone | **Implemented** | F1 |
+| F3 Reading zone | **Implemented** | F2 |
+| F4 Library | Ready to start | F1 (8R.3 done) |
 | F5 Page organiser | Not started | F4 |
-| F6 Side panels | Not started | F2 (8R.2, 8R.4 done); M1–M3 for full assistant/search |
+| F6 Side panels | Not started | F2; M1–M3 for full assistant/search |
 | F7 Dialogs and states | Not started | F2 |
 | F8 Demo build | Not started | F4–F7 |
 | F9.x Future surfaces | Not started | Corresponding backend weeks; M5–M8 |
