@@ -1,0 +1,1390 @@
+# Implementation Log: Margin
+
+Margin is a local-first workspace for reading, organising, searching, and
+annotating mathematical PDFs. This document is both a build history and a
+technical hand-off: a reader should be able to understand the current system,
+why it has this shape, what each roadmap phase delivered, and what remains
+unreliable without reading the Git history first.
+
+**Rebuild started:** September 2, 2026  
+**Last updated:** September 22, 2026  
+**Roadmap position:** Weeks 1–7 accepted; Week 8 repair 8R.1 implemented,
+manual acceptance pending  
+**Working branch:** `phase-0-demolition` (the name is historical; the branch now
+contains the rebuild through Week 8)  
+**Primary stack:** React 19, TypeScript, Vite, PDF.js, pdf-lib, IndexedDB, Vitest
+
+---
+
+## How to Read the Project
+
+### Product boundary
+
+Margin is a single-user desktop-browser application. The browser owns the
+document workspace and local persistence. It does not require an application
+server, account, Firebase, S3, or collaboration service. Optional local Python
+services provide OCR and RAG, but PDF reading, editing, page operations, notes,
+the library, and native-text search are designed to work without them.
+
+### Architecture in one view
+
+```text
+React components
+    │
+    ├── src/lib/       browser/PDF/storage adapters and stateful services
+    │       │
+    │       └── IndexedDB, PDF.js, pdf-lib, File System Access API
+    │
+    └── src/core/      pure TypeScript domain logic
+            ├── annotations and command inversion
+            ├── ink geometry and stroke processing
+            ├── workspace layout
+            ├── stable page identities
+            ├── note anchors and Markdown export
+            └── full-text indexing
+```
+
+`src/core/` cannot import React, browser globals, storage, network, PDF, or
+shell modules. ESLint enforces this rule and CI treats a violation as a build
+failure. Components and `src/lib/` may depend on the core; the core may not
+depend on them.
+
+### Persistence model
+
+- The original PDF or a filesystem handle identifies the source document.
+- An IndexedDB sidecar stores editable Margin annotations and page workspace
+  state for recovery.
+- The page workspace stores immutable PDF sources plus an ordered list of page
+  records. Merge and reorder operations change that list; they do not rewrite
+  every annotation.
+- The Margin library currently stores imported PDF blobs in a separate
+  IndexedDB database. Ordinary filesystem-opened PDFs are not automatically
+  added to that library.
+- Search pages are extracted from the materialised PDF.js document and cached
+  in IndexedDB by document fingerprint and page-document revision.
+
+### Source documents for the rebuild
+
+- `docs/MARGIN_BUILD_PLAN.html` defines the 17-week roadmap and the acceptance
+  intent for each week.
+- Git history records the actual implementation checkpoints.
+- `README.md` describes the intended current architecture, but the manual
+  findings in this log take precedence where the README overstates reliability.
+
+### ⚡ Design Decision: local-first means deleting cloud architecture
+
+The inherited application contained Firebase authentication, Firestore file
+state, S3/cloud saving, sharing, Express routes, and collaboration remnants.
+Those were not retained behind dormant adapters.
+
+> **Reasoning:** Dead integrations still impose dependencies, security surface,
+> types, and failure modes. A single-user local application is easier to
+> understand only if its source of truth is genuinely local.
+
+### ⚡ Design Decision: the roadmap number is the phase number
+
+Earlier versions of this log used internal build numbers, combined roadmap
+weeks under unmatched subsection numbers, and described “Phase 3–4” without a
+Phase 4 subsection. This rewrite uses the roadmap directly: Weeks 1–2 are
+Phase 1–2, Weeks 3–4 are Phase 3–4, and so on. Every combined heading contains
+subsections for both numbers.
+
+---
+
+## Phase 0: Safety Checkpoint and Plan Intake
+
+**Date:** September 2, 2026  
+**Objective:** Preserve the inherited working tree and establish the rebuild
+plan before destructive removal work.
+
+### Phase 0.1: Baseline checkpoint
+
+- `ab63d6f` captured the pre-rebuild working tree so removed systems remained
+  recoverable from Git.
+- `docs/MARGIN_BUILD_PLAN.html` became the roadmap reference.
+- The initial UI-design reference was vendored temporarily in `936c54a`; it was
+  later removed from tracked application history as an agent-only artifact.
+
+### ⚡ Plan Deviation: agent assets were removed from the repository
+
+The temporary design-skill files and AI-specific instruction files were not
+kept as project dependencies.
+
+> **Reasoning:** They are development-environment artifacts, not Margin source.
+> Keeping them tracked inflated diffs and risked exposing machine- or
+> assistant-specific material. `.gitignore` now excludes `.agents/`,
+> `.claude/`, `.codex/`, `.gpt/`, `.chatgpt/`, and named agent instruction
+> files.
+
+### Testing
+
+- Verified both baseline commits were reachable in Git.
+- No application behaviour changed in this phase.
+
+**Git checkpoints:**  
+`ab63d6f` — checkpoint: prior working tree before Phase 0  
+`936c54a` — chore: vendor ui-ux-pro-max and ui-styling skills
+
+---
+
+## Phase 1–2: Demolition and Constructive Foundations
+
+**Date:** September 2–8, 2026  
+**Roadmap:** Weeks 1–2 — Demolition  
+**Objective:** Remove abandoned server/cloud paths, isolate pure domain logic,
+and add the tests, CI, and design tokens needed by every later phase.
+
+### Phase 1.1: Remove duplicate and abandoned systems
+
+**Removed**
+
+- `src/lib/old-save-manager.ts` and `src/lib/saving/engine/` — competing save
+  implementations whose overlapping responsibilities made the active path
+  ambiguous.
+- `src/lib/collab-store.ts` and `src/components/CollabUserList.tsx` — unused
+  real-time collaboration surface.
+- `backend/src/lib/ocr-vision.ts` — abandoned Cloud Vision integration.
+- Firebase auth/config, login/signup/shared-link pages, Firestore stores,
+  cloud/S3 adapters, upload/share services, and cloud-specific types.
+- The Express backend, Firebase Functions project, Firebase rules, and backend
+  scripts.
+
+**Created / modified — local replacement boundary**
+
+- `src/lib/local-fs-store.ts` — local filesystem-oriented store replacing the
+  Firestore-shaped file boundary.
+- `src/lib/storage/library-db.ts` — IndexedDB stores for library folders, file
+  metadata, and imported blobs.
+- `src/types/library.ts` — browser-local folder/file records with epoch
+  timestamps and no Firebase types.
+- `src/lib/saving/{adapters,file-save-controller,save-manager}.ts` — reduced to
+  local save behavior.
+- `src/{App.tsx,components/Header.tsx,components/PDFViewer.tsx}` — removed auth,
+  cloud, and sharing entry points.
+
+The three demolition commits removed 25,736 lines and added 478 lines. The
+deletion count includes the complete backend and Functions projects, not only
+frontend code.
+
+### Phase 1.2: Establish the pure core
+
+**Created — core**
+
+- `src/core/annotations/models.ts` — annotation, geometry, and command types.
+- `src/core/annotations/operations.ts` — add, update, delete, and batch command
+  factories; every valid command carries its inverse.
+- `src/core/annotations/spatial-index.ts` — quadtree used for annotation hit
+  candidates.
+- `src/core/annotations/test-factories.ts` — readable deterministic fixtures.
+
+**Modified — shell compatibility**
+
+- `src/lib/annotations/{models,operations,spatial-index}.ts` became thin
+  re-export shims so existing UI imports did not need an all-at-once rewrite.
+- `eslint.config.js` added the zero-tolerance core import/global boundary.
+
+### ⚡ Bug: importing command logic opened IndexedDB
+
+The first Node test failed with `ReferenceError: indexedDB is not defined`.
+Pure command factories shared a module with a storage-backed operation log,
+which opened IndexedDB during import.
+
+> **Fix:** Move environment-free models, commands, and spatial indexing into
+> `src/core/`; leave browser persistence in `src/lib/`. This failure is the
+> concrete reason the boundary is enforced rather than documented informally.
+
+### ⚡ Bug: batch construction could discard an uninvertible operation
+
+An adversarial command test showed that the old batch builder could silently
+omit a child operation that lacked an inverse.
+
+> **Fix:** Reject the entire batch. Partial undo is worse than refusing an
+> invalid command because it leaves visible state inconsistent with history.
+
+### Phase 2.1: Test and CI safety net
+
+**Created / modified**
+
+- `vitest.config.ts` — Node-environment Vitest configuration.
+- `src/core/annotations/operations.test.ts` — command/inverse round trips,
+  document identity, batch ordering, and invalid-batch rejection.
+- `src/core/annotations/spatial-index.test.ts` — basic quadtree behavior plus a
+  200-run property check against a linear scan.
+- `.github/workflows/ci.yml` — Node 22 install, typecheck, core-boundary lint,
+  tests, and production build on pushes and pull requests.
+- `README.md` — replaced aspirational cloud behavior with the local-first
+  architecture and an explicit roadmap.
+
+### Phase 2.2: Design token layer
+
+**Created / modified**
+
+- `src/styles/tokens.css` — semantic colors, spacing, typography, radii,
+  elevations, and light/dark values.
+- `src/index.css` — application styles consume shared tokens.
+- `tailwind.config.js` — Tailwind names map to the same semantic tokens.
+
+### ⚡ Design Decision: neutral workspace ground, separate annotation colors
+
+The app accent was kept visually distinct from yellow, pink, green, blue, and
+orange highlighters, and the workspace ground remained near-neutral.
+
+> **Reasoning:** A tinted ground changes the perceived white of a PDF page; an
+> accent close to a markup color makes application chrome look like document
+> content.
+
+### Testing
+
+- 15 tests passed at checkpoint: 8 command tests and 7 spatial-index tests.
+- Typecheck, core-boundary lint, and production build passed in CI.
+
+**Git checkpoints:**  
+`c72adbb` — refactor: delete orphaned save engines, collab remnants, Vision OCR  
+`ca823f9` — refactor(frontend): remove Firebase auth, S3 cloud sync and sharing  
+`e1f242c` — refactor: delete the Express backend and all remaining Firebase surface  
+`f9c0944` — feat: core/shell split, test harness, CI, and the design token layer
+
+---
+
+## Phase 3–4: Interface Shell and Component System
+
+**Date:** September 9–15, 2026  
+**Roadmap:** Weeks 3–4 — Interface  
+**Objective:** Replace ad-hoc document mounting and controls with a testable pane
+layout and reusable token-based primitives.
+
+### Phase 3.1: Pure pane-layout tree
+
+**Created — core**
+
+- `src/core/workspace/layout.ts` — recursive pane/split tree, tab activation,
+  movement, edge splitting, empty-branch collapse, visible-tab calculation,
+  four-pane cap, and divider clamping.
+- `src/core/workspace/layout.test.ts` — 6 tests for hidden tabs, moves, branch
+  collapse, close behavior, the pane cap, and divider limits.
+
+### Phase 3.2: Workspace integration
+
+**Modified — components / application state**
+
+- `src/pages/Dashboard.tsx` — owns the layout tree, routes opened documents into
+  panes, and renders only visible active tabs.
+- `src/components/{DocumentPane,PaneHeader,DocumentsGrid,Header}.tsx` — pane
+  chrome, drag targets, tab movement, closing, and active-document behavior.
+- `src/components/grid-presets.css` — pane-grid styling and drop feedback.
+- `src/lib/store.ts` — workspace/UI state shared by the shell.
+
+### ⚡ Design Decision: keep hidden tabs in state, unmount their PDF viewers
+
+> **Reasoning:** Tabs must retain identity and position, but an inactive PDF.js
+> renderer consumes significant memory. The layout tree keeps all tabs while
+> `visibleTabIds()` limits mounted viewers to the active tab in each pane.
+
+### Phase 4.1: Token-based primitive set
+
+**Created — components**
+
+- `src/components/ui/Button.tsx` and `IconButton.tsx` — consistent button sizes,
+  variants, focus states, icons, and disabled behavior.
+- `ToolbarGroup.tsx`, `Popover.tsx`, `Tooltip.tsx`, and `Dialog.tsx` — reusable
+  interaction/chrome primitives.
+- `SegmentedControl.tsx` and `StrokeWidthControl.tsx` — shared compact tool
+  options.
+- `ResizablePanelGroup.tsx` — pointer- and keyboard-resizable panels.
+- `VirtualizedList.tsx` — fixed-row windowing using pure range calculations.
+- `src/core/ui/virtual-range.ts` and its 3 tests — visible range plus overscan,
+  edge clamping, and invalid-dimension rejection.
+
+### Phase 4.2: Toolbar and settings migration
+
+**Modified — components**
+
+- `Toolbar.tsx`, `ColorPicker.tsx`, `EraserOptions.tsx`,
+  `HighlighterOptions.tsx`, `ImageOptions.tsx`, `SelectOptions.tsx`,
+  `TextOptions.tsx`, and `SettingsModal.tsx` adopted the primitives and tokens.
+- `src/main.tsx` and `src/index.css` load the common styling foundation.
+
+### Testing
+
+- 9 focused interface tests passed: 6 workspace-layout and 3 virtual-range.
+- The combined Phase 3–6 checkpoint contained 42 tests overall.
+- Keyboard/pointer pane behavior was manually exercised during the phase.
+
+**Git checkpoint:** `b513719` — feat: complete workspace and ink quality phases
+
+---
+
+## Phase 5–6: Ink Quality and Unified Editing History
+
+**Date:** September 9–15, 2026  
+**Roadmap:** Weeks 5–6 — The ink  
+**Objective:** Make live drawing responsive, committed strokes compact, erasing
+geometrically correct, and all edits reversible through typed commands.
+
+### Phase 5.1: Coordinate and stroke-processing core
+
+**Created — core**
+
+- `src/core/ink/coordinates.ts` — the single conversion boundary among screen,
+  viewport, normalized page, and PDF coordinates.
+- `src/core/ink/stroke-processing.ts` — Ramer–Douglas–Peucker simplification and
+  cubic Bézier fitting for committed strokes.
+- `src/core/ink/kalman.ts` — short-horizon pointer prediction used only for the
+  temporary live preview.
+- `src/core/ink/geometry.ts` — segment distance and swept-disc stroke splitting
+  for the point eraser.
+
+**Modified — rendering / tools**
+
+- `src/lib/rendering/{annotation-renderer,stroke-smoother}.ts` — render fitted
+  paths and preserve the common coordinate contract.
+- `src/lib/tools/{pencil-tool,highlighter-tool,eraser-tool}.ts` — coalesced
+  samples, processed stroke output, and exact partial erasure.
+- `src/lib/annotations/pointer-handler.ts` — feeds the live and committed paths.
+
+### Phase 5.2: Layered rendering and workers
+
+**Created / modified — shell**
+
+- `src/lib/workers/ink-render-worker.ts` and
+  `ink-render-worker-manager.ts` — OffscreenCanvas-capable rendering boundary.
+- `src/lib/workers/{stroke-worker,stroke-worker-manager}.ts` — background stroke
+  processing.
+- `src/components/AnnotationCanvas.tsx` — separates transient live ink from
+  committed annotations and redraws only the affected layer.
+- `src/lib/metrics/ink-debug.ts` and `benchmarks/ink/` — local latency/storage
+  instrumentation and recorded gate definitions.
+
+### ⚡ Design Decision: prediction never changes saved geometry
+
+> **Reasoning:** Prediction hides one frame of pointer latency, but predicted
+> points may be wrong. They are drawn on the transient layer and discarded when
+> real input arrives; only captured samples feed the saved stroke.
+
+### Phase 6.1: Exact partial erasure
+
+The eraser computes the distance from its swept path to each stroke segment,
+finds exact intersections, splits the stroke at the erased interval, and refits
+the surviving pieces. A whole erase gesture becomes one batch command.
+
+### ⚡ Design Decision: swept-disc geometry instead of captured-point hits
+
+> **Reasoning:** A quick pointer movement can cross a stroke without producing
+> a sample inside it. Segment-to-segment distance handles that case and makes
+> erasure independent of input sampling density.
+
+### Phase 6.2: Apply layer and shared command manager
+
+**Created / modified**
+
+- `src/core/annotations/apply.ts` — pure projection of operations onto visible
+  annotation state.
+- `src/lib/annotations/operation-manager.ts` — one document-aware undo/redo
+  history and subscription boundary.
+- `src/core/annotations/models.ts` and `operations.ts` — typed operation union
+  and property-tested inverse semantics.
+- `src/components/PDFViewer.tsx` — subscribes the React projection to command
+  history and persists the resulting snapshot.
+
+### Testing
+
+- 13 focused ink tests passed: coordinates (3), exact geometry (4), Kalman
+  prediction (3), and stroke processing/storage gate (3).
+- 5 editing-history tests passed at this checkpoint: pure apply (2), operation
+  manager (2), and an arbitrary-command-sequence inverse property test (1).
+- All Phase 6 manual acceptance checks passed on September 22, 2026. The user
+  specifically confirmed smooth drawing, smooth partial erasure, and working
+  undo/redo.
+
+**Git checkpoint:** `b513719` — feat: complete workspace and ink quality phases
+
+---
+
+## Phase 7: Stable Page Operations
+
+**Date:** September 15–22, 2026  
+**Roadmap:** Week 7 — Pages  
+**Objective:** Give pages identities independent of position, then implement
+reorder, rotate, insert, merge, extract, split, and undo on that model.
+
+### Phase 7.1: Stable page domain
+
+**Created — core**
+
+- `src/core/pages/models.ts` — `PageRecord` and `PageDocument`; every page has a
+  UUID, immutable source reference, source-page index, dimensions, and rotation.
+- `src/core/pages/document.ts` — document construction, invariants, page moves,
+  insertion/deletion, rotation normalization, and revision representation.
+- `src/core/pages/annotations.ts` — one-time migration from legacy `pageNum` to
+  `pageId`, derived page numbers, deletion filtering, and rotation transforms.
+
+### ⚡ Design Decision: `pageId` is identity; `pageNum` is a projection
+
+> **Reasoning:** Page 3 can become page 8 after reordering. An annotation tied
+> only to `pageNum: 3` silently moves to the wrong content. A stable UUID follows
+> the page; display position is recomputed from the current order.
+
+### Phase 7.2: Page materialisation and command integration
+
+**Created / modified — core and lib**
+
+- `src/lib/pages/pdf-pages.ts` — describes imported PDF sources and materialises
+  ordered/rotated/blank page records through pdf-lib.
+- `src/lib/pages/storage.ts` — IndexedDB storage for immutable sources and page
+  documents.
+- `src/core/annotations/{models,operations,apply}.ts` — page commands join the
+  annotation command union and apply path.
+- `src/lib/annotations/operation-manager.ts` — page and annotation changes share
+  the same undo/redo sequence.
+- `src/lib/saving/{types,save-manager,file-save-controller,local-save-adapter}.ts`
+  — saves use the current materialised PDF and carry page-document metadata.
+- `src/types/editor-types.ts` — editor payload includes page workspace state.
+
+### Phase 7.3: Page organiser
+
+**Created / modified — components**
+
+- `src/components/PageOrganizer.tsx` — selection, multi-selection, drag reorder,
+  blank insertion, deletion, rotation, merge, extraction, split, and undo/redo
+  controls.
+- `src/components/PDFViewer.tsx` — owns page records, materialises the current
+  document, reattaches annotations, and connects organiser actions to commands.
+
+The original checkpoint displayed numbered placeholders. A September 22
+working-tree follow-up now renders real PDF.js canvas thumbnails from the
+materialised document. Thumbnails are observed lazily, capped to a small CSS
+size, and rendered at device-pixel density. This follow-up is validated but is
+not yet committed.
+
+### ⚡ Design Decision: preview the materialised document lazily
+
+> **Reasoning:** A preview must reflect merge, rotation, blank insertion, and
+> reorder state, so it cannot read only the original PDF. Rendering every page
+> eagerly would be expensive on large books; `IntersectionObserver` limits work
+> to visible and near-visible cards.
+
+### Testing
+
+- 11 tests were added/extended for the page phase: page document behavior (7),
+  annotation transforms (2), pdf-lib materialisation (1), and shared-history
+  page undo (1).
+- 53 tests passed at the Phase 7 checkpoint.
+- All Phase 7 manual acceptance checks passed on September 22, 2026, including
+  page operations, shared undo/redo, and the real page-preview follow-up.
+
+**Git checkpoint:** `95227a1` — feat: add stable page operations  
+**Uncommitted follow-up:** real lazy page previews in `PageOrganizer.tsx` and
+the `pdfDoc` connection in `PDFViewer.tsx`
+
+---
+
+## Phase 8: Notes, Library, Search, and Portable PDF Annotations
+
+**Date:** September 15–22, 2026  
+**Roadmap:** Week 8 — Notes  
+**Objective:** Link highlights to portable notes, expose a visual local library,
+index document text locally, and emit standard PDF annotation objects.
+
+**Acceptance status:** Not complete. The automated suite is green, but manual
+testing found four product/integration defects listed in Phase 8.5.
+
+### Phase 8.1: Highlight-anchored notes
+
+**Created — core**
+
+- `src/core/notes/notes.ts` — quote/context anchors, fallback geometry, document
+  ordering, and Markdown export with `margin://` page-position links.
+- `src/core/notes/notes.test.ts` — 3 tests for anchoring, ordering, and export.
+
+**Created / modified — components and models**
+
+- `src/components/NotesPanel.tsx` — virtualised document-order list,
+  page-to-note/note-to-page focus, note editing, inline KaTeX preview, and `.md`
+  download.
+- `src/core/annotations/models.ts` — a highlight may carry quote, context, body,
+  stable page ID, and page-space bounds.
+- `src/components/PDFViewer.tsx` — creates the highlight note, focuses it, and
+  updates it through the common command path.
+- `src/components/AnnotationCanvas.tsx` — forwards text-aware highlight context.
+
+### What “Markdown” means here
+
+Markdown is plain text with lightweight markers: `# Heading`, `- list item`,
+`**bold**`, and `[label](link)`. Margin exports note files in that portable
+format so editors such as Obsidian can read them. The current in-app editor is a
+plain textarea. It previews `$inline mathematics$` through KaTeX, but it does
+not yet render headings, lists, bold, or links as formatted HTML. Therefore the
+roadmap's “Markdown body” is only partially complete in the UI even though the
+exported source is valid Markdown.
+
+### ⚡ Bug caught by tests: ordering assumed every highlight had a note
+
+The first ordering helper read note bounds directly. A newly created or legacy
+highlight without note metadata could therefore sort incorrectly.
+
+> **Fix:** Fall back to the union of highlight rectangles/path bounds. Ordering
+> remains stable while a note anchor is being created or migrated.
+
+### Phase 8.2: Local library grid
+
+**Created / modified**
+
+- `src/components/LibraryGrid.tsx` — import control, loading/empty states,
+  responsive cover cards, pointer tilt, page count, and reopen behavior.
+- `src/lib/library-preview.ts` — generates a first-page image using PDF.js.
+- `src/lib/storage/library-db.ts` — stores preview, page count, last-opened time,
+  and last-read page with each library record.
+- `src/types/library.ts` — adds the corresponding optional metadata.
+- `src/pages/Dashboard.tsx` — switches between library and workspace and opens
+  stored library blobs as documents.
+- `src/components/Header.tsx` — the Margin wordmark returns to the library.
+
+### ⚡ Design Decision: ordinary Open and Library Import are separate paths
+
+At the checkpoint, **Import** copies a PDF blob into `margin-library`, while
+**Open PDF** registers a `FileSystemFileHandle` in the editor's local-file
+database and opens it without creating a library record.
+
+> **Reasoning at implementation time:** a copied blob can always be reopened
+> without asking the OS for file permission, while a filesystem handle preserves
+> write-back access. Manual testing shows the distinction is not understandable
+> in the current UI and does not match the desired reference-library model.
+
+### Phase 8.3: Browser-side full-text search
+
+**Created — core and storage**
+
+- `src/core/search/index.ts` — Unicode-aware tokenisation, inverted postings,
+  all-term matching, phrase boost, snippets, and matching span bounds.
+- `src/core/search/index.test.ts` — 3 tests for mathematical prose, multi-term /
+  phrase ranking, and result geometry.
+- `src/lib/search/storage.ts` — persisted extracted search pages in IndexedDB.
+
+**Modified — shell**
+
+- `src/lib/search/local-search.ts` — extracts native PDF.js text, merges unique
+  OCR tokens, builds/loads the index, refreshes after OCR, and searches the
+  current or all open documents.
+- `src/components/PDFViewer.tsx` — registers the current materialised PDF with a
+  revision derived from stable page IDs and rotations.
+- `src/components/{SearchBar,Header}.tsx` — scope resolution, result navigation,
+  and page highlighting.
+
+### ⚡ Plan Deviation: IndexedDB inverted index instead of SQLite FTS5
+
+The roadmap specified SQLite FTS5. The implemented application has no Node or
+native application backend, and adding one only for search would reverse the
+local browser architecture established in Phase 1.
+
+> **Reasoning:** Keep tokenisation/ranking pure and persistence browser-local.
+> This preserves the core/shell split and works in the static build. It does not
+> claim feature or performance parity with SQLite FTS5; large-library
+> benchmarking remains future work.
+
+### Phase 8.4: Standard PDF annotation export
+
+**Created / modified**
+
+- `src/lib/pdf-annotations.ts` — maps Margin highlights, ink, text, and shapes to
+  standard PDF annotation dictionaries and embeds the complete Margin model as
+  a JSON attachment for lossless reopening.
+- `src/lib/pdf-annotations.test.ts` — 2 pdf-lib round-trip tests.
+- `src/lib/pdf-data-manager.ts` and
+  `src/lib/saving/local-save-adapter.ts` — use editable annotation export in the
+  save path.
+
+### ⚡ Bug caught by tests: repeated export accumulated stale metadata
+
+Saving an already exported document could retain an older Margin JSON
+attachment and duplicate annotation names.
+
+> **Fix:** Replace Margin metadata rather than append it, and enforce unique
+> `/NM` annotation identifiers across repeated export round trips.
+
+### Phase 8.5: Manual acceptance findings
+
+The following results were reported on September 22, 2026.
+
+**Passed**
+
+- Inline `$...$` mathematics renders correctly in the note preview.
+- Undo/redo works in the tested editing flow.
+
+**Failed / redesign required**
+
+1. **One highlight creates one note.** Repeating a highlight 1,000 times creates
+   1,000 note cards. This follows the current model exactly:
+   `PDFViewer.handleAnnotationSave()` attaches `createHighlightNote()` to every
+   new highlight and opens the notes panel. It is not a rendering-only problem.
+   The note model must allow one user-created note to own multiple highlight
+   anchors, or highlights must remain unnoted until explicitly attached.
+
+2. **Textbox interaction performs poorly.** The current implementation is
+   concentrated inside the already large `AnnotationCanvas.tsx`: creation,
+   editing, dragging, resizing, outside-click commit, style synchronization,
+   selection conversion, and canvas rendering use several document-level mouse
+   effects and mutable textarea behavior. The user requested a from-scratch
+   rewrite rather than incremental patching.
+
+3. **Opening a second PDF does not add it to the library.** Confirmed cause:
+   `LibraryGrid.importFiles()` calls `libraryDB.importFile()`, but
+   `Dashboard.handleOpenPDF()` only writes a filesystem record to
+   `localFileDB`. The existing library also stores full blobs, whereas the
+   desired feature is a folder hierarchy of references to PDFs. Folder CRUD
+   methods already exist in `library-db.ts`, but no folder UI exists and records
+   do not yet store a `FileSystemFileHandle` reference.
+
+4. **Search fails after merging another PDF.** The symptom is confirmed by
+   manual testing. Unit tests cover the pure index, but no integration test
+   covers merge → materialise → re-register → search imported-page text. The
+   registry is intended to re-index when the page-document revision and PDF.js
+   document change, so the exact failing lifecycle must be reproduced and
+   instrumented before assigning a root cause.
+
+**Not yet reported**
+
+- Large-note-list scrolling and note/page bidirectional focus at scale.
+- Markdown download opened in an external Markdown editor.
+- Reopen persistence for notes and real PDF annotations.
+- Repeated native PDF export through the visible UI.
+
+### Testing
+
+- 8 tests were added in Phase 8: notes (3), search (3), and PDF annotation
+  round trips (2).
+- The repository suite now contains 61 tests in 16 test files.
+- Automated tests, typecheck, core-boundary lint, and production build are
+  green as of the validation recorded in Current Project State.
+- Phase 8 remains **not accepted** because automated coverage did not exercise
+  the four failed manual workflows above.
+
+**Git checkpoint:** `7a058e9` — feat: complete notes library and search phase  
+The commit subject records implementation completion; it should not be read as
+manual acceptance of the phase.
+
+---
+
+## Phase 8R.1: Textbox Rewrite
+
+**Date:** September 22, 2026  
+**Objective:** Replace the textbox interaction from scratch without changing
+the persisted `TextAnnotation` format or bypassing the shared undo/redo path.
+
+### Phase 8R.1.1: Pure editor-session model
+
+**Created — core**
+
+- `src/core/text-editor/state.ts` — create/edit session identity, controlled
+  draft state, frame fitting, clamped movement, bounded resizing, content
+  growth, commit validation, and overlay-to-page coordinate conversion.
+- `src/core/text-editor/state.test.ts` — 7 deterministic tests covering initial
+  placement, editing identity, movement, resize limits, auto-growth, empty-text
+  rejection, and normalized page geometry.
+
+The editor session contains no React, DOM, storage, or PDF imports. Frame rules
+can therefore be tested without simulating pointer events in a browser.
+
+### Phase 8R.1.2: Dedicated text editor component
+
+**Created — component**
+
+- `src/components/TextAnnotationEditor.tsx` — controlled textarea, explicit
+  commit/cancel actions, keyboard commit (`Ctrl/Cmd+Enter`), Escape cancellation,
+  content-driven height growth, formatting preview, drag movement, and
+  bottom-right resizing.
+
+**Modified — components**
+
+- `src/components/AnnotationCanvas.tsx` — reduced textbox responsibility to
+  opening a session, loading an existing annotation's style, and converting a
+  committed session back into `TextAnnotation` geometry. The previous textbox
+  refs, uncontrolled textarea mutation, capture-phase outside-click commit, and
+  document-level drag/resize listeners were removed.
+- `src/components/FloatingFormatToolbar.tsx` — exposes an explicit pointer-down
+  move handle and can render below a box placed too close to the top edge.
+
+### ⚡ Design Decision: pointer capture instead of document mouse listeners
+
+The former implementation installed separate `mousedown`, `mousemove`, and
+`mouseup` listeners on `document` for every open textbox. Drag and resize state
+was split across several refs and effects.
+
+> **Reasoning:** Pointer capture keeps the interaction owned by the control that
+> started it, continues receiving events outside the handle, supports mouse and
+> pen input through one API, and cleans itself up at pointer end. No global drag
+> listener remains in the textbox implementation.
+
+### ⚡ Design Decision: explicit commit or cancel
+
+Clicking outside no longer commits text in the capture phase. The editor stays
+open until the check button / `Ctrl+Enter` commits it, Escape / the cancel button
+discards it, or changing tools closes it.
+
+> **Reasoning:** The previous outside-click handler could commit and remove the
+> editor before the same click reached the canvas, allowing the event to create
+> a second textbox. Explicit completion makes the state transition predictable
+> and prevents accidental annotations.
+
+### Compatibility and undo behavior
+
+- Existing text annotations keep the same persisted model and can be reopened.
+- Editing loads the annotation's color, background, font, and emphasis instead
+  of silently replacing them with unrelated current-tool defaults.
+- New and edited annotations still call `PDFViewer.handleAnnotationSave()`, so
+  they become normal add/update commands on the shared undo/redo stack.
+- Subscript and superscript character conversion remains available through the
+  floating formatting toolbar.
+
+### Testing
+
+- Focused text-editor state tests: 7/7 passed.
+- Typecheck: passed.
+- Core-boundary lint: passed with zero warnings.
+- Focused lint for the new editor and modified toolbar: passed.
+- Full regression suite and production build are recorded in Current Project
+  State below.
+- Manual UI acceptance is pending; the exact checklist is provided with the
+  phase hand-off.
+
+**Git checkpoint:** `f390691` — feat: complete phase 8 repairs
+
+---
+
+## Phase 8R.2: Independent Notes with Multiple Highlight Anchors
+
+**Date:** September 22, 2026  
+**Objective:** Stop creating one empty note for every highlight. Make notes
+independent document entities that can collect several highlight anchors while
+remaining compatible with Phase 8 files and the shared undo/redo history.
+
+### Phase 8R.2.1: Independent note and anchor model
+
+**Created — core**
+
+- `src/core/notes/models.ts` — defines `DocumentNote` and `NoteAnchor`.
+  A note owns its text and timestamps; each anchor records the highlight ID,
+  stable page ID, derived page number, quote context, and normalized bounds.
+
+**Modified — core**
+
+- `src/core/notes/notes.ts` — creates notes and anchors, adds/removes anchors,
+  migrates the former `HighlightAnnotation.note` shape, synchronizes anchors
+  after page operations, orders notes by their first anchor, filters anchors
+  for extracted PDFs, applies note operations, and exports grouped Markdown.
+- `src/core/annotations/models.ts` — adds lightweight text-selection context to
+  highlights and adds typed add/update/delete note commands to `Operation`.
+- `src/core/annotations/operations.ts` — supplies note command factories with
+  complete inverse operations.
+- `src/core/annotations/apply.ts` — leaves annotation projection unchanged for
+  note-only commands while still applying mixed batches correctly.
+
+New highlights now retain quote context without owning or implicitly creating a
+note. An empty note can exist before its first anchor, and one note can collect
+anchors from several pages.
+
+### ⚡ Plan Deviation / Design Decision: an active note controls grouping
+
+The original Phase 8 implementation treated the highlight itself as the note.
+That made every highlighter action create another card, including hundreds of
+empty cards during ordinary study marking.
+
+> **Reasoning:** A note is now created only by the explicit **New note** action.
+> Selecting it makes it active; subsequent highlights attach to that note until
+> another note is selected. An existing focused highlight can also be attached
+> explicitly. This follows the reported study workflow without making ordinary
+> highlighting produce note data.
+
+### Phase 8R.2.2: Notes panel and editor integration
+
+**Modified — components**
+
+- `src/components/NotesPanel.tsx` — replaces highlight-backed cards with note
+  cards, adds **New note** and **Attach highlight**, shows every page anchor,
+  supports anchor focus and detach, keeps inline mathematics preview, deletes a
+  note without deleting its highlights, and exports grouped Markdown.
+- `src/components/PDFViewer.tsx` — owns the note projection beside annotations,
+  batches a new highlight with its active-note anchor, moves an explicitly
+  attached highlight out of any previous note, removes stale anchors when a
+  highlight or page is deleted, synchronizes page numbers after page moves, and
+  routes note edits through the same operation manager used by annotations.
+- `src/components/AnnotationCanvas.tsx` — records quote/prefix/suffix selection
+  context on a text-aware highlight but no longer constructs a note.
+
+Creating, editing, deleting, attaching, and detaching notes are undoable. A
+highlight plus its automatic active-note attachment is one batch command, so a
+single undo restores the state that existed before the gesture.
+
+### Phase 8R.2.3: Persistence, migration, and portable export
+
+**Modified — lib and shared types**
+
+- `src/lib/annotations/storage.ts` — stores notes with annotations in the local
+  IndexedDB sidecar and copies the complete document state when identity moves.
+- `src/lib/annotations/operation-manager.ts` — recognizes note commands as
+  projection-owned operations while retaining them in shared history.
+- `src/lib/pdf-data-manager.ts` — writes a versioned `{ objects, notes }` JSON
+  attachment, reads that format, and continues reading the former raw annotation
+  array format.
+- `src/lib/saving/local-save-adapter.ts` — includes notes in editable PDF
+  packages rather than preserving them only in the separate JSON backup.
+- `src/types/editor-types.ts` — adds notes to `AnnotationData` so backup,
+  manual save, package export, and crash recovery share one payload contract.
+
+Old Phase 8 highlights with an embedded `note` migrate deterministically to one
+independent note with one anchor. Highlights that never had a note remain plain
+highlights; migration does not recreate the original note explosion.
+
+### ⚡ Bug: pdf-lib attachments are compressed after a save round trip
+
+The new persistence test initially failed because extraction passed the raw
+compressed PDF stream bytes directly to `JSON.parse`. The old extractor had the
+same latent problem, but its earlier tests only counted attachment records and
+never reopened their contents.
+
+> **Reasoning:** Extraction now detects `PDFRawStream` and decodes its filter
+> chain before UTF-8 and JSON decoding. Testing the actual recovered note model,
+> rather than only the attachment dictionary, prevents a green test from hiding
+> unreadable persisted data.
+
+### Files created / modified
+
+**Core**
+
+- `src/core/notes/models.ts` — independent note and anchor contracts.
+- `src/core/notes/notes.ts` — note lifecycle, migration, synchronization,
+  ordering, filtering, history projection, and Markdown export.
+- `src/core/notes/notes.test.ts` — seven grouped-note and migration tests.
+- `src/core/annotations/models.ts`, `operations.ts`, and `apply.ts` — typed,
+  reversible note commands inside the existing operation system.
+
+**Library and shared data**
+
+- `src/lib/annotations/storage.ts` and `operation-manager.ts` — sidecar and
+  history integration.
+- `src/lib/pdf-data-manager.ts` and `pdf-annotations.test.ts` — versioned PDF
+  attachment round trip, legacy reading, and decoded stream handling.
+- `src/lib/saving/local-save-adapter.ts` and `src/types/editor-types.ts` — note
+  payload propagation through every local save form.
+
+**Components**
+
+- `src/components/NotesPanel.tsx` — grouped-note controls and rendering.
+- `src/components/PDFViewer.tsx` — document-level note state, commands,
+  persistence, and page/highlight lifecycle coordination.
+- `src/components/AnnotationCanvas.tsx` — selection context without implicit
+  note creation.
+
+### Testing
+
+- Seven note tests cover selection context, multi-anchor grouping and
+  deduplication, legacy migration, document ordering, undo/redo, page-anchor
+  synchronization, and grouped Markdown export.
+- One new PDF round-trip test verifies that annotations and grouped notes are
+  recovered from a saved attachment. It caught the compressed-stream bug above.
+- Full suite: 73/73 tests passed in 17 files.
+- Typecheck: passed.
+- Core-boundary lint: passed with zero warnings.
+- Focused `NotesPanel.tsx` lint: passed with zero warnings.
+- Production build: passed with the existing non-fatal PDF.js asset,
+  mixed-import, Browserslist-age, and chunk-size warnings.
+- Manual UI acceptance is intentionally pending at the user's request.
+
+**Git checkpoint:** `f390691` — feat: complete phase 8 repairs
+
+---
+
+## Phase 8R.3: Library References and Folders
+
+**Date:** September 22, 2026  
+**Objective:** Make the visible library and the document-opening path use one
+identity and one folder model. Persist references to PDFs where the browser
+supports file handles, while retaining an explicit stored-copy fallback.
+
+### Phase 8R.3.1: Reference identity and folder paths
+
+**Created — core**
+
+- `src/core/library/references.ts` — deterministic file identity from name,
+  size, and modification time; cycle-safe folder breadcrumb construction; and
+  library-name normalization.
+- `src/core/library/references.test.ts` — five tests for identity stability and
+  replacement detection, root-to-current folder paths, corrupt-cycle safety,
+  and name normalization.
+
+**Modified — shared types**
+
+- `src/types/library.ts` — distinguishes handle-backed references from
+  blob-backed compatibility copies and records the source fingerprint used for
+  deduplication.
+
+### Phase 8R.3.2: IndexedDB reference storage and compatibility
+
+**Modified — lib**
+
+- `src/lib/storage/library-db.ts` — upgrades `margin-library` to schema version
+  2 with a separate structured-clone file-handle store; adds handle reference
+  creation, source deduplication, permission-aware reopening, missing-source
+  results, file movement, and complete handle cleanup during deletion.
+- Existing version-1 entries remain valid. An entry without `storageMode` is
+  interpreted as a blob-backed record, so the upgrade does not require a
+  destructive data migration.
+
+When the same disk PDF is chosen again, the existing library identity is
+reused. If an older stored-copy entry matches the selected file, choosing it
+through the File System Access picker upgrades that entry to a handle reference
+and removes Margin's redundant blob.
+
+### ⚡ Plan Deviation / Design Decision: store handles separately from metadata
+
+The file row records whether its source is a handle or a blob, but the actual
+`FileSystemFileHandle` lives in its own IndexedDB object store.
+
+> **Reasoning:** Folder and recent-document listings should read small metadata
+> records only. Keeping browser capability objects behind the storage adapter
+> also prevents UI components and pure library logic from depending on handle
+> serialization details.
+
+### Phase 8R.3.3: Visible folder library
+
+**Modified — components**
+
+- `src/components/LibraryGrid.tsx` — replaces the flat all-files shelf with
+  folder-scoped contents, breadcrumbs, folder creation/rename/recursive delete,
+  reference rename/removal, folder movement, source-mode labels, and an explicit
+  explanation of reference versus stored-copy behavior. Cover generation reads
+  through the same permission-aware source resolver and never prompts in the
+  background.
+- `src/components/Header.tsx` — renames the ambiguous **Open** action to
+  **Open & add**, making its library effect visible before the picker opens.
+
+Deleting a handle-backed entry or folder removes only Margin's reference and
+metadata. It does not delete the original disk file. Moving a card changes only
+its Margin folder.
+
+### Phase 8R.3.4: One open/add workflow
+
+**Modified — page integration**
+
+- `src/pages/Dashboard.tsx` — both the header picker and the library's
+  folder-specific add action now create/reuse a library entry before opening a
+  tab. The library entry ID becomes the session document ID, preventing a tab
+  and card for the same selected file from silently becoming unrelated records.
+- Opening a handle-backed card requests read permission again when the browser
+  no longer grants it, then restores the handle to the local save pipeline.
+- Browsers without `showOpenFilePicker` use the hidden file input, clearly label
+  the action **Import PDF copies**, store the fallback blob in the selected
+  folder, and still reuse the library entry as the tab identity.
+
+### ⚡ Bug / Design Correction: opening a PDF bypassed the library
+
+Before this repair, `LibraryGrid` imports called `libraryDB.importFile()`, but
+the header's `Dashboard.handleOpenPDF()` path only created a local editor record
+and a random tab ID. A PDF could therefore be open and editable without ever
+appearing in the library, exactly matching the reported missing-second-PDF
+behavior.
+
+> **Reasoning:** The library entry is now created first and its ID is used by
+> the editor. This makes “open,” “add to Margin,” reopen, save metadata, reading
+> progress, and deduplication one lifecycle instead of parallel systems.
+
+### Files created / modified
+
+**Core**
+
+- `src/core/library/references.ts` — pure reference identity, breadcrumb, and
+  name rules.
+- `src/core/library/references.test.ts` — five deterministic library tests.
+
+**Library and shared data**
+
+- `src/lib/storage/library-db.ts` — version-2 handle/blob persistence,
+  permission-aware source resolution, deduplication, movement, and cleanup.
+- `src/types/library.ts` — persisted source mode and fingerprint fields.
+
+**Components and integration**
+
+- `src/components/LibraryGrid.tsx` — navigable folder/reference library.
+- `src/components/Header.tsx` — explicit open-and-add wording.
+- `src/pages/Dashboard.tsx` — unified picker, library, fallback, tab, and local
+  editor identity flow.
+
+### Testing
+
+- Five new pure tests cover reference identity and folder path rules.
+- Full suite: 78/78 tests passed in 18 files.
+- Typecheck: passed.
+- Core-boundary lint: passed with zero warnings.
+- Focused `LibraryGrid.tsx` lint: passed with zero warnings.
+- Production build: passed with the existing non-fatal PDF.js asset,
+  mixed-import, Browserslist-age, and chunk-size warnings.
+- Handle permission prompts, folder visuals, and browser restart behavior need
+  real UI/browser interaction, so manual acceptance remains pending.
+
+**Git checkpoint:** `f390691` — feat: complete phase 8 repairs
+
+---
+
+## Phase 8R.4: Merged-Document Search Lifecycle
+
+**Date:** September 22, 2026  
+**Objective:** Reproduce the reported merge-then-search failure with real PDF
+materialisation, fix the registration lifecycle rather than masking the
+symptom, and prevent stale asynchronous index work from replacing newer state.
+
+### Phase 8R.4.1: Reproducible merged-PDF integration test
+
+**Created — lib test**
+
+- `src/lib/search/local-search.test.ts` — creates two one-page PDFs with
+  different searchable terms using `pdf-lib`, materialises the first document,
+  appends the second source through the real page model, opens both outputs with
+  PDF.js, registers each revision, and verifies that the imported term is found
+  on page 2. A second controlled test delays the old PDF extraction and confirms
+  that its late result and cleanup cannot replace or unregister the newer
+  generation.
+
+The test uses an injected in-memory index store. PDF creation, page copying,
+PDF.js text extraction, registry generation, and full-text search remain real;
+only browser IndexedDB is replaced so the test can run in the Node CI boundary.
+
+### Phase 8R.4.2: Revision-aligned registration
+
+**Modified — core**
+
+- `src/core/pages/document.ts` — adds one canonical page-document revision
+  function based on stable page IDs, order, and rotation.
+- `src/core/pages/document.test.ts` — verifies that reordering or rotating a
+  page changes that revision.
+
+**Modified — component integration**
+
+- `src/components/PDFViewer.tsx` — records the revision only after the
+  corresponding materialised PDF.js document wins the render-generation check.
+  Search registration therefore receives a matched `(PDF.js document,
+  page-document revision)` pair rather than a new revision with the previous
+  rendered PDF. Every accepted PDF.js document also publishes its actual
+  fingerprint to the dashboard.
+
+### ⚡ Bug: React state exposed the new revision before the new PDF existed
+
+`pageDocument` changed as soon as a merge command was applied, but `pdfDoc`
+changed only after asynchronous materialisation and PDF.js loading. The search
+effect depended on both, so it could register the old PDF with the new revision
+between those two events.
+
+> **Reasoning:** Revision state now belongs to the accepted rendered document,
+> not the requested page model. This preserves the invariant that a cache key
+> describes the exact PDF whose pages are being extracted.
+
+### Phase 8R.4.3: Generation-owned asynchronous indexing
+
+**Modified — lib**
+
+- `src/lib/search/local-search.ts` — exports an injectable registry, assigns a
+  monotonically increasing generation to every registration/rebuild, returns a
+  generation-scoped disposer, rejects late page extraction, filters search
+  results whose registration changed while awaiting readiness, and exposes a
+  small read-only registration snapshot for deterministic diagnostics.
+- `src/lib/search/storage.ts` — opens IndexedDB lazily so the registry can be
+  tested in Node, and replaces only the requested revision's cached rows rather
+  than deleting every revision for the same fingerprint.
+
+An old React effect cleanup can no longer unregister a newer document with the
+same tab ID. Likewise, an extraction that began before a merge cannot publish
+its index after the merged generation becomes current.
+
+### ⚡ Bug: current-document search was keyed by a changing PDF fingerprint
+
+Materialising a merged PDF produces a new PDF fingerprint. `SearchBar` captured
+the old fingerprint when it expanded, while the registry correctly registered
+the merged document under the new fingerprint. Searching the current document
+then filtered out the only valid registration.
+
+> **Reasoning:** Open-tab document IDs are stable across merge, reorder, and
+> rotation. Search scope now uses that ID; fingerprints remain result metadata
+> for cross-document matching and cache identity, not UI scope identity.
+
+### Phase 8R.4.4: Stable scope resolution
+
+**Modified — core and component**
+
+- `src/core/search/index.ts` — adds pure resolution of current, explicit, and
+  all-document scopes to stable document IDs.
+- `src/core/search/index.test.ts` — verifies all three scope cases.
+- `src/components/SearchBar.tsx` — removes captured-fingerprint scope state and
+  delegates scope resolution to the pure helper. Current-document search now
+  follows the current open tab, and an explicitly selected PDF remains locked
+  by its tab ID.
+
+### Files created / modified
+
+**Core**
+
+- `src/core/pages/document.ts` and `document.test.ts` — canonical page revision
+  plus reorder/rotation coverage.
+- `src/core/search/index.ts` and `index.test.ts` — stable search-scope IDs and
+  regression coverage.
+
+**Library**
+
+- `src/lib/search/local-search.ts` — generation-safe registration, disposal,
+  readiness, diagnostics, and injected persistence.
+- `src/lib/search/storage.ts` — lazy database creation and revision-specific
+  replacement.
+- `src/lib/search/local-search.test.ts` — real merge/materialise/PDF.js/search
+  integration and controlled stale-generation race tests.
+
+**Components**
+
+- `src/components/PDFViewer.tsx` — accepted-render revision and fingerprint
+  publication.
+- `src/components/SearchBar.tsx` — stable document-ID scoping.
+
+### Testing
+
+- The new integration test finds the second PDF's unique word on merged page 2.
+- The race test confirms that an old delayed build and disposer cannot affect
+  the current registration.
+- Two pure assertions cover page revision changes; one pure test covers all
+  search-scope modes.
+- Full suite: 82/82 tests passed in 19 files.
+- Typecheck: passed.
+- Core-boundary lint: passed with zero warnings.
+- Focused search registry and `SearchBar.tsx` lint: passed with zero warnings.
+- Production build: passed with the existing non-fatal PDF.js asset,
+  mixed-import, Browserslist-age, and chunk-size warnings.
+- The visible merge → immediate search interaction remains a manual browser
+  checkpoint because timing, focus, and result navigation are UI behavior.
+
+**Git checkpoint:** `f390691` — feat: complete phase 8 repairs
+
+---
+
+## Phase 8R.5: Phase 8 Repair Acceptance
+
+**Date:** September 22, 2026  
+**Objective:** Re-run every deterministic gate for the four Phase 8 repair
+subphases and define one reproducible browser acceptance pass. Do not declare
+Phase 8 accepted until the user reports the UI results.
+
+### Automated acceptance
+
+The complete working tree from Phase 8R.1 through Phase 8R.4 was first
+validated together rather than validating each repair only against its focused
+tests. The first manual textbox attempt then exposed a render loop, so Phase
+8R.5 also contains the acceptance fix and its regression coverage.
+
+- TypeScript project-reference build passed.
+- Core-boundary ESLint passed with zero warnings.
+- `git diff --check` passed; the reported messages are Git's existing LF/CRLF
+  conversion notices, not whitespace errors.
+- Full regression suite passed: 83/83 tests in 19 files.
+- Production build passed with the already documented non-fatal PDF.js asset,
+  mixed-import, Browserslist-age, and large-chunk warnings.
+
+### Text-tool selection crash found during manual acceptance
+
+The first textbox check did not reach the page-click or typing steps. Merely
+selecting the Text tool caused React to throw `Maximum update depth exceeded`;
+the stack ended at the text editor's layout measurement.
+
+> ⚡ **Bug — auto-growth could update forever at a size limit**
+>
+> `TextAnnotationEditor` measured `scrollHeight` while its textarea was forced
+> to fill the current editor height, then requested another 18 pixels. At the
+> page boundary — or before measurable page bounds were available — the resize
+> was clamped back to the existing geometry but returned a new session object.
+> The component treated that new identity as a change and updated React state
+> again on every layout pass.
+>
+> **Reasoning:** Fix both sides of the loop. The component now temporarily
+> collapses the textarea to measure intrinsic content height, while the pure
+> state helper returns the original session when clamping cannot change its
+> dimensions. The second guard is intentional defense in depth: selection must
+> remain safe even if page geometry is temporarily zero during mounting.
+
+**Files modified — component**
+
+- `src/components/TextAnnotationEditor.tsx` — measures intrinsic textarea
+  content height instead of adding padding to the already stretched element.
+
+**Files modified — core**
+
+- `src/core/text-editor/state.ts` — makes content growth idempotent when the
+  requested size is already satisfied or page bounds prevent further growth.
+- `src/core/text-editor/state.test.ts` — covers repeated growth at the page edge
+  and the zero-bounds mounting case. The focused suite now has 8 tests.
+
+### Manual acceptance protocol
+
+Use text-based PDFs rather than scanned images for the search checks. The two
+merge PDFs should contain different easily recognized words.
+
+**Textbox rewrite — Phase 8R.1**
+
+1. Create a textbox, enter several lines, drag it, resize it, change formatting,
+   and commit with `Ctrl+Enter`.
+2. Reopen it, edit the text, and commit with the check button.
+3. Reopen it again, make a change, and press Escape. The previous committed
+   text must remain.
+4. Undo and redo the committed edit. Position, size, text, and formatting must
+   follow the same history entry without creating a second textbox.
+
+**Grouped notes — Phase 8R.2**
+
+1. Create one note and make three highlights. The panel must show one note with
+   three anchors, not three notes.
+2. Create a second note and highlight another passage. The new anchor must
+   belong to the second active note.
+3. Focus an earlier highlight and attach it to the second note. It must move
+   from the first note rather than appear in both.
+4. Enter inline mathematics such as `$e^{i\\pi}+1=0$`, detach and reattach an
+   anchor, then undo and redo those changes.
+5. Delete a note. Its highlights must remain on the PDF.
+
+**Reference library and folders — Phase 8R.3**
+
+1. Create and rename a folder, enter it, and add two PDF references.
+2. Confirm both cards say **Reference**, open as tabs, and remain in the folder
+   when returning to the library.
+3. Move one card to another folder and confirm it appears only there.
+4. Use **Open & add** on the same disk PDF again. It must reuse the existing
+   card/tab identity rather than creating a duplicate.
+5. Reload Margin and reopen the reference, granting read permission if asked.
+6. Remove a reference and delete a test folder. The original disk PDFs must
+   remain untouched.
+
+**Merged-document search — Phase 8R.4**
+
+1. Search the first PDF for its unique word using **Current PDF**.
+2. Merge the second PDF, then immediately search for its unique word using the
+   same scope. The result must point to the appended page.
+3. Select the result and confirm the viewer scrolls to that page.
+4. Move or rotate the imported page and search again.
+5. Undo the merge and confirm the imported word disappears; redo it and confirm
+   the word returns.
+
+### Acceptance status
+
+- Automated: **passed**.
+- Manual textbox acceptance: **crash repaired; pending user retest**.
+- Manual grouped-notes acceptance: **pending user report**.
+- Manual library/folder acceptance: **pending user report**.
+- Manual merged-search acceptance: **pending user report**.
+- Overall Phase 8: **not yet accepted**.
+
+**Git checkpoint:** `f390691` — feat: complete phase 8 repairs  
+The checkpoint records the implemented repair set and green automated gates;
+the manual browser acceptance status above remains pending.
+
+---
+
+## Current Project State
+
+**As of:** September 22, 2026
+
+### File tree (abridged by responsibility)
+
+```text
+src/
+├── core/                         pure TypeScript; CI-enforced boundary
+│   ├── annotations/              models, apply, inverse commands, quadtree
+│   ├── ink/                      coordinates, geometry, fitting, prediction
+│   ├── library/                  reference identity and folder-path rules
+│   ├── notes/                    independent notes, multi-anchor migration/export
+│   ├── pages/                    stable page model and transforms
+│   ├── search/                   tokenizer, scope resolution, index, ranking
+│   ├── text-editor/              pure textbox session and geometry rules
+│   ├── ui/                       virtual range calculation
+│   └── workspace/                recursive pane/tab layout
+├── lib/
+│   ├── annotations/              history, autosave, storage, pointer handling
+│   ├── pages/                    PDF materialisation and page-workspace storage
+│   ├── saving/                   local save controller and adapters
+│   ├── search/                   generation-safe PDF/OCR index lifecycle
+│   ├── storage/                  handle/blob library and editor IndexedDB databases
+│   ├── tools/                    pencil, highlighter, eraser, text, shapes
+│   └── workers/                  ink rendering and stroke processing
+├── components/
+│   ├── PDFViewer.tsx             document/page/annotation integration owner
+│   ├── AnnotationCanvas.tsx      drawing plus text-editor integration adapter
+│   ├── TextAnnotationEditor.tsx  controlled text editing and pointer capture
+│   ├── PageOrganizer.tsx         page-operation dialog and real previews
+│   ├── NotesPanel.tsx            virtualised multi-anchor note editor
+│   ├── LibraryGrid.tsx           folder-based PDF reference library
+│   ├── SearchBar.tsx             search scopes and results
+│   └── ui/                       shared token-based primitives
+└── pages/Dashboard.tsx           workspace and library composition root
+```
+
+### Numbers
+
+- 140 TypeScript/TSX files under `src/`.
+- 17,642 TypeScript/TSX lines under `src/` (physical lines measured with
+  PowerShell; generated/build output excluded).
+- 34 TypeScript files and 2,928 lines under `src/core/`.
+- 19 test files and 83 test cases.
+- 2 property-based assertions: spatial index versus linear scan, and arbitrary
+  command sequences round-tripping through inverses.
+- 8 rebuild feature/refactor commits after the safety checkpoints, plus the
+  uncommitted implementation-log documentation.
+
+### Build and test status
+
+| Check | Status | Scope |
+|---|---|---|
+| `npx tsc -b` | Green | TypeScript project references |
+| `npm test -- --run` | Green | 83 tests in 19 files |
+| `npx eslint src/core --max-warnings 0` | Green | pure-core boundary and core lint |
+| `npm run build` | Green | typecheck plus Vite production build |
+
+The Vite build still reports non-fatal warnings about PDF.js image URLs,
+mixed static/dynamic imports, and a large output chunk. Full-repository ESLint
+is not a green gate because the inherited shell still has a known lint backlog;
+CI gates `src/core` at zero warnings.
+
+### Known working-tree state
+
+- `f390691` checkpoints the real page-preview follow-up and Phase 8R.1 through
+  Phase 8R.5 implementation, tests, and the Text-tool render-loop repair.
+- Manual browser acceptance remains pending and is not implied by that code
+  checkpoint.
+- `docs/implementation_log.md` is tracked by the documentation checkpoint that
+  follows `f390691`.
+- `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` remain untracked local
+  documentation at the time of this entry.
+- `docs/FRONTEND_PLAN.md` and `docs/frontend_implementation_log.md` are also
+  present as unrelated untracked planning documents; Phase 8R.1 did not modify
+  or incorporate them.
+- Those unrelated local files are intentionally not described as committed
+  work.
+
+---
+
+## Next Up: Remaining Phase 8 Repairs Before Phase 9
+
+The roadmap says Week 9 should containerise, deploy a demo, improve the README,
+and run broader user testing. Starting that milestone while core Week 8 flows
+are known to fail would produce a demo of unstable behavior. The next work
+should therefore remain inside Phase 8, one subphase at a time.
+
+Phase 8R.1 through Phase 8R.4 are implemented, and the Phase 8R.5 automated
+acceptance pass is green. Manual acceptance is now the only Phase 8 gate. Phase
+9 must not begin until the user reports the textbox, grouped-note,
+library/folder, and merged-search results and any failures are repaired.
+
+---
+
+## Working Conventions
+
+- Work one roadmap phase or repair subphase at a time.
+- Keep pure decisions in `src/core/`; inject browser/PDF/storage dependencies
+  through `src/lib/`.
+- Use the shared operation history for every user-visible reversible edit.
+- Run deterministic checks before requesting a manual UI check.
+- The user performs UI interaction and visual judgment; record those checks as
+  pending until the user reports the result.
+- Preserve unrelated working-tree changes.
+- Do not commit AI-local folders or agent artifacts.
+- Do not mark a phase complete because its code exists; automated and manual
+  acceptance must agree.
