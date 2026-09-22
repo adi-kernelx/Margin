@@ -3,7 +3,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName } from 'pdf-lib';
 import { makeShape, makeStroke } from '@/core/annotations/test-factories';
 import type { HighlightAnnotation, TextAnnotation } from '@/core/annotations/models';
 import { addPdfAnnotations } from './pdf-annotations';
-import { embedAnnotations } from './pdf-data-manager';
+import { embedAnnotations, extractAnnotationData } from './pdf-data-manager';
 
 describe('PDF annotation export', () => {
     it('writes standard annotations that survive a PDF round trip', async () => {
@@ -48,5 +48,28 @@ describe('PDF annotation export', () => {
         const embedded = names.lookup(PDFName.of('EmbeddedFiles'), PDFDict);
         const entries = embedded.lookup(PDFName.of('Names'), PDFArray);
         expect(entries.size()).toBe(2);
+    });
+
+    it('round-trips grouped notes while preserving the legacy array reader contract', async () => {
+        const pdf = await PDFDocument.create();
+        pdf.addPage();
+        const highlight: HighlightAnnotation = {
+            id: 'highlight', type: 'highlight', pageNum: 1, pageId: 'page-1', createdAt: 1, updatedAt: 1,
+            zIndex: 1, locked: false, style: { color: '#ffcc00', opacity: 0.35 }, meta: { tool: 'highlight' },
+            geometry: { mode: 'text-aware', rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.04 }] },
+        };
+        const notes = [{
+            id: 'note', body: 'Grouped note', createdAt: 1, updatedAt: 1,
+            anchors: [{
+                id: 'anchor-highlight', highlightId: 'highlight', pageNum: 1, pageId: 'page-1',
+                quote: 'A quote', prefix: '', suffix: '', bbox: { x: 0.1, y: 0.2, width: 0.3, height: 0.04 },
+            }],
+        }];
+        await embedAnnotations(pdf, [highlight], notes);
+        const bytes = await pdf.save();
+        const file = new File([bytes.slice().buffer as ArrayBuffer], 'notes.pdf', { type: 'application/pdf' });
+        const extracted = await extractAnnotationData(file);
+        expect(extracted?.annotations).toHaveLength(1);
+        expect(extracted?.notes).toEqual(notes);
     });
 });

@@ -1,5 +1,6 @@
-import { PDFDocument, PDFName, PDFDict, PDFArray, PDFHexString, PDFString, PDFStream } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFDict, PDFArray, PDFHexString, PDFString, PDFStream, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import type { Annotation } from './annotations/models';
+import type { DocumentNote } from '@/core/notes/models';
 import { addPdfAnnotations } from './pdf-annotations';
 
 const EMBEDDED_FILE_NAME = 'pdf-reader-annotations.json';
@@ -24,11 +25,11 @@ function removePreviousAttachment(pdfDoc: PDFDocument) {
  * This ensures the annotations are "portable" (travel with the file)
  * and can be re-edited when opened in this application.
  */
-export async function embedAnnotations(pdfDoc: PDFDocument, annotations: Annotation[]): Promise<void> {
+export async function embedAnnotations(pdfDoc: PDFDocument, annotations: Annotation[], notes: DocumentNote[] = []): Promise<void> {
     try {
         addPdfAnnotations(pdfDoc, annotations);
         removePreviousAttachment(pdfDoc);
-        const jsonString = JSON.stringify(annotations);
+        const jsonString = JSON.stringify({ schemaVersion: 3, objects: annotations, notes });
         const uint8Array = new TextEncoder().encode(jsonString);
 
         await pdfDoc.attach(uint8Array, EMBEDDED_FILE_NAME, {
@@ -49,7 +50,7 @@ export async function embedAnnotations(pdfDoc: PDFDocument, annotations: Annotat
  * Extracts embedded annotation data from a file if present.
  * Uses low-level pdf-lib access as getAttachments() is not available in all versions.
  */
-export async function extractAnnotations(file: File): Promise<Annotation[] | null> {
+export async function extractAnnotationData(file: File): Promise<{ annotations: Annotation[]; notes: DocumentNote[] } | null> {
     try {
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
@@ -78,15 +79,23 @@ export async function extractAnnotations(file: File): Promise<Annotation[] | nul
                 const embeddedFileStream = efDict.lookup(PDFName.of('F'), PDFStream);
 
                 if (embeddedFileStream instanceof PDFStream) {
-                    const bytes = embeddedFileStream.getContents();
+                    const bytes = embeddedFileStream instanceof PDFRawStream
+                        ? decodePDFRawStream(embeddedFileStream).decode()
+                        : embeddedFileStream.getContents();
                     // Basic check to avoid parsing binary trash if something is wrong
                     if (bytes.length > 0) {
                         try {
                             const jsonString = new TextDecoder().decode(bytes);
-                            const annotations = JSON.parse(jsonString);
-                            if (Array.isArray(annotations)) {
-                                console.log('[PDFDataManager] Extracted embedded annotations:', annotations.length);
-                                return annotations;
+                            const parsed = JSON.parse(jsonString);
+                            if (Array.isArray(parsed)) {
+                                console.log('[PDFDataManager] Extracted embedded annotations:', parsed.length);
+                                return { annotations: parsed, notes: [] };
+                            }
+                            if (parsed && Array.isArray(parsed.objects)) {
+                                return {
+                                    annotations: parsed.objects,
+                                    notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+                                };
                             }
                         } catch (e) {
                             console.warn('[PDFDataManager] Found attachment but failed to parse JSON:', e);
@@ -99,4 +108,8 @@ export async function extractAnnotations(file: File): Promise<Annotation[] | nul
         console.warn('[PDFDataManager] Failed to extract annotations or none found', e);
     }
     return null;
+}
+
+export async function extractAnnotations(file: File): Promise<Annotation[] | null> {
+    return (await extractAnnotationData(file))?.annotations ?? null;
 }

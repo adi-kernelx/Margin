@@ -3,7 +3,15 @@ import { useDocumentStore } from '@/hooks/useDocumentStore';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 
-export function FloatingFormatToolbar() {
+interface FloatingFormatToolbarProps {
+    onMovePointerDown?: (event: React.PointerEvent<HTMLButtonElement>) => void;
+    placement?: 'above' | 'below';
+}
+
+export function FloatingFormatToolbar({
+    onMovePointerDown,
+    placement = 'above',
+}: FloatingFormatToolbarProps) {
     const {
         isDarkMode,
         textBold, setTextBold,
@@ -69,26 +77,24 @@ export function FloatingFormatToolbar() {
         <div
             ref={containerRef}
             className={cn(
-                "absolute -top-12 left-0 flex items-center gap-1 p-1 rounded-lg shadow-lg border z-20 pointer-events-auto text-format-toolbar",
+                "absolute left-0 flex items-center gap-1 p-1 rounded-lg shadow-lg border z-20 pointer-events-auto text-format-toolbar",
+                placement === 'above' ? '-top-12' : 'top-full mt-2',
                 isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
             )}
-        // Remove stopPropagation so drag events reach the parent (AnnotationCanvas textBox handler)
-        // But we must stop propagation for clicks on controls?
-        // Actually, clicks on buttons won't trigger drag because of the filter in AnnotationCanvas.
-        // But checking mousedown here:
-        // AnnotationCanvas checks target. If target is BUTTON, it returns.
-        // So we can let mousedown propagate.
         >
             {/* Drag Handle */}
-            <div
+            <button
+                type="button"
                 className={cn(
                     "p-1.5 rounded transition-colors cursor-move flex items-center justify-center",
                     isDarkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700"
                 )}
+                onPointerDown={onMovePointerDown}
+                aria-label="Move text box"
                 title="Drag to move"
             >
                 <Move size={14} />
-            </div>
+            </button>
 
             <div className={cn("w-px h-4 mx-1", isDarkMode ? "bg-gray-700" : "bg-gray-300")} />
 

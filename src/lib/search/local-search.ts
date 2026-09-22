@@ -28,6 +28,7 @@ export type SearchResult = {
 };
 
 interface RegisteredDocument {
+    generation: number;
     docId: string;
     pdfFingerprint: string;
     documentRevision: string;
@@ -35,6 +36,18 @@ interface RegisteredDocument {
     getOcrData: () => Record<number, OcrPageResult>;
     index: FullTextIndex | null;
     ready: Promise<void>;
+}
+
+export interface SearchIndexStore {
+    load(pdfFingerprint: string, docId: string, documentRevision: string): Promise<IndexedSearchPage[]>;
+    replace(pdfFingerprint: string, documentRevision: string, pages: IndexedSearchPage[]): Promise<void>;
+}
+
+export interface SearchRegistrationState {
+    generation: number;
+    documentRevision: string;
+    pageCount: number;
+    indexedPageCount: number;
 }
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -88,9 +101,15 @@ async function extractPage(document: RegisteredDocument, pageNumber: number): Pr
     };
 }
 
-class LocalSearchRegistry {
+export class LocalSearchRegistry {
     private documents = new Map<string, RegisteredDocument>();
     private refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private generations = new Map<string, number>();
+    private readonly storage: SearchIndexStore;
+
+    constructor(storage: SearchIndexStore = searchIndexStorage) {
+        this.storage = storage;
+    }
 
     register(
         docId: string,
@@ -98,8 +117,14 @@ class LocalSearchRegistry {
         documentRevision: string,
         pdfDoc: PDFDocumentProxy,
         getOcrData: () => Record<number, OcrPageResult>,
-    ) {
+    ): () => void {
+        const previousTimer = this.refreshTimers.get(docId);
+        if (previousTimer) clearTimeout(previousTimer);
+        this.refreshTimers.delete(docId);
+        const generation = (this.generations.get(docId) ?? 0) + 1;
+        this.generations.set(docId, generation);
         const document: RegisteredDocument = {
+            generation,
             docId,
             pdfFingerprint,
             documentRevision,
@@ -108,12 +133,16 @@ class LocalSearchRegistry {
             index: null,
             ready: Promise.resolve(),
         };
-        document.ready = this.prepareIndex(document);
         this.documents.set(docId, document);
+        document.ready = this.prepareIndex(document);
+        return () => this.unregister(docId, generation);
     }
 
-    unregister(docId: string) {
+    unregister(docId: string, generation?: number) {
+        const current = this.documents.get(docId);
+        if (generation !== undefined && current?.generation !== generation) return;
         this.documents.delete(docId);
+        this.generations.set(docId, (this.generations.get(docId) ?? 0) + 1);
         const timer = this.refreshTimers.get(docId);
         if (timer) clearTimeout(timer);
         this.refreshTimers.delete(docId);
@@ -125,17 +154,24 @@ class LocalSearchRegistry {
         const previous = this.refreshTimers.get(docId);
         if (previous) clearTimeout(previous);
         this.refreshTimers.set(docId, setTimeout(() => {
+            if (this.documents.get(docId) !== document) return;
+            document.generation = (this.generations.get(docId) ?? document.generation) + 1;
+            this.generations.set(docId, document.generation);
             document.ready = this.prepareIndex(document);
             this.refreshTimers.delete(docId);
         }, 500));
     }
 
     private async prepareIndex(document: RegisteredDocument) {
-        const cached = await searchIndexStorage.load(
+        const generation = document.generation;
+        const isCurrent = () => this.documents.get(document.docId) === document
+            && document.generation === generation;
+        const cached = await this.storage.load(
             document.pdfFingerprint,
             document.docId,
             document.documentRevision,
         );
+        if (!isCurrent()) return;
         if (cached.length === document.pdfDoc.numPages) document.index = buildFullTextIndex(cached);
 
         const hasOcr = Object.values(document.getOcrData()).some(page => page.tokens.length > 0);
@@ -145,9 +181,23 @@ class LocalSearchRegistry {
         for (let pageNumber = 1; pageNumber <= document.pdfDoc.numPages; pageNumber++) {
             pages.push(await extractPage(document, pageNumber));
         }
-        if (this.documents.get(document.docId) !== document) return;
+        if (!isCurrent()) return;
         document.index = buildFullTextIndex(pages);
-        await searchIndexStorage.replace(document.pdfFingerprint, document.documentRevision, pages);
+        await this.storage.replace(document.pdfFingerprint, document.documentRevision, pages);
+    }
+
+    async waitUntilReady(docId: string): Promise<void> {
+        await this.documents.get(docId)?.ready;
+    }
+
+    getRegistrationState(docId: string): SearchRegistrationState | null {
+        const document = this.documents.get(docId);
+        return document ? {
+            generation: document.generation,
+            documentRevision: document.documentRevision,
+            pageCount: document.pdfDoc.numPages,
+            indexedPageCount: document.index?.pages.length ?? 0,
+        } : null;
     }
 
     async search(query: string, scopeIds: string[]): Promise<SearchResult[]> {
@@ -158,7 +208,7 @@ class LocalSearchRegistry {
         );
         await Promise.all(documents.map(document => document.ready));
 
-        return documents.flatMap(document => {
+        return documents.filter(document => this.documents.get(document.docId) === document).flatMap(document => {
             if (!document.index) return [];
             return searchFullTextIndex(document.index, query).map(match => ({
                 score: match.score,

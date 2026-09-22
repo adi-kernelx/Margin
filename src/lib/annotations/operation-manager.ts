@@ -286,6 +286,9 @@ export class OperationManager {
             case 'delete-page':
             case 'move-page':
             case 'rotate-page':
+            case 'add-note':
+            case 'update-note':
+            case 'delete-note':
                 // Page state is persisted by the PDF viewer's page workspace.
                 break;
             case 'batch':

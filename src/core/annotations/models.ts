@@ -98,6 +98,9 @@ export interface HighlightAnnotation extends BaseAnnotation {
         // For text-aware
         rects?: TextHighlightRect[];
     };
+    /** Text selection context used when this highlight is attached to a note. */
+    anchorText?: Pick<HighlightNote, 'quote' | 'prefix' | 'suffix'>;
+    /** Legacy Phase 8 format. Migrated to an independent DocumentNote on load. */
     note?: HighlightNote;
 }
 
@@ -208,6 +211,9 @@ export type OperationType =
     | 'delete-page'
     | 'move-page'
     | 'rotate-page'
+    | 'add-note'
+    | 'update-note'
+    | 'delete-note'
     | 'batch';
 
 interface OperationBase {
@@ -235,4 +241,7 @@ export type Operation =
     | (OperationBase & { type: 'delete-page'; data: { pageId: string } })
     | (OperationBase & { type: 'move-page'; data: { pageId: string; toIndex: number } })
     | (OperationBase & { type: 'rotate-page'; data: { pageId: string; rotation: PageRotation } })
+    | (OperationBase & { type: 'add-note'; data: { note: import('@/core/notes/models').DocumentNote } })
+    | (OperationBase & { type: 'update-note'; data: { note: import('@/core/notes/models').DocumentNote } })
+    | (OperationBase & { type: 'delete-note'; data: { id: string } })
     | (OperationBase & { type: 'batch'; data: { operations: Operation[] } });

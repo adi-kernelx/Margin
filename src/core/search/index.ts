@@ -29,6 +29,12 @@ export interface IndexedMatch {
     spans: IndexedTextSpan[];
 }
 
+export function resolveSearchScopeIds(scope: 'current' | 'all' | string, currentDocId?: string | null): string[] {
+    if (scope === 'all') return [];
+    if (scope === 'current') return currentDocId ? [currentDocId] : [];
+    return [scope];
+}
+
 export function tokenize(text: string): string[] {
     return text.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }

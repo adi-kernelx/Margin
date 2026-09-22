@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { localSearchRegistry } from "@/lib/search/local-search";
 import type { SearchSpan, SearchResult } from "@/lib/search/local-search";
+import { resolveSearchScopeIds } from '@/core/search/index';
 export type { SearchSpan, SearchResult };
 
 export type SearchHighlight = {
@@ -37,10 +38,8 @@ interface SearchBarProps {
 export function SearchBar({
     currentDocId,
     currentDocName,
-    currentFingerprint,
     openDocIds = [],
     documentNames = {},
-    documentFingerprints = {},
     documents = [],
     onSelect,
     onFocusDocument,
@@ -54,30 +53,18 @@ export function SearchBar({
     const [isExpanded, setIsExpanded] = useState(false);  // For expandable mode
     const [error, setError] = useState<string | null>(null);
     const [scope, setScope] = useState<SearchScope>("current");
-    const [lockedFingerprint, setLockedFingerprint] = useState<string | null>(null);  // Locked when scope selected
     const [showScopeMenu, setShowScopeMenu] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Lock fingerprint when scope is set to a specific document
     const handleScopeChange = (newScope: SearchScope) => {
         setScope(newScope);
-        if (newScope === "current") {
-            setLockedFingerprint(currentFingerprint || null);
-        } else if (newScope === "all") {
-            setLockedFingerprint(null);
-        } else {
-            // Specific docId selected
-            setLockedFingerprint(documentFingerprints[newScope] || null);
-        }
         setShowScopeMenu(false);
     };
 
     // Initialize locked fingerprint when search bar expands
     const handleExpand = () => {
         setIsExpanded(true);
-        // Lock to current document's fingerprint
-        setLockedFingerprint(currentFingerprint || null);
         setTimeout(() => inputRef.current?.focus(), 50);
     };
 
@@ -105,43 +92,10 @@ export function SearchBar({
         console.log('[SearchBar] Search:', query.trim(), 'Scope:', scope);
 
         try {
-            // Use lockedFingerprint (set when scope was selected) - not affected by hover
-            let searchFingerprint: string | null = lockedFingerprint;
-            let searchDocId: string | null = null;  // Keep for result matching
-
-            console.log('[SearchBar] Scope resolution:', {
-                scope,
-                lockedFingerprint,
-                currentDocId,
-                currentFingerprint,
-                documentFingerprints,
-                availableDocIds: Object.keys(documentFingerprints)
-            });
-
-            // lockedFingerprint is already the correct fingerprint (set when scope was selected)
-            // No need to look up again - this prevents hover from affecting search
-            if (scope !== "all" && !searchFingerprint) {
-                // If fingerprint wasn't locked, try to get it now (fallback)
-                if (scope === "current") {
-                    searchFingerprint = currentFingerprint || null;
-                    searchDocId = currentDocId || null;
-                } else {
-                    searchFingerprint = documentFingerprints[scope] || null;
-                    searchDocId = scope;
-                }
-            }
-
-            console.log('[SearchBar] Resolved:', { searchFingerprint, searchDocId });
-
-            // Build array of scope identifiers (either docIds or fingerprints)
-            const scopeIds: string[] = [];
-            if (scope === "all") {
-                // If "all", leave scopeIds empty to search everything registered
-            } else if (searchFingerprint) {
-                scopeIds.push(searchFingerprint);
-            } else if (searchDocId) {
-                scopeIds.push(searchDocId);
-            }
+            // The open-tab id is stable across merge/materialize cycles; a PDF
+            // fingerprint is not, so using it here would make current-document
+            // search silently lose the document immediately after a merge.
+            const scopeIds = resolveSearchScopeIds(scope, currentDocId);
 
             console.log('[SearchBar] Calling local search with scopeIds:', scopeIds);
             
@@ -166,7 +120,7 @@ export function SearchBar({
         } finally {
             setIsLoading(false);
         }
-    }, [query, scope, currentDocId, currentFingerprint, documentFingerprints, openDocIds]);
+    }, [query, scope, currentDocId, openDocIds]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
@@ -211,12 +165,6 @@ export function SearchBar({
     // Scope label shows actual PDF name or "All PDFs"
     const getScopeLabel = () => {
         if (scope === "current") {
-            // If we have a locked fingerprint, show that document's name
-            // This ensures UI matches the actual search scope behavior
-            if (lockedFingerprint) {
-                const lockedDoc = documents.find(d => d.fingerprint === lockedFingerprint);
-                if (lockedDoc) return truncateName(lockedDoc.name, 12);
-            }
             return currentDocName ? truncateName(currentDocName, 12) : "Current";
         } else if (scope === "all") {
             return "All PDFs";
@@ -434,10 +382,9 @@ export function SearchBar({
                                 if (match) resultDocName = match.name;
                             }
 
-                            // 2. Fallback to locked document name if we are in a locked scope
-                            if (!resultDocName && lockedFingerprint) {
-                                const lockedDoc = documents.find(d => d.fingerprint === lockedFingerprint);
-                                if (lockedDoc) resultDocName = lockedDoc.name;
+                            // 2. Fallback to the explicit scope's document name.
+                            if (!resultDocName && scope !== 'all' && scope !== 'current') {
+                                resultDocName = documentNames[scope] || documents.find(d => d.id === scope)?.name || '';
                             }
 
                             // 3. Fallback to currentDocName (but this is unstable with hover, so use as last resort)

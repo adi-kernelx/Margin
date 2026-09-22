@@ -25,6 +25,9 @@ export function applyOperationToAnnotations(
         case 'delete-page':
         case 'move-page':
         case 'rotate-page':
+        case 'add-note':
+        case 'update-note':
+        case 'delete-note':
             return annotations;
         case 'batch':
             return operation.data.operations.reduce(applyOperationToAnnotations, annotations);

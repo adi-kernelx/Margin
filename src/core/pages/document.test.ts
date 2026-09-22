@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Annotation } from '@/core/annotations/models';
-import { applyOperationToPageDocument, applyPageOperation, attachAnnotationsToPageIds, createPageDocument, rotateBy } from './document';
+import { applyOperationToPageDocument, applyPageOperation, attachAnnotationsToPageIds, createPageDocument, pageDocumentRevision, rotateBy } from './document';
 import { createBatchOperation, createDeletePageOperation, createMovePageOperation } from '@/core/annotations/operations';
 import type { PageRecord } from './models';
 
@@ -13,6 +13,12 @@ const page = (id: string): PageRecord => ({
 });
 
 describe('stable page document', () => {
+    it('changes its search revision when order or rotation changes', () => {
+        const initial = createPageDocument([page('a'), page('b')]);
+        expect(pageDocumentRevision(initial)).not.toBe(pageDocumentRevision(createPageDocument([page('b'), page('a')])));
+        expect(pageDocumentRevision(initial)).not.toBe(pageDocumentRevision(createPageDocument([{ ...page('a'), rotation: 90 }, page('b')])));
+    });
+
     it('moves pages without changing their identity', () => {
         const initial = createPageDocument([page('a'), page('b'), page('c')]);
         const moved = applyPageOperation(initial, { type: 'move-page', data: { pageId: 'a', toIndex: 2 } });

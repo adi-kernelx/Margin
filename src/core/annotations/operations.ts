@@ -11,6 +11,7 @@
 
 import type { Annotation, Operation } from './models';
 import type { PageRecord, PageRotation } from '@/core/pages/models';
+import type { DocumentNote } from '@/core/notes/models';
 
 let counter = 0;
 
@@ -114,6 +115,27 @@ export function createRotatePageOperation(
             id: operationId(), docId, type: 'rotate-page', timestamp: Date.now(),
             data: { pageId, rotation: previousRotation },
         },
+    };
+}
+
+export function createAddNoteOperation(note: DocumentNote, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'add-note', timestamp: Date.now(), data: { note },
+        inverse: { id: operationId(), docId, type: 'delete-note', timestamp: Date.now(), data: { id: note.id } },
+    };
+}
+
+export function createUpdateNoteOperation(note: DocumentNote, previous: DocumentNote, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'update-note', timestamp: Date.now(), data: { note },
+        inverse: { id: operationId(), docId, type: 'update-note', timestamp: Date.now(), data: { note: previous } },
+    };
+}
+
+export function createDeleteNoteOperation(note: DocumentNote, docId: string): Operation {
+    return {
+        id: operationId(), docId, type: 'delete-note', timestamp: Date.now(), data: { id: note.id },
+        inverse: { id: operationId(), docId, type: 'add-note', timestamp: Date.now(), data: { note } },
     };
 }
 

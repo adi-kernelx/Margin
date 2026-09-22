@@ -24,6 +24,9 @@ export interface LibraryFile {
     sizeBytes: number;
     status: LibraryFileStatus;
     storageType: 'local';
+    /** Handle references do not copy PDF bytes into Margin. Blob is the compatibility fallback. */
+    storageMode?: 'handle' | 'blob';
+    sourceFingerprint?: string;
     pageCount?: number;
     lastReadPage?: number;
     coverThumbnail?: string;

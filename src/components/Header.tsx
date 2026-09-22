@@ -203,7 +203,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                     size="sm"
                     leadingIcon={<Plus size={16} />}
                 >
-                    <span className="hidden sm:inline">Open</span>
+                    <span className="hidden sm:inline">Open &amp; add</span>
                 </Button>
 
                 <div className="h-4 w-px bg-line mx-1" />

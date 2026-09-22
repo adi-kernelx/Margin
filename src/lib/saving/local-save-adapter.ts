@@ -63,7 +63,7 @@ export class LocalSaveAdapter implements SaveAdapter {
                 const { PDFDocument } = await import('pdf-lib');
                 const { embedAnnotations } = await import('../pdf-data-manager');
                 const editablePdf = await PDFDocument.load(pdfBytes);
-                await embedAnnotations(editablePdf, job.payload.objects);
+                await embedAnnotations(editablePdf, job.payload.objects, job.payload.notes ?? []);
                 const editablePdfBytes = await editablePdf.save();
 
                 // B. Flatten PDF

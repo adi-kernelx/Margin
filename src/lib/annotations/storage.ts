@@ -1,5 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Annotation } from './models';
+import type { DocumentNote } from '@/core/notes/models';
+
+export interface DocumentSidecar {
+    annotations: Annotation[];
+    notes: DocumentNote[];
+}
 
 interface PDReaderDB extends DBSchema {
     sidecars: {
@@ -7,6 +13,7 @@ interface PDReaderDB extends DBSchema {
         value: {
             id: string; // stableId
             annotations: Annotation[];
+            notes?: DocumentNote[];
             updatedAt: number;
         };
     };
@@ -32,25 +39,30 @@ class AnnotationStorage {
         });
     }
 
-    async saveSidecar(stableId: string, annotations: Annotation[]): Promise<void> {
+    async saveSidecar(stableId: string, annotations: Annotation[], notes: DocumentNote[] = []): Promise<void> {
         const db = await this.dbPromise;
         await db.put('sidecars', {
             id: stableId,
             annotations,
+            notes,
             updatedAt: Date.now(),
         });
     }
 
     async loadSidecar(stableId: string): Promise<Annotation[] | null> {
+        return (await this.loadDocumentState(stableId))?.annotations ?? null;
+    }
+
+    async loadDocumentState(stableId: string): Promise<DocumentSidecar | null> {
         const db = await this.dbPromise;
         const entry = await db.get('sidecars', stableId);
-        return entry ? entry.annotations : null;
+        return entry ? { annotations: entry.annotations, notes: entry.notes ?? [] } : null;
     }
 
     async copySidecar(oldStableId: string, newStableId: string): Promise<void> {
-        const annotations = await this.loadSidecar(oldStableId);
-        if (annotations) {
-            await this.saveSidecar(newStableId, annotations);
+        const state = await this.loadDocumentState(oldStableId);
+        if (state) {
+            await this.saveSidecar(newStableId, state.annotations, state.notes);
         }
     }
 

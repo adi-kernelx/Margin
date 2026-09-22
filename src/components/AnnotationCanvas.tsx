@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useContext } from 'react';
 import type { PageViewport } from 'pdfjs-dist';
 import type { Annotation, StrokeAnnotation, HighlightAnnotation, TextAnnotation, ShapeAnnotation, ImageAnnotation, MathAnnotation, BoundingBox, TransformMatrix } from '@/lib/annotations/models';
-import { createHighlightNote, unionHighlightBounds } from '@/core/notes/notes';
+import { createHighlightAnchorText, unionHighlightBounds } from '@/core/notes/notes';
 import { UnifiedPointerHandler } from '@/lib/annotations/pointer-handler';
 import { BaseTool } from '@/lib/tools/base-tool';
 import { PencilTool } from '@/lib/tools/pencil-tool';
@@ -17,9 +17,14 @@ import { useDocumentStore } from '@/hooks/useDocumentStore';
 import { useAppStore as useGlobalStore } from '@/lib/store';
 import { DocumentContext } from '@/contexts/DocumentContext';
 import { denormalizePoint, normalizePoint } from '@/lib/rendering/stroke-smoother';
-import { cn } from '@/lib/utils';
-import { FloatingFormatToolbar } from './FloatingFormatToolbar';
 import { renderInkOffscreen, supportsOffscreenInk } from '@/lib/workers/ink-render-worker-manager';
+import {
+    createTextEditorSession,
+    editTextEditorSession,
+    textEditorFrameToPageFrame,
+    type TextEditorSession,
+} from '@/core/text-editor/state';
+import { TextAnnotationEditor } from './TextAnnotationEditor';
 
 const CANVAS_EXPANSION_RATIO = 1.05;
 const CANVAS_OFFSET_RATIO = 0.025;
@@ -99,22 +104,9 @@ export function AnnotationCanvas({
     const predictionDirtyRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
     const inkRenderGenerationRef = useRef(0);
 
-    // Text input overlay state
-    const [textInputState, setTextInputState] = useState<{
-        visible: boolean;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        id?: string; // For editing existing annotations
-        initialText?: string;
-    } | null>(null);
-    const textInputRef = useRef<HTMLTextAreaElement | null>(null);
-    const textBoxRef = useRef<HTMLDivElement | null>(null);
-    const isDraggingRef = useRef(false);
-    const isResizingRef = useRef(false);
-    const dragStartRef = useRef({ x: 0, y: 0 });
-    const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0, annotationX: 0, annotationY: 0 });
+    // Text editing is isolated in TextAnnotationEditor. This component only
+    // opens a session and converts the committed frame back to page geometry.
+    const [textEditorSession, setTextEditorSession] = useState<TextEditorSession | null>(null);
     const lastImageClickRef = useRef<{ x: number; y: number } | null>(null);
     // State for awaiting image placement after upload
 
@@ -154,13 +146,17 @@ export function AnnotationCanvas({
         textBold,
         textItalic,
         textUnderline,
+        setTextColor,
+        setTextBackgroundColor,
+        setTextFontSize,
+        setTextFontFamily,
+        setTextBold,
+        setTextItalic,
+        setTextUnderline,
         selectionMode,
         setSelectionMode,
         awaitingImagePlacement,
         setAwaitingImagePlacement,
-        textSubscript,
-        textSuperscript,
-
         setAnnotationMode,
         awaitingMathPlacement,
         setAwaitingMathPlacement,
@@ -186,6 +182,36 @@ export function AnnotationCanvas({
 
     // Determine if Text Layer should be interactive
     const shouldEnableTextLayer = shouldAllowTextSelection || isTextAware;
+
+    const textEditorBounds = {
+        width: viewport.width * CANVAS_EXPANSION_RATIO,
+        height: viewport.height * CANVAS_EXPANSION_RATIO,
+    };
+
+    const openTextAnnotationEditor = (annotation: TextAnnotation) => {
+        const offsetLeft = viewport.width * CANVAS_OFFSET_RATIO;
+        const offsetTop = viewport.height * CANVAS_OFFSET_RATIO;
+        const bbox = annotation.geometry.boundingBox;
+        setTextColor(annotation.style.color);
+        setTextBackgroundColor(annotation.style.backgroundColor ?? 'transparent');
+        setTextFontSize(annotation.style.fontSize ?? 16);
+        setTextFontFamily(annotation.style.fontFamily ?? 'system-ui, -apple-system, sans-serif');
+        setTextBold(Boolean(annotation.style.bold));
+        setTextItalic(Boolean(annotation.style.italic));
+        setTextUnderline(Boolean(annotation.style.underline));
+        setAnnotationMode('text');
+        setTextEditorSession(editTextEditorSession(
+            annotation.id,
+            annotation.content,
+            {
+                x: bbox.x * viewport.width + offsetLeft,
+                y: bbox.y * viewport.height + offsetTop,
+                width: bbox.width * viewport.width,
+                height: bbox.height * viewport.height,
+            },
+            textEditorBounds,
+        ));
+    };
 
     // Layer z-ordering and pointer control
     // Layer 1: text layer (handled via textLayerRef styles)
@@ -379,22 +405,13 @@ export function AnnotationCanvas({
                 pageWidth,
                 pageHeight,
                 {
-                    onCreateTextInput: (x, y, width, height, onComplete) => {
-
-                        const pageWidth = viewport.width;
-                        const pageHeight = viewport.height;
-                        const offsetLeft = pageWidth * CANVAS_OFFSET_RATIO;
-                        const offsetTop = pageHeight * CANVAS_OFFSET_RATIO;
-
-                        setTextInputState({
-                            visible: true,
-                            x: x + offsetLeft,
-                            y: y + offsetTop,
+                    onCreateTextInput: (x, y, width, height) => {
+                        setTextEditorSession(createTextEditorSession({
+                            x: x + viewport.width * CANVAS_OFFSET_RATIO,
+                            y: y + viewport.height * CANVAS_OFFSET_RATIO,
                             width,
-                            height
-                        });
-                        // Store callback
-                        (toolRef.current as any)._onComplete = onComplete;
+                            height,
+                        }, textEditorBounds));
                     }
                 },
                 textColor,
@@ -529,9 +546,7 @@ export function AnnotationCanvas({
                 toolRef.current = null;
             }
             // Close text input if switching away from text tool
-            if (textInputState?.visible) {
-                setTextInputState(null);
-            }
+            setTextEditorSession(null);
         }
 
         // Update canvas cursor
@@ -604,18 +619,7 @@ export function AnnotationCanvas({
                 const normHeight = bbox.height * pageHeight;
 
                 if (pageX >= normX && pageX <= normX + normWidth && pageY >= normY && pageY <= normY + normHeight) {
-                    // Open text input for editing
-                    setTextInputState({
-                        visible: true,
-                        x: normX + offsetLeft,
-                        y: normY + offsetTop,
-                        width: normWidth,
-                        height: normHeight,
-                        id: textAnnotation.id,
-                        initialText: textAnnotation.content
-                    });
-                    setAnnotationMode('text');
-                    setAnnotationMode('text');
+                    openTextAnnotationEditor(textAnnotation);
                     break;
                 }
             }
@@ -644,7 +648,6 @@ export function AnnotationCanvas({
         canvas.addEventListener('dblclick', handleDoubleClick);
 
         return () => {
-            canvas.removeEventListener('dblclick', handleDoubleClick);
             canvas.removeEventListener('dblclick', handleDoubleClick);
         };
     }, [annotations, pageNum, viewport, annotationMode]);
@@ -1266,7 +1269,7 @@ export function AnnotationCanvas({
             };
 
             // Don't create new text input if we're editing an existing one
-            if (textInputState?.visible && annotationMode === 'text') return;
+            if (textEditorSession && annotationMode === 'text') return;
 
             // Handle image placement after upload
             if (annotationMode === 'image' && awaitingImagePlacement) {
@@ -1293,22 +1296,7 @@ export function AnnotationCanvas({
                 if (clickedAnnotation && clickedAnnotation.type === 'text') {
                     const textAnno = clickedAnnotation as TextAnnotation;
 
-                    const bbox = textAnno.geometry.boundingBox;
-                    const normX = bbox.x * pageWidth;
-                    const normY = bbox.y * pageHeight;
-                    const normWidth = bbox.width * pageWidth;
-                    const normHeight = bbox.height * pageHeight;
-
-                    // Edit mode
-                    setTextInputState({
-                        visible: true,
-                        x: normX + offsetLeft,
-                        y: normY + offsetTop,
-                        width: normWidth,
-                        height: normHeight,
-                        id: textAnno.id,
-                        initialText: textAnno.content
-                    });
+                    openTextAnnotationEditor(textAnno);
 
                     // Don't continue to tool handling (avoid creating new one)
                     return;
@@ -1447,7 +1435,7 @@ export function AnnotationCanvas({
         return () => {
             handler.detach();
         };
-    }, [ctx, pageNum, onSave, annotationMode, awaitingImagePlacement, handleImagePaste, textInputState, previewCtx, predictionCtx, annotations, viewport, isMovingAnnotation, isResizingAnnotation, selectedAnnotationId, resizeHandle, selectionMode, shouldAllowAnnotationSelection, shouldAllowTextSelection]);
+    }, [ctx, pageNum, onSave, annotationMode, awaitingImagePlacement, handleImagePaste, textEditorSession, previewCtx, predictionCtx, annotations, viewport, isMovingAnnotation, isResizingAnnotation, selectedAnnotationId, resizeHandle, selectionMode, shouldAllowAnnotationSelection, shouldAllowTextSelection]);
 
 
 
@@ -1536,7 +1524,7 @@ export function AnnotationCanvas({
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId) {
-                if (textInputState?.visible) return;
+                if (textEditorSession) return;
 
                 if (onDelete) {
                     onDelete(selectedAnnotationId);
@@ -1547,7 +1535,7 @@ export function AnnotationCanvas({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedAnnotationId, textInputState, onDelete]);
+    }, [selectedAnnotationId, textEditorSession, onDelete]);
 
     // Handle pointer events on image canvas for selection, move, and resize
     useEffect(() => {
@@ -2524,73 +2512,17 @@ export function AnnotationCanvas({
         }
     }, [isDarkMode, annotationMode]);
 
-    // Handle text input submission
-    const handleTextSubmit = (text: string) => {
-        if (!textInputState || !toolRef.current || !(toolRef.current instanceof TextTool)) return;
-
-        // Calculate dimensions
-        const pageWidth = viewport.width;
-        const pageHeight = viewport.height;
-        const offsetLeft = pageWidth * CANVAS_OFFSET_RATIO;
-        const offsetTop = pageHeight * CANVAS_OFFSET_RATIO;
-
-        // textInputState.x/y includes offset (Canvas Coords).
-        // We need Page Coords.
-        const pageX = textInputState.x - offsetLeft;
-        const pageY = textInputState.y - offsetTop;
-
-        // If editing existing annotation, update it
-        if (textInputState.id) {
-            const existingAnnotation = annotations.find(a => a.id === textInputState.id && a.type === 'text');
-            if (existingAnnotation) {
-                const updated: TextAnnotation = {
-                    ...existingAnnotation as TextAnnotation,
-                    content: text,
-                    updatedAt: Date.now(),
-                    geometry: {
-                        boundingBox: {
-                            x: normalizePoint(pageX, pageY, pageWidth, pageHeight).x,
-                            y: normalizePoint(pageX, pageY, pageWidth, pageHeight).y,
-                            width: textInputState.width / pageWidth,
-                            height: textInputState.height / pageHeight,
-                        }
-                    },
-                    style: {
-                        ...existingAnnotation.style,
-                        color: textColor,
-                        backgroundColor: textBackgroundColor,
-                        fontSize: textFontSize,
-                        fontFamily: textFontFamily,
-                        bold: textBold,
-                        italic: textItalic,
-                        underline: textUnderline,
-                    }
-                };
-                onSave(updated);
-                setTextInputState(null);
-                redrawCanvas();
-                return;
-            }
-        }
-
-        // Create new annotation
-        if (!text.trim()) {
-            setTextInputState(null);
-            return;
-        }
-
-        const annotation = toolRef.current.createAnnotation(
-            pageX,
-            pageY,
-            textInputState.width,
-            textInputState.height,
-            text
+    const handleTextCommit = (session: TextEditorSession) => {
+        if (!toolRef.current || !(toolRef.current instanceof TextTool)) return;
+        const pageFrame = textEditorFrameToPageFrame(
+            session.frame,
+            {
+                x: viewport.width * CANVAS_OFFSET_RATIO,
+                y: viewport.height * CANVAS_OFFSET_RATIO,
+            },
+            { width: viewport.width, height: viewport.height },
         );
-
-        // Apply current style settings
-        annotation.pageNum = pageNum;
-        annotation.style = {
-            ...annotation.style,
+        const style = {
             color: textColor,
             backgroundColor: textBackgroundColor,
             fontSize: textFontSize,
@@ -2600,221 +2532,35 @@ export function AnnotationCanvas({
             underline: textUnderline,
         };
 
-        onSave(annotation);
-        setTextInputState(null);
+        if (session.mode === 'edit' && session.annotationId) {
+            const existing = annotations.find(
+                (annotation): annotation is TextAnnotation =>
+                    annotation.id === session.annotationId && annotation.type === 'text',
+            );
+            if (!existing) return;
+            onSave({
+                ...existing,
+                content: session.draft,
+                updatedAt: Date.now(),
+                geometry: { ...existing.geometry, boundingBox: pageFrame },
+                style: { ...existing.style, ...style },
+            });
+        } else {
+            const annotation = toolRef.current.createAnnotation(
+                pageFrame.x * viewport.width,
+                pageFrame.y * viewport.height,
+                pageFrame.width * viewport.width,
+                pageFrame.height * viewport.height,
+                session.draft,
+            );
+            annotation.pageNum = pageNum;
+            annotation.style = { ...annotation.style, ...style };
+            onSave(annotation);
+        }
+
+        setTextEditorSession(null);
         redrawCanvas();
     };
-
-    // Handle text input cancellation
-    const handleTextCancel = () => {
-        setTextInputState(null);
-    };
-
-    // Focus text input when it appears
-    useEffect(() => {
-        if (textInputState?.visible && textInputRef.current) {
-            textInputRef.current.focus();
-            if (textInputState.initialText) {
-                textInputRef.current.value = textInputState.initialText;
-            }
-        }
-    }, [textInputState]);
-
-    // Handle text box dragging
-    useEffect(() => {
-        if (!textInputState?.visible || !textBoxRef.current) return;
-
-        const box = textBoxRef.current;
-
-        const handleMouseDown = (e: MouseEvent) => {
-            // Don't start drag if clicking on textarea or buttons
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'TEXTAREA' ||
-                target.tagName === 'BUTTON' || target.closest('button') ||
-                target.tagName === 'INPUT' || target.closest('input') ||
-                target.tagName === 'SELECT' || target.closest('select')) {
-                return;
-            }
-
-            isDraggingRef.current = true;
-            dragStartRef.current = {
-                x: e.clientX - textInputState.x,
-                y: e.clientY - textInputState.y
-            };
-            e.preventDefault();
-        };
-
-        const handleMouseMove = (e: MouseEvent) => {
-            if (isDraggingRef.current) {
-                setTextInputState(prev => prev ? {
-                    ...prev,
-                    x: e.clientX - dragStartRef.current.x,
-                    y: e.clientY - dragStartRef.current.y
-                } : null);
-            }
-        };
-
-        const handleMouseUp = () => {
-            isDraggingRef.current = false;
-        };
-
-        box.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-
-        return () => {
-            box.removeEventListener('mousedown', handleMouseDown);
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [textInputState]);
-
-    // Handle text box resizing
-    useEffect(() => {
-        if (!textInputState?.visible) return;
-
-        const handleResizeMouseDown = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (!target.classList.contains('resize-handle')) return;
-
-            isResizingRef.current = true;
-            resizeStartRef.current = {
-                x: e.clientX,
-                y: e.clientY,
-                width: textInputState.width,
-                height: textInputState.height,
-                annotationX: 0,
-                annotationY: 0
-            };
-            e.preventDefault();
-            e.stopPropagation();
-        };
-
-        const handleResizeMouseMove = (e: MouseEvent) => {
-            if (isResizingRef.current) {
-                const deltaX = e.clientX - resizeStartRef.current.x;
-                const deltaY = e.clientY - resizeStartRef.current.y;
-                setTextInputState(prev => prev ? {
-                    ...prev,
-                    width: Math.max(100, resizeStartRef.current.width + deltaX),
-                    height: Math.max(50, resizeStartRef.current.height + deltaY)
-                } : null);
-            }
-        };
-
-        const handleResizeMouseUp = () => {
-            isResizingRef.current = false;
-        };
-
-        document.addEventListener('mousedown', handleResizeMouseDown);
-        document.addEventListener('mousemove', handleResizeMouseMove);
-        document.addEventListener('mouseup', handleResizeMouseUp);
-
-        return () => {
-            document.removeEventListener('mousedown', handleResizeMouseDown);
-            document.removeEventListener('mousemove', handleResizeMouseMove);
-            document.removeEventListener('mouseup', handleResizeMouseUp);
-        };
-    }, [textInputState]);
-
-    // Handle click outside text box to commit/close
-    useEffect(() => {
-        if (!textInputState?.visible) return;
-
-        const handleGlobalMouseDown = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-
-            // If clicking inside the text box or toolbar, ignore
-            if (textBoxRef.current && (textBoxRef.current.contains(target) || target.closest('.text-format-toolbar'))) {
-                return;
-            }
-
-            // If clicking on a tool button in main toolbar, ignore (let tool switching happen)
-            // But usually we want to commit first.
-            // If we commit, the tool switch still happens naturally?
-            // Actually, if we commit here, textInputState becomes null.
-
-            // Check if we have unsaved text? handleTextSubmit checks if text is empty/valid.
-            if (textInputRef.current) {
-                // Determine if we should commit or cancel?
-                // Standard behavior: commit if valid text, delete if empty.
-                handleTextSubmit(textInputRef.current.value);
-            }
-        };
-
-        // Use capture phase to intercept clicks before they trigger other actions? 
-        // Or bubble phase?
-        // If capture: we close box, then event propagates to e.g. canvas or toolbar.
-        // If we close box, the canvas click handler will run.
-        // Canvas handler checks if textInputState is visible? No, it's already null if we close it here.
-        // CAUTION: If we close it, and canvas handler runs, it might create a NEW text box at the click location.
-        // This is desired behavior: "Click elsewhere to finish editing and start new one".
-        document.addEventListener('mousedown', handleGlobalMouseDown, true); // Capture phase
-
-        return () => {
-            document.removeEventListener('mousedown', handleGlobalMouseDown, true);
-        };
-    }, [textInputState, handleTextSubmit]);
-
-    // Restore focus and handle selection conversion when formatting options change
-    useEffect(() => {
-        if (textInputState?.visible && textInputRef.current) {
-            textInputRef.current.focus();
-
-            // Auto-resize
-            const target = textInputRef.current;
-            target.style.height = 'auto'; // Reset to measure
-            const contentHeight = target.scrollHeight;
-            target.style.height = '100%';
-
-            if (contentHeight > textInputState.height) {
-                setTextInputState(prev => prev ? { ...prev, height: contentHeight + 10 } : null);
-            }
-
-            // Apply Subscript/Superscript to selection if active
-            // This allows user to select text and click toolbar button
-            const start = target.selectionStart;
-            const end = target.selectionEnd;
-
-            if (start !== end && (textSubscript || textSuperscript)) {
-                const val = target.value;
-                const selected = val.slice(start, end);
-                let newSelected = '';
-
-                const SUBS: Record<string, string> = {
-                    '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-                    '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', 'x': 'ₓ',
-                    'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ', 'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ', 'v': 'ᵥ'
-                };
-                const SUPS: Record<string, string> = {
-                    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-                    '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ',
-                    'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'd': 'ᵈ', 'e': 'ᵉ', 'f': 'ᶠ', 'g': 'ᵍ', 'h': 'ʰ', 'j': 'ʲ', 'k': 'ᵏ', 'l': 'ˡ', 'm': 'ᵐ', 'o': 'ᵒ', 'p': 'ᵖ', 'r': 'ʳ', 's': 'ˢ', 't': 'ᵗ', 'u': 'ᵘ', 'v': 'ᵛ', 'w': 'ʷ', 'x': 'ˣ', 'y': 'ʸ', 'z': 'ᶻ'
-                };
-
-                // Try converting chars
-                for (const char of selected) {
-                    if (textSubscript && SUBS[char]) newSelected += SUBS[char];
-                    else if (textSuperscript && SUPS[char]) newSelected += SUPS[char];
-                    else newSelected += char;
-                }
-
-                if (newSelected !== selected) {
-                    const newVal = val.slice(0, start) + newSelected + val.slice(end);
-                    target.value = newVal;
-                    // Restore selection around converted text
-                    // target.setSelectionRange is lost after React render? No, this is imperative.
-                    // But changing .value changes cursor to end usually.
-                    // We need to set it back immediately.
-                    // However, React might overwrite it on re-render if we don't handle state properly?
-                    // target.value is uncontrolled here (defaultValue used).
-                    // So this should work.
-                    target.setSelectionRange(start, start + newSelected.length);
-                }
-            }
-        }
-    }, [textBold, textItalic, textUnderline, textSubscript, textSuperscript, textColor, textFontSize, textFontFamily, textInputState?.visible]);
-
 
     // Handle text selection for aware highlighter
     useEffect(() => {
@@ -2914,8 +2660,7 @@ export function AnnotationCanvas({
                 }
             };
 
-            annotation.note = createHighlightNote(
-                annotation,
+            annotation.anchorText = createHighlightAnchorText(
                 selection.toString(),
                 referenceElement.textContent ?? '',
             );
@@ -3015,147 +2760,23 @@ export function AnnotationCanvas({
                 aria-hidden="true"
             />
 
-            {/* Text Input Overlay */}
-            {textInputState?.visible && (
-                <div
-                    ref={textBoxRef}
-                    className="absolute pointer-events-auto"
+            {textEditorSession && (
+                <TextAnnotationEditor
+                    session={textEditorSession}
+                    bounds={textEditorBounds}
                     style={{
-                        left: `${textInputState.x}px`,
-                        top: `${textInputState.y}px`,
-                        width: `${textInputState.width}px`,
-                        minHeight: `${textInputState.height}px`,
+                        color: textColor,
+                        backgroundColor: textBackgroundColor,
+                        fontSize: textFontSize,
+                        fontFamily: textFontFamily,
+                        bold: textBold,
+                        italic: textItalic,
+                        underline: textUnderline,
                     }}
-                >
-                    <FloatingFormatToolbar />
-                    <div
-                        className="relative border-2 rounded shadow-lg"
-                        style={{
-                            borderColor: isDarkMode ? '#3B82F6' : '#3B82F6',
-                            backgroundColor: textBackgroundColor === 'transparent' ? 'transparent' : textBackgroundColor,
-                            backgroundImage: textBackgroundColor === 'transparent'
-                                ? 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)'
-                                : 'none',
-                            backgroundSize: textBackgroundColor === 'transparent' ? '8px 8px' : 'auto',
-                            backgroundPosition: textBackgroundColor === 'transparent' ? '0 0, 0 4px, 4px -4px, -4px 0px' : 'auto'
-                        }}
-                    >
-                        {/* Action Buttons */}
-                        <div className="absolute top-1 right-1 flex gap-1 z-10">
-                            <button
-                                onClick={() => {
-                                    if (textInputRef.current) {
-                                        handleTextSubmit(textInputRef.current.value);
-                                    }
-                                }}
-                                className={cn(
-                                    "p-1 rounded transition-all",
-                                    isDarkMode
-                                        ? "bg-green-600 hover:bg-green-700 text-white"
-                                        : "bg-green-500 hover:bg-green-600 text-white"
-                                )}
-                                aria-label="Commit text"
-                                title="Commit (Ctrl+Enter)"
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            </button>
-                            <button
-                                onClick={handleTextCancel}
-                                className={cn(
-                                    "p-1 rounded transition-all",
-                                    isDarkMode
-                                        ? "bg-red-600 hover:bg-red-700 text-white"
-                                        : "bg-red-500 hover:bg-red-600 text-white"
-                                )}
-                                aria-label="Cancel"
-                                title="Cancel (Esc)"
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                            </button>
-                        </div>
-
-                        <textarea
-                            ref={textInputRef}
-                            className={cn(
-                                "w-full h-full p-2 rounded resize-none outline-none",
-                                isDarkMode ? "text-white" : "text-black"
-                            )}
-                            style={{
-                                fontSize: `${textFontSize}px`,
-                                fontFamily: textFontFamily,
-                                fontWeight: textBold ? 'bold' : 'normal',
-                                fontStyle: textItalic ? 'italic' : 'normal',
-                                textDecoration: textUnderline ? 'underline' : 'none',
-                                color: textColor,
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                resize: 'none',
-                            }}
-                            placeholder="Type your text..."
-                            defaultValue={textInputState.initialText || ''}
-                            onChange={(e) => {
-                                // Auto-resize height based on content
-                                const target = e.target;
-                                target.style.height = 'auto';
-                                const contentHeight = target.scrollHeight;
-                                target.style.height = '100%'; // Restore 100% to fill container
-
-                                // Update container to fit content (plus limits)
-                                if (contentHeight > textInputState.height) {
-                                    setTextInputState(prev => prev ? { ...prev, height: contentHeight + 10 } : null);
-                                }
-
-                                // Handle simple Subscript/Superscript replacement for Digits
-                                if (textSubscript || textSuperscript) {
-                                    const val = e.target.value;
-                                    const lastChar = val.slice(-1);
-
-                                    const SUBS: Record<string, string> = {
-                                        '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-                                        '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', 'x': 'ₓ',
-                                        'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ', 'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ', 'v': 'ᵥ'
-                                    };
-                                    const SUPS: Record<string, string> = {
-                                        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-                                        '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ',
-                                        'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'd': 'ᵈ', 'e': 'ᵉ', 'f': 'ᶠ', 'g': 'ᵍ', 'h': 'ʰ', 'j': 'ʲ', 'k': 'ᵏ', 'l': 'ˡ', 'm': 'ᵐ', 'o': 'ᵒ', 'p': 'ᵖ', 'r': 'ʳ', 's': 'ˢ', 't': 'ᵗ', 'u': 'ᵘ', 'v': 'ᵛ', 'w': 'ʷ', 'x': 'ˣ', 'y': 'ʸ', 'z': 'ᶻ'
-                                    };
-
-                                    if (textSubscript && SUBS[lastChar]) {
-                                        const newVal = val.slice(0, -1) + SUBS[lastChar];
-                                        e.target.value = newVal;
-                                    } else if (textSuperscript && SUPS[lastChar]) {
-                                        const newVal = val.slice(0, -1) + SUPS[lastChar];
-                                        e.target.value = newVal;
-                                    }
-                                }
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                    e.preventDefault();
-                                    handleTextSubmit(e.currentTarget.value);
-                                } else if (e.key === 'Escape') {
-                                    handleTextCancel();
-                                }
-                            }}
-                            autoFocus
-                        />
-
-                        {/* Resize Handle */}
-                        <div
-                            className="resize-handle absolute bottom-0 right-0 w-6 h-6 cursor-se-resize z-10"
-                            style={{
-                                background: 'linear-gradient(135deg, transparent 50%, #3B82F6 50%)',
-                                borderBottomRightRadius: '4px' // Match container radius
-                            }}
-                        />
-                    </div>
-                </div>
+                    onChange={setTextEditorSession}
+                    onCommit={handleTextCommit}
+                    onCancel={() => setTextEditorSession(null)}
+                />
             )}
         </div>
     );

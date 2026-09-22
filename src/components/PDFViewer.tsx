@@ -16,13 +16,16 @@ import {
     createMovePageOperation,
     createRotatePageOperation,
     createUpdateOperation,
+    createAddNoteOperation,
+    createDeleteNoteOperation,
+    createUpdateNoteOperation,
 } from '@/lib/annotations/operations';
 import { applyOperationToAnnotations } from '@/core/annotations/apply';
 import { AnnotationCanvas } from './AnnotationCanvas';
 import { MathModal } from './MathModal';
 import type { Annotation, HighlightAnnotation, Operation } from '@/lib/annotations/models';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { extractAnnotations, embedAnnotations } from '@/lib/pdf-data-manager';
+import { extractAnnotationData, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
 import { useClientOcr } from '@/hooks/useClientOcr';
 import { OcrTextLayer } from './OcrTextLayer';
@@ -34,6 +37,7 @@ import {
     applyOperationToPageDocument,
     attachAnnotationsToPageIds,
     createPageDocument,
+    pageDocumentRevision,
     rotateBy,
 } from '@/core/pages/document';
 import {
@@ -48,7 +52,17 @@ import { PageOrganizer } from './PageOrganizer';
 import { Button } from './ui/Button';
 import { LayoutGrid, StickyNote } from 'lucide-react';
 import { rotateAnnotation } from '@/core/pages/annotations';
-import { createHighlightNote } from '@/core/notes/notes';
+import {
+    addAnchorToNote,
+    applyOperationToNotes,
+    createDocumentNote,
+    createNoteAnchor,
+    migrateHighlightNotes,
+    notesForHighlights,
+    removeAnchorFromNote,
+    synchronizeNoteAnchors,
+} from '@/core/notes/notes';
+import type { DocumentNote, NoteAnchor } from '@/core/notes/models';
 import { NotesPanel } from './NotesPanel';
 import { libraryDB } from '@/lib/storage/library-db';
 
@@ -71,6 +85,7 @@ interface PDFViewerProps {
 export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, role = 'owner', displayName, annotationsUrl, shareId, linkToken }: PDFViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+    const [renderedDocumentRevision, setRenderedDocumentRevision] = useState('');
     const [pageDocument, setPageDocument] = useState<PageDocument | null>(null);
     const pageDocumentRef = useRef<PageDocument | null>(null);
     const workingPdfBytesRef = useRef<Uint8Array | null>(null);
@@ -78,17 +93,24 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const [showPageOrganizer, setShowPageOrganizer] = useState(false);
     const [showNotes, setShowNotes] = useState(false);
     const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
+    const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const annotationsRef = useRef<Annotation[]>([]);
-    const setLoadedAnnotations = useCallback((loaded: Annotation[]) => {
+    const [notes, setNotes] = useState<DocumentNote[]>([]);
+    const notesRef = useRef<DocumentNote[]>([]);
+    const setLoadedAnnotations = useCallback((loaded: Annotation[], loadedNotes: DocumentNote[] = notesRef.current) => {
         const document = pageDocumentRef.current;
         const anchored = document ? attachAnnotationsToPageIds(loaded, document) : loaded;
-        const next = anchored.map(annotation => annotation.type === 'highlight' && !annotation.note
-            ? { ...annotation, note: createHighlightNote(annotation) }
-            : annotation);
-        annotationsRef.current = next;
-        setAnnotations(next);
-        void annotationStorage.saveSidecar(stableId, next);
+        const migrated = migrateHighlightNotes(anchored);
+        const noteMap = new Map(loadedNotes.map(note => [note.id, note]));
+        for (const note of migrated.notes) if (!noteMap.has(note.id)) noteMap.set(note.id, note);
+        const nextNotes = synchronizeNoteAnchors([...noteMap.values()], migrated.annotations);
+        annotationsRef.current = migrated.annotations;
+        notesRef.current = nextNotes;
+        setAnnotations(migrated.annotations);
+        setNotes(nextNotes);
+        setActiveNoteId(current => current && nextNotes.some(note => note.id === current) ? current : null);
+        void annotationStorage.saveSidecar(stableId, migrated.annotations, nextNotes);
     }, [stableId]);
     const [showMathModal, setShowMathModal] = useState(false);
     
@@ -125,9 +147,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useClientOcr(fileId, pdfDoc);
     const ocrPagesRef = useRef(ocrPages);
-    const searchDocumentRevision = pageDocument
-        ? `pages:${pageDocument.pages.map(page => `${page.id}@${page.rotation}`).join(',')}`
-        : `pdf:${pdfDoc?.numPages ?? 0}`;
     useEffect(() => { ocrPagesRef.current = ocrPages; }, [ocrPages]);
     useEffect(() => {
         if (Object.keys(ocrPages).length) localSearchRegistry.refresh(fileId);
@@ -138,21 +157,24 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         if (!parentFolderId && fileId && pdfDoc) {
             // Register for local search
             const fingerprint = pdfDoc.fingerprints?.[0] || fileId;
-            localSearchRegistry.register(
+            const disposeSearchRegistration = localSearchRegistry.register(
                 fileId,
                 fingerprint,
-                searchDocumentRevision,
+                renderedDocumentRevision || `pdf:${pdfDoc.numPages}`,
                 pdfDoc,
                 () => ocrPagesRef.current,
             );
+            window.dispatchEvent(new CustomEvent('pdf-loaded', {
+                detail: { fileId, fingerprint },
+            }));
             
             startOcr();
             
             return () => {
-                localSearchRegistry.unregister(fileId);
+                disposeSearchRegistration();
             };
         }
-    }, [fileId, parentFolderId, pdfDoc, searchDocumentRevision, startOcr]);
+    }, [fileId, parentFolderId, pdfDoc, renderedDocumentRevision, startOcr]);
 
     // Use displayName for cloud files, fallback to local logic
     const fileName = displayName || file?.name || 'document.pdf';
@@ -247,6 +269,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             return doc;
         });
         pageCountRef.current = document.pages.length;
+        setRenderedDocumentRevision(pageDocumentRevision(document));
 
         const dims: { [key: number]: { width: number, height: number } } = {};
         for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
@@ -289,14 +312,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 setLoadedAnnotations(annotationsRef.current);
                 await displayPageDocument(document);
 
-                // Dispatch fingerprint for search indexing
-                const fingerprint = stableId;
-                if (fingerprint && fileId) {
-                    window.dispatchEvent(new CustomEvent('pdf-loaded', {
-                        detail: { fileId, fingerprint }
-                    }));
-                }
-
             } catch (error) {
                 console.error('Error loading PDF:', error);
             }
@@ -325,7 +340,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                         const annots = Array.isArray(data) ? data : (data.objects || data.annotations || []);
                         if (Array.isArray(annots) && mounted) {
                             console.log('[PDFViewer] Loaded annotations from URL:', annots.length);
-                            setLoadedAnnotations(annots);
+                            setLoadedAnnotations(annots, Array.isArray(data.notes) ? data.notes : []);
                         }
                     }
                 } catch (e) {
@@ -345,7 +360,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                             const annots = Array.isArray(data) ? data : (data.objects || data.annotations || []);
                             if (Array.isArray(annots) && mounted) {
                                 console.log('[PDFViewer] Loaded annotations from URL:', annots.length);
-                                setLoadedAnnotations(annots);
+                                setLoadedAnnotations(annots, Array.isArray(data.notes) ? data.notes : []);
                             }
                         }
                     } catch (e) {
@@ -377,7 +392,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                             if (Array.isArray(annots)) {
                                 console.log('[PDFViewer] Loaded from associated JSON file:', annots.length);
                                 if (mounted) {
-                                    setLoadedAnnotations(annots);
+                                    setLoadedAnnotations(annots, Array.isArray(data.notes) ? data.notes : []);
                                 }
                                 return;
                             }
@@ -416,7 +431,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     if (backup) {
                         console.log('[PDFViewer] Recovered backup from:', new Date(backup.updatedAt).toISOString());
                         if (backup.annotationsJSON && Array.isArray(backup.annotationsJSON.objects)) {
-                            if (mounted) setLoadedAnnotations(backup.annotationsJSON.objects);
+                            if (mounted) setLoadedAnnotations(backup.annotationsJSON.objects, backup.annotationsJSON.notes ?? []);
                             return;
                         }
                     }
@@ -427,24 +442,24 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
             // 1. Try Embedded Data (Portable Source)
             if (file) {
-                const embedded = await extractAnnotations(file);
+                const embedded = await extractAnnotationData(file);
                 if (!mounted) return;
                 if (embedded) {
-                    console.log('[PDFViewer] Loaded from embedded data:', embedded.length);
-                    setLoadedAnnotations(embedded);
+                    console.log('[PDFViewer] Loaded from embedded data:', embedded.annotations.length);
+                    setLoadedAnnotations(embedded.annotations, embedded.notes);
                     return;
                 }
             }
 
             // 2. Fallback to Sidecar (Local Source)
-            const loaded = await annotationStorage.loadSidecar(stableId);
+            const loaded = await annotationStorage.loadDocumentState(stableId);
             if (!mounted) return;
             if (loaded) {
-                console.log('[PDFViewer] Sidecar found:', loaded.length, 'annotations');
-                setLoadedAnnotations(loaded);
+                console.log('[PDFViewer] Sidecar found:', loaded.annotations.length, 'annotations');
+                setLoadedAnnotations(loaded.annotations, loaded.notes);
             } else {
                 console.log('[PDFViewer] No sidecar or embedded data found.');
-                setLoadedAnnotations([]);
+                setLoadedAnnotations([], []);
             }
         };
         loadAnnotations();
@@ -456,11 +471,11 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // External JSON Load Event Listener
     useEffect(() => {
-        const handleExternalLoad = (e: CustomEvent<{ docId: string, annotations: Annotation[] }>) => {
+        const handleExternalLoad = (e: CustomEvent<{ docId: string, annotations: Annotation[], notes?: DocumentNote[] }>) => {
             if (e.detail.docId === fileId) {
                 console.log('[PDFViewer] External JSON loaded:', e.detail.annotations.length);
 
-                setLoadedAnnotations(e.detail.annotations);
+                setLoadedAnnotations(e.detail.annotations, e.detail.notes ?? []);
                 saveManager.markDirty(fileId);
             }
         };
@@ -477,12 +492,12 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     }, [fileId]);
 
     // Throttled Save Sidecar (Local cache only - SaveManager handles actual saves)
-    const scheduleSidecarSave = useCallback((currentAnnotations: Annotation[]) => {
+    const scheduleSidecarSave = useCallback((currentAnnotations = annotationsRef.current, currentNotes = notesRef.current) => {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
         saveTimeoutRef.current = window.setTimeout(async () => {
             // Local Cache (Always) - this is just for crash recovery
-            await annotationStorage.saveSidecar(stableId, currentAnnotations);
+            await annotationStorage.saveSidecar(stableId, currentAnnotations, currentNotes);
         }, 2000);
 
     }, [stableId, fileId, parentFolderId]);
@@ -501,7 +516,13 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             const operated = applyOperationToAnnotations(previous, operation);
             const next = nextDocument ? attachAnnotationsToPageIds(operated, nextDocument) : operated;
             annotationsRef.current = next;
-            scheduleSidecarSave(next);
+            scheduleSidecarSave(next, notesRef.current);
+            return next;
+        });
+        setNotes(previous => {
+            const next = synchronizeNoteAnchors(applyOperationToNotes(previous, operation), annotationsRef.current);
+            notesRef.current = next;
+            scheduleSidecarSave(annotationsRef.current, next);
             return next;
         });
         saveManager.markDirty(fileId);
@@ -553,7 +574,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 });
             }
         } else {
-            await embedAnnotations(pdfLibDoc, visibleAnnotations);
+            await embedAnnotations(pdfLibDoc, visibleAnnotations, notesRef.current);
         }
 
         return await pdfLibDoc.save();
@@ -610,6 +631,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                         editorVersion: '1.0.0',
                         pageCount: pageCount > 0 ? pageCount : 1,
                         objects: currentAnnotations,
+                        notes: notesRef.current,
                         pageDocument: pageDocumentRef.current ?? undefined,
                         createdAt: Date.now(),
                         updatedAt: Date.now()
@@ -644,10 +666,13 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Annotation Handlers
     const commitAnnotationOperation = useCallback(async (operation: Operation) => {
-        const next = applyOperationToAnnotations(annotationsRef.current, operation);
-        annotationsRef.current = next;
-        setAnnotations(next);
-        scheduleSidecarSave(next);
+        const nextAnnotations = applyOperationToAnnotations(annotationsRef.current, operation);
+        const nextNotes = synchronizeNoteAnchors(applyOperationToNotes(notesRef.current, operation), nextAnnotations);
+        annotationsRef.current = nextAnnotations;
+        notesRef.current = nextNotes;
+        setAnnotations(nextAnnotations);
+        setNotes(nextNotes);
+        scheduleSidecarSave(nextAnnotations, nextNotes);
         saveManager.markDirty(fileId);
         setIsDirty(true);
         await operationManager.addOperation(operation);
@@ -655,29 +680,38 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     const handleAnnotationSave = useCallback(async (annotation: Annotation) => {
         const page = pageDocumentRef.current?.pages[annotation.pageNum - 1];
-        let anchored: Annotation = page ? { ...annotation, pageId: page.id } : annotation;
-        if (anchored.type === 'highlight') {
-            anchored = {
-                ...anchored,
-                note: anchored.note
-                    ? { ...anchored.note, pageId: anchored.pageId }
-                    : createHighlightNote(anchored),
-            };
-        }
+        const anchored: Annotation = page ? { ...annotation, pageId: page.id } : annotation;
         const previous = annotationsRef.current.find(item => item.id === anchored.id);
-        const operation = previous
+        let operation = previous
             ? createUpdateOperation(anchored, previous, fileId)
             : createAddOperation(anchored, fileId);
+        const activeNote = !previous && anchored.type === 'highlight'
+            ? notesRef.current.find(note => note.id === activeNoteId)
+            : undefined;
+        if (activeNote && anchored.type === 'highlight') {
+            const updatedNote = addAnchorToNote(activeNote, createNoteAnchor(anchored));
+            operation = createBatchOperation([
+                operation,
+                createUpdateNoteOperation(updatedNote, activeNote, fileId),
+            ], fileId);
+        }
         await commitAnnotationOperation(operation);
         if (!previous && anchored.type === 'highlight') {
             setFocusedHighlightId(anchored.id);
-            setShowNotes(true);
+            if (activeNote) setShowNotes(true);
         }
-    }, [commitAnnotationOperation, fileId]);
+    }, [activeNoteId, commitAnnotationOperation, fileId]);
 
     const handleAnnotationDelete = useCallback(async (id: string) => {
         const annotation = annotationsRef.current.find(item => item.id === id);
-        if (annotation) await commitAnnotationOperation(createDeleteOperation(annotation, fileId));
+        if (!annotation) return;
+        const operations: Operation[] = [createDeleteOperation(annotation, fileId)];
+        for (const note of notesRef.current) {
+            if (note.anchors.some(anchor => anchor.highlightId === id)) {
+                operations.push(createUpdateNoteOperation(removeAnchorFromNote(note, id), note, fileId));
+            }
+        }
+        await commitAnnotationOperation(operations.length === 1 ? operations[0] : createBatchOperation(operations, fileId));
     }, [commitAnnotationOperation, fileId]);
 
     const handleAnnotationErase = useCallback(async (deletedIds: string[], created: Annotation[]) => {
@@ -685,6 +719,13 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         for (const id of deletedIds) {
             const annotation = annotationsRef.current.find(item => item.id === id);
             if (annotation) operations.push(createDeleteOperation(annotation, fileId));
+        }
+        const deleted = new Set(deletedIds);
+        for (const note of notesRef.current) {
+            const nextAnchors = note.anchors.filter(anchor => !deleted.has(anchor.highlightId));
+            if (nextAnchors.length !== note.anchors.length) {
+                operations.push(createUpdateNoteOperation({ ...note, anchors: nextAnchors, updatedAt: Date.now() }, note, fileId));
+            }
         }
         for (const annotation of created) {
             const page = pageDocumentRef.current?.pages[annotation.pageNum - 1];
@@ -704,7 +745,10 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         const nextAnnotations = attachAnnotationsToPageIds(operatedAnnotations, nextDocument);
         annotationsRef.current = nextAnnotations;
         setAnnotations(nextAnnotations);
-        scheduleSidecarSave(nextAnnotations);
+        const nextNotes = synchronizeNoteAnchors(applyOperationToNotes(notesRef.current, operation), nextAnnotations);
+        notesRef.current = nextNotes;
+        setNotes(nextNotes);
+        scheduleSidecarSave(nextAnnotations, nextNotes);
         await updatePageDocument(nextDocument);
         saveManager.markDirty(fileId);
         setIsDirty(true);
@@ -736,6 +780,16 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         for (const annotation of annotationsRef.current) {
             if (annotation.pageId && ids.has(annotation.pageId)) {
                 operations.push(createDeleteOperation(annotation, fileId));
+            }
+        }
+        const deletedHighlightIds = new Set(
+            annotationsRef.current.filter(annotation => annotation.type === 'highlight' && annotation.pageId && ids.has(annotation.pageId))
+                .map(annotation => annotation.id),
+        );
+        for (const note of notesRef.current) {
+            const nextAnchors = note.anchors.filter(anchor => !deletedHighlightIds.has(anchor.highlightId));
+            if (nextAnchors.length !== note.anchors.length) {
+                operations.push(createUpdateNoteOperation({ ...note, anchors: nextAnchors, updatedAt: Date.now() }, note, fileId));
             }
         }
         void commitPageOperation(createBatchOperation(operations, fileId));
@@ -788,8 +842,12 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             selectedDocument,
         );
         if (!selectedAnnotations.length) return bytes;
+        const selectedNotes = notesForHighlights(
+            notesRef.current,
+            new Set(selectedAnnotations.filter(annotation => annotation.type === 'highlight').map(annotation => annotation.id)),
+        );
         const pdf = await PDFDocument.load(bytes);
-        await embedAnnotations(pdf, selectedAnnotations);
+        await embedAnnotations(pdf, selectedAnnotations, selectedNotes);
         return pdf.save();
     }, [loadSource]);
 
@@ -822,6 +880,51 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         const pageElement = containerRef.current?.querySelector(`[data-page-id="${highlight.pageId ?? ''}"]`);
         pageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, []);
+
+    const handleCreateNote = useCallback(async () => {
+        const note = createDocumentNote(crypto.randomUUID());
+        await commitAnnotationOperation(createAddNoteOperation(note, fileId));
+        setActiveNoteId(note.id);
+        setShowNotes(true);
+    }, [commitAnnotationOperation, fileId]);
+
+    const handleNoteChange = useCallback(async (note: DocumentNote) => {
+        const previous = notesRef.current.find(item => item.id === note.id);
+        if (previous) await commitAnnotationOperation(createUpdateNoteOperation(note, previous, fileId));
+    }, [commitAnnotationOperation, fileId]);
+
+    const handleNoteDelete = useCallback(async (note: DocumentNote) => {
+        await commitAnnotationOperation(createDeleteNoteOperation(note, fileId));
+        setActiveNoteId(current => current === note.id ? null : current);
+    }, [commitAnnotationOperation, fileId]);
+
+    const handleAttachFocusedHighlight = useCallback(async () => {
+        const note = notesRef.current.find(item => item.id === activeNoteId);
+        const highlight = annotationsRef.current.find(
+            (item): item is HighlightAnnotation => item.id === focusedHighlightId && item.type === 'highlight',
+        );
+        if (!note || !highlight) return;
+        const updated = addAnchorToNote(note, createNoteAnchor(highlight));
+        if (updated === note) return;
+        const operations: Operation[] = notesRef.current.flatMap(item => {
+            if (item.id === note.id || !item.anchors.some(anchor => anchor.highlightId === highlight.id)) return [];
+            return [createUpdateNoteOperation(removeAnchorFromNote(item, highlight.id), item, fileId)];
+        });
+        operations.push(createUpdateNoteOperation(updated, note, fileId));
+        await commitAnnotationOperation(operations.length === 1 ? operations[0] : createBatchOperation(operations, fileId));
+    }, [activeNoteId, commitAnnotationOperation, fileId, focusedHighlightId]);
+
+    const handleDetachNoteAnchor = useCallback(async (note: DocumentNote, highlightId: string) => {
+        const updated = removeAnchorFromNote(note, highlightId);
+        await commitAnnotationOperation(createUpdateNoteOperation(updated, note, fileId));
+    }, [commitAnnotationOperation, fileId]);
+
+    const focusNoteAnchor = useCallback((anchor: NoteAnchor) => {
+        const highlight = annotationsRef.current.find(
+            (item): item is HighlightAnnotation => item.id === anchor.highlightId && item.type === 'highlight',
+        );
+        if (highlight) focusHighlight(highlight);
+    }, [focusHighlight]);
 
     const handlePagesScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
         if (readingProgressTimeoutRef.current) clearTimeout(readingProgressTimeoutRef.current);
@@ -904,11 +1007,17 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                 <NotesPanel
                     documentId={stableId}
                     documentTitle={fileName}
-                    highlights={annotations.filter((annotation): annotation is HighlightAnnotation => annotation.type === 'highlight')}
-                    focusedId={focusedHighlightId}
+                    notes={notes}
+                    activeNoteId={activeNoteId}
+                    focusedHighlightId={focusedHighlightId}
                     onClose={() => setShowNotes(false)}
-                    onFocus={focusHighlight}
-                    onChange={handleAnnotationSave}
+                    onCreate={handleCreateNote}
+                    onSelect={setActiveNoteId}
+                    onChange={handleNoteChange}
+                    onDelete={handleNoteDelete}
+                    onFocusAnchor={focusNoteAnchor}
+                    onAttachFocused={handleAttachFocusedHighlight}
+                    onDetachAnchor={handleDetachNoteAnchor}
                 />
             )}
             </div>
@@ -916,6 +1025,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
             <PageOrganizer
                 open={showPageOrganizer}
                 pages={pageDocument?.pages ?? []}
+                pdfDoc={pdfDoc}
                 onClose={() => setShowPageOrganizer(false)}
                 onAddBlank={handleAddBlankPage}
                 onDelete={handleDeletePages}

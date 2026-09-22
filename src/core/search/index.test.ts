@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFullTextIndex, matchBounds, searchFullTextIndex, tokenize, type IndexedSearchPage } from './index';
+import { buildFullTextIndex, matchBounds, resolveSearchScopeIds, searchFullTextIndex, tokenize, type IndexedSearchPage } from './index';
 
 const page = (pageNumber: number, text: string): IndexedSearchPage => ({
     docId: 'doc',
@@ -27,5 +27,11 @@ describe('full text index', () => {
     it('returns the matching span bounds', () => {
         const [result] = searchFullTextIndex(buildFullTextIndex([page(1, 'eigenvalue')]), 'eigenvalue');
         expect(matchBounds(result)).toEqual({ x0: 0.1, y0: 0.2, x1: 0.8, y1: 0.3 });
+    });
+
+    it('uses stable document ids for current and explicit search scopes', () => {
+        expect(resolveSearchScopeIds('current', 'open-doc')).toEqual(['open-doc']);
+        expect(resolveSearchScopeIds('another-doc', 'open-doc')).toEqual(['another-doc']);
+        expect(resolveSearchScopeIds('all', 'open-doc')).toEqual([]);
     });
 });

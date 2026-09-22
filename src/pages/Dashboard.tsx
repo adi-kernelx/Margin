@@ -16,6 +16,7 @@ import { localFileDB } from '@/lib/storage/local-file-db';
 import type { LocalFile } from '@/types/editor-types';
 import { computeStableId, computeStableIdForFile } from '@/lib/doc-id';
 import type { LayoutNode } from '@/core/workspace/layout';
+import { createFileIdentity } from '@/core/library/references';
 import {
     activateTab,
     addTabs,
@@ -30,7 +31,7 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { LibraryGrid } from '@/components/LibraryGrid';
 import { libraryDB } from '@/lib/storage/library-db';
-import type { LibraryFile } from '@/types/library';
+import { ROOT_FOLDER_ID, type LibraryFile } from '@/types/library';
 
 // Pending permission request info
 interface PendingPermission {
@@ -39,15 +40,17 @@ interface PendingPermission {
     handle: FileSystemFileHandle;
 }
 
-async function loadLibraryDocument(entry: LibraryFile): Promise<DocumentEntry | null> {
-    const blob = await libraryDB.getFileBlob(entry.id);
-    if (!blob) return null;
-    const file = new File([blob], entry.name, { type: entry.mimeType || 'application/pdf' });
-    const stableId = await computeStableIdForFile(file);
+async function loadLibraryDocument(entry: LibraryFile): Promise<{ document?: DocumentEntry; error?: string }> {
+    const access = await libraryDB.openFile(entry.id, true);
+    if (access.status === 'permission-required') return { error: 'Permission is required to read this PDF reference.' };
+    if (access.status === 'missing-source') return { error: 'The referenced PDF was moved, deleted, or is no longer available.' };
+    if (access.status !== 'ready') return { error: 'This library entry no longer exists.' };
+    const file = access.file;
+    const stableId = access.handle ? await computeStableId(access.handle) : await computeStableIdForFile(file);
     const now = Date.now();
     const existing = await localFileDB.getLocalFile(entry.id);
     if (existing) {
-        await localFileDB.updateLocalFile(entry.id, { pdfFingerprint: stableId, displayName: entry.name });
+        await localFileDB.updateLocalFile(entry.id, { pdfFingerprint: stableId, displayName: entry.name, pdfFileHandle: access.handle });
     } else {
         await localFileDB.createLocalFile({
             localFileId: entry.id,
@@ -57,17 +60,19 @@ async function loadLibraryDocument(entry: LibraryFile): Promise<DocumentEntry | 
             autosaveIntervalSec: 10,
             createdAt: entry.createdAt,
             updatedAt: now,
+            pdfFileHandle: access.handle,
         });
     }
     await libraryDB.updateFileMetadata(entry.id, { lastOpenedAt: now, lastReadPage: entry.lastReadPage ?? 1 });
-    return {
+    return { document: {
         id: entry.id,
         stableId,
         pdfFingerprint: stableId,
         name: entry.name,
         file,
         fileUrl: URL.createObjectURL(file),
-    };
+        fileHandle: access.handle,
+    } };
 }
 
 export default function Dashboard() {
@@ -76,6 +81,7 @@ export default function Dashboard() {
     const [replicateToolbar, setReplicateToolbar] = useState(false);
     const [showLibrary, setShowLibrary] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pendingImportFolderRef = useRef(ROOT_FOLDER_ID);
 
     // Permission prompt state
     const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null);
@@ -138,8 +144,17 @@ export default function Dashboard() {
             setShowLibrary(false);
             return;
         }
-        const document = await loadLibraryDocument(entry);
-        if (document) addDocumentsToWorkspace([document]);
+        const result = await loadLibraryDocument(entry);
+        if (!result.document) {
+            window.alert(result.error ?? 'Could not open this PDF reference.');
+            return;
+        }
+        if (result.document.fileHandle) {
+            useSaveStore.getState().setFileHandle(result.document.id, result.document.fileHandle);
+        } else {
+            useSaveStore.getState().setNeedsUserAction(result.document.id, { reason: 'no-handle' });
+        }
+        addDocumentsToWorkspace([result.document]);
     };
 
     const focusDocument = (docId: string) => {
@@ -173,7 +188,8 @@ export default function Dashboard() {
         setPendingPermission(null);
     };
 
-    const handleOpenPDF = async () => {
+    const handleOpenPDF = async (targetFolderId = ROOT_FOLDER_ID) => {
+        pendingImportFolderRef.current = targetFolderId;
         if ('showOpenFilePicker' in window) {
             try {
                 const handles = await (window as any).showOpenFilePicker({
@@ -187,7 +203,8 @@ export default function Dashboard() {
                 for (let i = 0; i < handles.length; i++) {
                     const handle = handles[i] as FileSystemFileHandle;
                     const file = await handle.getFile();
-                    const docId = crypto.randomUUID();
+                    const libraryEntry = await libraryDB.addFileReference(handle, targetFolderId);
+                    const docId = libraryEntry.id;
                     const stableId = await computeStableId(handle);
 
                     // Check if we have seen this file before (by fingerprint)
@@ -235,6 +252,7 @@ export default function Dashboard() {
                         lastModified: file.lastModified
                     });
 
+                    if (documents.some(document => document.id === docId)) continue;
                     newDocs.push({
                         id: docId,
                         stableId: stableId,
@@ -245,7 +263,15 @@ export default function Dashboard() {
                     });
                 }
 
-                addDocumentsToWorkspace(newDocs);
+                if (newDocs.length) addDocumentsToWorkspace(newDocs);
+                else if (handles.length === 1) {
+                    const file = await (handles[0] as FileSystemFileHandle).getFile();
+                    const existing = (await libraryDB.listAllFiles()).find(entry => entry.sourceFingerprint === createFileIdentity(file));
+                    if (existing) {
+                        focusDocument(existing.id);
+                        setShowLibrary(false);
+                    }
+                }
 
                 if (firstUnpermittedDoc) {
                     setPendingPermission(firstUnpermittedDoc);
@@ -266,11 +292,29 @@ export default function Dashboard() {
 
             for (let i = 0; i < e.target.files.length; i++) {
                 const file = e.target.files[i];
-                const docId = crypto.randomUUID();
+                const libraryEntry = await libraryDB.importFile(file, pendingImportFolderRef.current);
+                const docId = libraryEntry.id;
                 const stableId = await computeStableIdForFile(file);
 
                 useSaveStore.getState().setNeedsUserAction(docId, { reason: 'no-handle' });
 
+                const existingRecord = await localFileDB.getLocalFile(docId);
+                const now = Date.now();
+                if (existingRecord) {
+                    await localFileDB.updateLocalFile(docId, { pdfFingerprint: stableId, displayName: file.name });
+                } else {
+                    await localFileDB.createLocalFile({
+                        localFileId: docId,
+                        pdfFingerprint: stableId,
+                        displayName: file.name,
+                        autosaveEnabled: false,
+                        autosaveIntervalSec: 10,
+                        createdAt: now,
+                        updatedAt: now,
+                    });
+                }
+
+                if (documents.some(document => document.id === docId)) continue;
                 newDocs.push({
                     id: docId,
                     stableId: stableId,
@@ -280,7 +324,7 @@ export default function Dashboard() {
                 });
             }
 
-            addDocumentsToWorkspace(newDocs);
+            if (newDocs.length) addDocumentsToWorkspace(newDocs);
             e.target.value = '';
         }
     };
@@ -468,7 +512,7 @@ export default function Dashboard() {
             isDarkMode && 'dark'
         )}>
             <Header
-                onOpenPDF={handleOpenPDF}
+                onOpenPDF={() => void handleOpenPDF()}
                 documents={documents}
                 onRemoveDocument={removeDocument}
                 onRefreshDocument={handleRefreshDocument}
@@ -505,16 +549,16 @@ export default function Dashboard() {
                 <div className="flex-1 overflow-hidden relative bg-ground flex">
                     <div className="flex-1 overflow-hidden relative">
                         {showLibrary ? (
-                            <LibraryGrid onOpen={handleOpenLibraryFile} />
+                            <LibraryGrid onOpen={handleOpenLibraryFile} onAddReferences={(folderId) => void handleOpenPDF(folderId)} />
                         ) : documents.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full bg-ground text-text-muted gap-4">
                                 <p className="text-lg">Open a mathematical document to get started</p>
                                 <div className="flex gap-4">
                                     <Button
-                                        onClick={handleOpenPDF}
+                                        onClick={() => void handleOpenPDF()}
                                         variant="primary"
                                     >
-                                        Open Local PDF
+                                        Open and add PDF
                                     </Button>
 
                                 </div>

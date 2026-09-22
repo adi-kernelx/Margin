@@ -12,6 +12,10 @@ export function createPageDocument(pages: PageRecord[]): PageDocument {
     return { schemaVersion: 1, pages: [...pages] };
 }
 
+export function pageDocumentRevision(document: PageDocument): string {
+    return `pages:${document.pages.map(page => `${page.id}@${page.rotation}`).join(',')}`;
+}
+
 export function applyPageOperation(document: PageDocument, operation: PageOperation): PageDocument {
     const pages = [...document.pages];
 
