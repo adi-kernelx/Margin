@@ -1,8 +1,13 @@
 import { saveManager, useSaveStore } from '@/lib/saving/save-manager';
 import type { SaveStoreState } from '@/lib/saving/save-manager';
 import { cn } from '@/lib/utils';
-import { X, Save, FileDown, ToggleLeft, ToggleRight, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Cloud, HardDrive, Package } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertTriangle, Braces, CheckCircle2, FileDown, HardDrive, Layers, Loader2, Package, Save } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useMemo } from 'react';
+import { Dialog } from './ui/Dialog';
+import { Button } from './ui/Button';
+import { Switch } from './ui/Switch';
+import { EmptyState } from './ui/States';
 
 interface SaveOptionsModalProps {
     isOpen: boolean;
@@ -11,200 +16,125 @@ interface SaveOptionsModalProps {
     docId?: string; // If local, which doc
 }
 
+interface NeedsUserAction {
+    reason: 'no-handle' | 'no-permission' | 'error';
+    message?: string;
+}
+
 export function SaveOptionsModal({ isOpen, onClose, mode, docId }: SaveOptionsModalProps) {
-    if (!isOpen) return null;
-
-    const isDirtyByPdf = useSaveStore((state: SaveStoreState) => state.isDirtyByPdf);
-    const autosaveEnabledByPdf = useSaveStore((state: SaveStoreState) => state.autosaveEnabledByPdf);
-    const saveStatusByPdf = useSaveStore((state: SaveStoreState) => state.saveStatusByPdf);
-    const needsUserActionMap = useSaveStore((state: SaveStoreState) => state.needsUserAction);
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 m-4 border dark:border-gray-700" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold dark:text-white">
-                        {mode === 'global' ? 'Save Options (All Files)' : 'Save Options'}
-                    </h2>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                        <X size={20} className="text-gray-500" />
-                    </button>
-                </div>
-
-                <div className="space-y-4">
-                    <DocsList
-                        mode={mode}
-                        targetDocId={docId}
-                        isDirtyByPdf={isDirtyByPdf}
-                        autosaveEnabledByPdf={autosaveEnabledByPdf}
-                        saveStatusByPdf={saveStatusByPdf}
-                        needsUserActionMap={needsUserActionMap}
-                    />
-                </div>
-            </div>
-        </div>
+        <Dialog
+            open={isOpen}
+            onClose={onClose}
+            size="lg"
+            icon={<Save size={16} />}
+            title={mode === 'global' ? 'Save and export — all documents' : 'Save and export'}
+            description="Everything is written locally. Nothing leaves this machine."
+            footer={<Button onClick={onClose}>Done</Button>}
+        >
+            {isOpen && <DocsList mode={mode} targetDocId={docId} />}
+        </Dialog>
     );
 }
 
-interface DocsListProps {
-    mode: 'global' | 'local';
-    targetDocId?: string;
-    isDirtyByPdf: Record<string, boolean>;
-    autosaveEnabledByPdf: Record<string, boolean>;
-    saveStatusByPdf: Record<string, string>;
-    needsUserActionMap: Record<string, any>;
-}
+type ExportKind = 'save' | 'flatten' | 'json' | 'package';
 
-function DocsList({ mode, targetDocId, isDirtyByPdf, autosaveEnabledByPdf, saveStatusByPdf, needsUserActionMap }: DocsListProps) {
-    const [docs, setDocs] = useState<{ id: string; name: string; kind?: 'local' | 'cloud' }[]>([]);
+const exportOptions: { kind: ExportKind; title: string; description: string; icon: ReactNode }[] = [
+    { kind: 'save', title: 'PDF, editable annotations', description: 'Write back to the original file. Annotations stay editable in Margin.', icon: <Save size={18} /> },
+    { kind: 'flatten', title: 'Flattened PDF', description: 'Burn annotations into the page. Opens the same in any reader.', icon: <Layers size={18} /> },
+    { kind: 'json', title: 'Margin JSON', description: 'Annotations and notes only — small, diff-able, re-importable.', icon: <Braces size={18} /> },
+    { kind: 'package', title: 'Complete package', description: 'Original PDF, flattened PDF and JSON in one archive.', icon: <Package size={18} /> },
+];
 
-    useEffect(() => {
+function DocsList({ mode, targetDocId }: { mode: 'global' | 'local'; targetDocId?: string }) {
+    const isDirtyByPdf = useSaveStore((state: SaveStoreState) => state.isDirtyByPdf);
+    const autosaveEnabledByPdf = useSaveStore((state: SaveStoreState) => state.autosaveEnabledByPdf);
+    const saveStatusByPdf = useSaveStore((state: SaveStoreState) => state.saveStatusByPdf);
+    const needsUserActionMap = useSaveStore((state: SaveStoreState) => state.needsUserAction) as Record<string, NeedsUserAction | undefined>;
+    // Read once per mount; the list is mounted fresh each time the dialog opens.
+    const docs = useMemo(() => {
         const list = saveManager.getRegisteredDocs();
-        if (mode === 'local' && targetDocId) {
-            setDocs(list.filter(d => d.id === targetDocId));
-        } else {
-            setDocs(list);
-        }
+        return mode === 'local' && targetDocId ? list.filter(d => d.id === targetDocId) : list;
     }, [mode, targetDocId]);
 
-    const handleToggleAutosave = async (id: string, current: boolean) => {
-        console.log('[SaveOptionsModal] Toggling autosave for', id, 'Current:', current);
-        if (current) {
-            saveManager.disableAutosave(id);
-        } else {
-            saveManager.enableAutosave(id);
-        }
+    const run = async (id: string, kind: ExportKind, saveAs = false) => {
+        if (kind === 'save') await saveManager.saveDoc(id, { forcePicker: saveAs });
+        else if (kind === 'flatten') await saveManager.saveDoc(id, { flatten: true });
+        else if (kind === 'json') await saveManager.saveDoc(id, { download: true });
+        else await saveManager.saveDoc(id, { downloadPackage: true });
     };
 
-    const handleSave = async (id: string, saveAs: boolean) => {
-        await saveManager.saveDoc(id, { forcePicker: saveAs });
-    };
-
-    const handleDownloadPackage = async (id: string) => {
-        await saveManager.saveDoc(id, { downloadPackage: true });
-    };
-
-    const handleFlatten = async (id: string) => {
-        await saveManager.saveDoc(id, { flatten: true });
-    };
-
-    const handleJSON = async (id: string) => {
-        await saveManager.saveDoc(id, { download: true });
-    };
-
-    if (docs.length === 0) return <div className="text-gray-500 py-4 text-center">No documents found.</div>;
+    if (docs.length === 0) {
+        return <EmptyState compact title="No documents open" description="Open a PDF to save or export it." />;
+    }
 
     return (
-        <div className="flex flex-col gap-3 max-h-80 overflow-y-auto">
+        <div className="space-y-5">
             {docs.map((doc) => {
-                const isDirty = isDirtyByPdf[doc.id];
-                const isAutosave = autosaveEnabledByPdf[doc.id];
+                const isDirty = Boolean(isDirtyByPdf[doc.id]);
+                const isAutosave = Boolean(autosaveEnabledByPdf[doc.id]);
                 const status = saveStatusByPdf[doc.id] || 'idle';
                 const needsAction = needsUserActionMap[doc.id];
-                const isCloud = doc.kind === 'cloud';
+                const busy = status === 'saving';
 
                 return (
-                    <div key={doc.id} className="flex flex-col gap-2 p-3 rounded-lg border dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2 truncate max-w-[200px]">
-                                {/* File Type Icon */}
-                                {isCloud ? (
-                                    <Cloud size={16} className="text-blue-500 flex-shrink-0" />
-                                ) : (
-                                    <HardDrive size={16} className="text-gray-500 flex-shrink-0" />
-                                )}
-
-                                {/* File Name with Type Badge */}
-                                <span className="font-medium dark:text-gray-200 truncate" title={doc.name}>
-                                    {doc.name}
-                                </span>
+                    <section key={doc.id} className="space-y-3" aria-label={doc.name}>
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-2 p-3 shadow-elev-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                                <HardDrive size={16} className="shrink-0 text-text-muted" />
+                                <span className="truncate font-medium" title={doc.name}>{doc.name}</span>
                                 <span className={cn(
-                                    "text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0",
-                                    isCloud
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                                        : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                                    'inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium',
+                                    isDirty ? 'border-warning bg-warning-soft text-warning' : 'border-success bg-success-soft text-success',
                                 )}>
-                                    {isCloud ? 'Cloud' : 'Local'}
+                                    {isDirty ? 'Unsaved changes' : <><CheckCircle2 size={11} />Saved</>}
                                 </span>
-
-                                {isDirty && <span className="text-xs text-amber-500 font-bold">●</span>}
                             </div>
-
-                            {/* Autosave Toggle */}
-                            <button
-                                onClick={() => handleToggleAutosave(doc.id, !!isAutosave)}
-                                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 transition-colors"
-                            >
-                                {isAutosave ? <ToggleRight className="text-blue-600" size={24} strokeWidth={2.5} /> : <ToggleLeft size={24} />}
-                                <span>Autosave</span>
-                            </button>
+                            <Switch
+                                className="shrink-0"
+                                label="Autosave"
+                                checked={isAutosave}
+                                onChange={(next) => next ? saveManager.enableAutosave(doc.id) : saveManager.disableAutosave(doc.id)}
+                            />
                         </div>
 
-                        {/* Needs Action Warning */}
                         {needsAction && (
-                            <div className="flex items-center gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
-                                <AlertTriangle size={16} />
+                            <div role="alert" className="flex items-center gap-2 rounded-lg border border-warning bg-warning-soft p-2 text-sm text-warning">
+                                <AlertTriangle size={16} className="shrink-0" />
                                 <span>
-                                    {needsAction.reason === 'no-handle' && 'No file selected. Click Save As to pick a location.'}
-                                    {needsAction.reason === 'no-permission' && 'Write permission needed. Click Save As to re-grant.'}
+                                    {needsAction.reason === 'no-handle' && 'No file location yet. Use “Save as…” to pick one.'}
+                                    {needsAction.reason === 'no-permission' && 'Write permission is needed. Use “Save as…” to grant it again.'}
                                     {needsAction.reason === 'error' && (needsAction.message || 'Save failed.')}
                                 </span>
                             </div>
                         )}
 
-                        <div className="flex flex-wrap gap-2 mt-2">
-                            {/* 1. Quick Save */}
-                            <button
-                                onClick={() => handleSave(doc.id, false)}
-                                disabled={status === 'saving'}
-                                className={cn(
-                                    "flex-1 min-w-[100px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                                    status === 'done' ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                        status === 'error' ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                                            "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                                )}
-                            >
-                                {status === 'saving' ? <Loader2 className="animate-spin" size={16} /> :
-                                    status === 'done' ? <CheckCircle2 size={16} /> :
-                                        status === 'error' ? <AlertCircle size={16} /> :
-                                            <Save size={16} />}
-                                {status === 'saving' ? 'Saving...' : status === 'done' ? 'Saved' : status === 'error' ? 'Retry' : 'Save'}
-                            </button>
-
-                            {/* 2. Package Download */}
-                            <button
-                                onClick={() => handleDownloadPackage(doc.id)}
-                                disabled={status === 'saving'}
-                                className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 transition-colors"
-                                title="Download Original PDF + Flattened PDF + JSON as a package"
-                            >
-                                <Package size={16} />
-                                Package
-                            </button>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {exportOptions.map(option => (
+                                <button
+                                    key={option.kind}
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void run(doc.id, option.kind)}
+                                    className="depth-pressable flex items-start gap-3 border border-line p-3 text-left disabled:cursor-wait disabled:opacity-60"
+                                >
+                                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+                                        {busy && option.kind === 'save' ? <Loader2 size={18} className="animate-spin" /> : option.icon}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block text-sm font-semibold text-text">{option.title}</span>
+                                        <span className="mt-0.5 block text-xs leading-relaxed text-text-muted">{option.description}</span>
+                                    </span>
+                                </button>
+                            ))}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                            {/* 3. JSON Only */}
-                            <button
-                                onClick={() => handleJSON(doc.id)}
-                                disabled={status === 'saving'}
-                                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 transition-colors"
-                            >
-                                <FileDown size={14} />
-                                JSON
-                            </button>
-
-                            {/* 4. Flatten PDF Only */}
-                            <button
-                                onClick={() => handleFlatten(doc.id)}
-                                disabled={status === 'saving'}
-                                className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 transition-colors"
-                            >
-                                <FileDown size={14} />
-                                Flatten PDF
-                            </button>
+                        <div className="flex justify-end">
+                            <Button size="sm" variant="ghost" disabled={busy} leadingIcon={<FileDown size={14} />} onClick={() => void run(doc.id, 'save', true)}>
+                                Save as…
+                            </Button>
                         </div>
-                    </div>
+                    </section>
                 );
             })}
         </div>

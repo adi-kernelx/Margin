@@ -35,6 +35,10 @@ import { Button } from '@/components/ui/Button';
 import { LibraryGrid } from '@/components/LibraryGrid';
 import { libraryDB } from '@/lib/storage/library-db';
 import { ROOT_FOLDER_ID, type LibraryFile } from '@/types/library';
+import { CommandLayer } from '@/components/CommandLayer';
+import { CoachMarks } from '@/components/CoachMarks';
+import { EmptyState, PaperStackArt } from '@/components/ui/States';
+import { WorkspaceCommands } from '@/components/WorkspaceCommands';
 
 // Pending permission request info
 interface PendingPermission {
@@ -511,7 +515,6 @@ export default function Dashboard() {
     };
 
     const [showAIChat, setShowAIChat] = useState(false);
-
     return (
         <div className={cn(
             "flex h-screen w-screen overflow-hidden flex-col bg-ground text-text",
@@ -556,18 +559,13 @@ export default function Dashboard() {
                         {showLibrary ? (
                             <LibraryGrid onOpen={handleOpenLibraryFile} onAddReferences={(folderId) => void handleOpenPDF(folderId)} />
                         ) : documents.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full bg-ground text-text-muted gap-4">
-                                <p className="text-lg">Open a mathematical document to get started</p>
-                                <div className="flex gap-4">
-                                    <Button
-                                        onClick={() => void handleOpenPDF()}
-                                        variant="primary"
-                                    >
-                                        Open and add PDF
-                                    </Button>
-
-                                </div>
-                            </div>
+                            <EmptyState
+                                className="h-full bg-ground"
+                                art={<PaperStackArt size={112} />}
+                                title="Open a mathematical document to get started"
+                                description="Files stay on this machine. Press Ctrl+K at any time to find a command."
+                                action={<Button onClick={() => void handleOpenPDF()} variant="primary">Open and add PDF</Button>}
+                            />
                         ) : (
                             <DocumentsGrid
                                 documents={documents}
@@ -582,6 +580,8 @@ export default function Dashboard() {
                     <AIChatSidebar
                         isOpen={showAIChat}
                         onClose={() => setShowAIChat(false)}
+                        documents={documents}
+                        onFocusDocument={focusDocument}
                         variant="embedded"
                     />
                 </div>
@@ -589,6 +589,18 @@ export default function Dashboard() {
 
             <StatusBar documents={documents} paneCount={countPanes(workspaceLayout)} />
             <ToastContainer />
+            <CommandLayer />
+            <WorkspaceCommands
+                documents={documents}
+                focusedDocId={focusedDocId}
+                assistantOpen={showAIChat}
+                onOpenPdf={() => void handleOpenPDF()}
+                onShowLibrary={() => setShowLibrary(true)}
+                onToggleAssistant={() => setShowAIChat(value => !value)}
+                onCloseDocument={removeDocument}
+                onFocusDocument={focusDocument}
+            />
+            <CoachMarks />
         </div>
     );
 }

@@ -1,10 +1,14 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, ChevronDown, FileText, Files } from "lucide-react";
+import { useState, useCallback, useRef, useEffect, useId, useMemo } from "react";
+import { Search, ChevronDown, FileText, Files, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "@/lib/store";
 import { localSearchRegistry } from "@/lib/search/local-search";
 import type { SearchSpan, SearchResult } from "@/lib/search/local-search";
 import { resolveSearchScopeIds } from '@/core/search/index';
+import { groupBy, highlightSegments, snippetAround } from '@/core/search/snippet';
+import { FOCUS_SEARCH_EVENT } from '@/lib/ui/ui-store';
+import { IconButton } from './ui/IconButton';
+import { EmptyState, ErrorState } from './ui/States';
+import { KeyCaps } from './CommandLayer';
 export type { SearchSpan, SearchResult };
 
 export type SearchHighlight = {
@@ -35,6 +39,12 @@ interface SearchBarProps {
     compact?: boolean;
 }
 
+const RESULT_LIMIT = 50;
+
+function truncateName(name: string, maxLen = 20) {
+    return name.length <= maxLen ? name : `${name.slice(0, maxLen - 1)}…`;
+}
+
 export function SearchBar({
     currentDocId,
     currentDocName,
@@ -45,38 +55,41 @@ export function SearchBar({
     onFocusDocument,
     compact = false
 }: SearchBarProps) {
-    const { isDarkMode } = useAppStore();
     const [query, setQuery] = useState("");
+    const [submittedQuery, setSubmittedQuery] = useState("");
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
-    const [isExpanded, setIsExpanded] = useState(false);  // For expandable mode
+    const [isExpanded, setIsExpanded] = useState(!compact);
     const [error, setError] = useState<string | null>(null);
     const [scope, setScope] = useState<SearchScope>("current");
     const [showScopeMenu, setShowScopeMenu] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(-1);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const listId = useId();
 
-    const handleScopeChange = (newScope: SearchScope) => {
-        setScope(newScope);
-        setShowScopeMenu(false);
-    };
-
-    // Initialize locked fingerprint when search bar expands
-    const handleExpand = () => {
+    const expand = useCallback(() => {
         setIsExpanded(true);
-        setTimeout(() => inputRef.current?.focus(), 50);
-    };
+        requestAnimationFrame(() => {
+            inputRef.current?.focus();
+            inputRef.current?.select();
+        });
+    }, []);
 
-    // Close dropdown on click outside
+    // Ctrl+F (via the command registry) and any other surface can focus search.
+    useEffect(() => {
+        window.addEventListener(FOCUS_SEARCH_EVENT, expand);
+        return () => window.removeEventListener(FOCUS_SEARCH_EVENT, expand);
+    }, [expand]);
+
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
                 setIsOpen(false);
                 setShowScopeMenu(false);
-                if (compact && !query.trim()) {
-                    setIsExpanded(false);
-                }
+                if (compact && !query.trim()) setIsExpanded(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -84,206 +97,143 @@ export function SearchBar({
     }, [compact, query]);
 
     const runSearch = useCallback(async () => {
-        if (!query.trim()) return;
-
+        const trimmed = query.trim();
+        if (!trimmed) return;
         setIsLoading(true);
         setError(null);
-
-        console.log('[SearchBar] Search:', query.trim(), 'Scope:', scope);
-
+        setIsOpen(true);
         try {
             // The open-tab id is stable across merge/materialize cycles; a PDF
             // fingerprint is not, so using it here would make current-document
             // search silently lose the document immediately after a merge.
             const scopeIds = resolveSearchScopeIds(scope, currentDocId);
-
-            console.log('[SearchBar] Calling local search with scopeIds:', scopeIds);
-            
-            // Execute local search
-            let searchResults = await localSearchRegistry.search(query.trim(), scopeIds);
-            console.log('[SearchBar] Raw results:', searchResults.length);
-
-            // Filter to only open documents when searching "All open PDFs"
+            let searchResults = await localSearchRegistry.search(trimmed, scopeIds);
             if (scope === "all" && openDocIds.length > 0) {
-                searchResults = searchResults.filter((r: SearchResult) =>
-                    openDocIds.includes(r.docId)
-                );
-                console.log('[SearchBar] Filtered to open docs:', searchResults.length);
+                searchResults = searchResults.filter((r: SearchResult) => openDocIds.includes(r.docId));
             }
-
-            setResults(searchResults.slice(0, 50)); // Limit to 50 results
-            setIsOpen(true);
+            setResults(searchResults.slice(0, RESULT_LIMIT));
+            setSubmittedQuery(trimmed);
+            setActiveIndex(searchResults.length ? 0 : -1);
         } catch (err) {
             console.error("[SearchBar] Search error:", err);
-            setError("Search failed. Please try again.");
+            setError("The local index could not be read.");
             setResults([]);
         } finally {
             setIsLoading(false);
         }
     }, [query, scope, currentDocId, openDocIds]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            runSearch();
+    const resolveDocName = useCallback((result: SearchResult) => {
+        if (result.pdfFingerprint) {
+            const match = documents.find(d => d.fingerprint === result.pdfFingerprint);
+            if (match) return match.name;
         }
-        if (e.key === "Escape") {
-            setIsOpen(false);
-            setShowScopeMenu(false);
-        }
-    };
+        return documentNames[result.docId]
+            || documents.find(d => d.id === result.docId)?.name
+            || (scope !== 'all' && scope !== 'current' ? documentNames[scope] : undefined)
+            || currentDocName
+            || 'Document';
+    }, [documents, documentNames, scope, currentDocName]);
+
+    // Each result carries its position in visual order, so arrow keys walk
+    // the groups top to bottom.
+    const groups = useMemo(() => {
+        let position = 0;
+        return groupBy(results, resolveDocName).map(group => ({
+            key: group.key,
+            items: group.items.map(result => ({ result, index: position++ })),
+        }));
+    }, [results, resolveDocName]);
+    const flat = useMemo(() => groups.flatMap(group => group.items.map(item => item.result)), [groups]);
+
+    useEffect(() => {
+        listRef.current?.querySelector(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' });
+    }, [activeIndex]);
 
     const handleSelect = (result: SearchResult) => {
-        // If result is from a different document, focus it first
-        if (result.docId !== currentDocId && onFocusDocument) {
-            onFocusDocument(result.docId);
-        }
+        if (result.docId !== currentDocId && onFocusDocument) onFocusDocument(result.docId);
         onSelect(result);
         setIsOpen(false);
     };
 
-    // Group results by document for "all" scope
-    const groupedResults = scope === "all"
-        ? results.reduce((acc, r) => {
-            if (!acc[r.docId]) acc[r.docId] = [];
-            acc[r.docId].push(r);
-            return acc;
-        }, {} as Record<string, SearchResult[]>)
-        : null;
-
-    // Helper to get display name for a docId
-    const getDocName = (docId: string) => {
-        return documentNames[docId] || docId.slice(0, 12) + '...';
-    };
-
-    // Truncate long names for display
-    const truncateName = (name: string, maxLen: number = 20) => {
-        if (name.length <= maxLen) return name;
-        return name.slice(0, maxLen - 3) + '...';
-    };
-
-    // Scope label shows actual PDF name or "All PDFs"
-    const getScopeLabel = () => {
-        if (scope === "current") {
-            return currentDocName ? truncateName(currentDocName, 12) : "Current";
-        } else if (scope === "all") {
-            return "All PDFs";
-        } else {
-            // Specific docId
-            const name = documentNames[scope] || documents.find(d => d.id === scope)?.name;
-            return name ? truncateName(name, 12) : "PDF";
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "ArrowDown" && isOpen && flat.length) {
+            e.preventDefault();
+            setActiveIndex(index => Math.min(flat.length - 1, index + 1));
+        } else if (e.key === "ArrowUp" && isOpen && flat.length) {
+            e.preventDefault();
+            setActiveIndex(index => Math.max(0, index - 1));
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            // Enter opens the highlighted result when the query hasn't changed
+            // since it was run; otherwise it runs the new query.
+            if (isOpen && activeIndex >= 0 && flat[activeIndex] && query.trim() === submittedQuery) handleSelect(flat[activeIndex]);
+            else void runSearch();
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            if (isOpen) setIsOpen(false);
+            else if (compact) {
+                setQuery('');
+                setIsExpanded(false);
+            }
+            setShowScopeMenu(false);
         }
     };
+
+    const scopeLabel = scope === "current"
+        ? (currentDocName ? truncateName(currentDocName, 14) : "This document")
+        : scope === "all"
+            ? "All open"
+            : truncateName(documentNames[scope] || documents.find(d => d.id === scope)?.name || "Document", 14);
     const ScopeIcon = scope === "all" ? Files : FileText;
 
-    // In compact mode, show only icon when collapsed
     if (compact && !isExpanded) {
         return (
             <div ref={containerRef} className="relative">
-                <button
-                    onClick={handleExpand}
-                    className={cn(
-                        "p-2 rounded-md transition-colors",
-                        isDarkMode
-                            ? "text-gray-400 hover:text-blue-300 hover:bg-gray-800"
-                            : "text-gray-500 hover:text-blue-600 hover:bg-gray-100"
-                    )}
-                    title="Search PDFs"
-                >
+                <IconButton aria-label="Search documents" title="Search (Ctrl+F)" onClick={expand}>
                     <Search size={18} />
-                </button>
+                </IconButton>
             </div>
         );
     }
 
+    const scopeItem = (value: SearchScope, label: string, icon: React.ReactNode, extra?: React.ReactNode, disabled = false) => (
+        <button
+            key={value}
+            role="menuitemradio"
+            aria-checked={scope === value}
+            disabled={disabled}
+            onClick={() => { setScope(value); setShowScopeMenu(false); inputRef.current?.focus(); }}
+            className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-state disabled:cursor-not-allowed disabled:opacity-50",
+                scope === value ? "bg-accent-soft text-accent" : "text-text-soft hover:bg-sunken hover:text-text",
+            )}
+        >
+            {icon}
+            <span className="truncate">{label}</span>
+            {extra}
+        </button>
+    );
+
     return (
-        <div ref={containerRef} className="relative" style={{ minWidth: compact ? 240 : 280 }}>
-            {/* Search Input Row */}
-            <div className="flex items-center gap-1">
-                {/* Scope Selector */}
-                <div className="relative">
+        <div ref={containerRef} className="relative" style={{ minWidth: compact ? 260 : 300 }}>
+            <div className="flex h-8 items-stretch overflow-hidden rounded border border-line bg-sunken shadow-[var(--edge-press)] focus-within:border-accent">
+                <div className="relative flex">
                     <button
                         onClick={() => setShowScopeMenu(!showScopeMenu)}
-                        className={cn(
-                            "flex items-center gap-1 px-2 py-1.5 rounded-l-lg border-r-0 text-xs font-medium transition-colors",
-                            isDarkMode
-                                ? "bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600"
-                                : "bg-gray-100 border border-gray-300 text-gray-600 hover:bg-gray-200"
-                        )}
+                        aria-haspopup="menu"
+                        aria-expanded={showScopeMenu}
+                        className="flex items-center gap-1 border-r border-line bg-surface-2 px-2 text-xs font-medium text-text-soft transition-colors duration-state hover:text-text"
                         title="Search scope"
                     >
-                        <ScopeIcon size={14} />
-                        <span className="hidden sm:inline max-w-[80px] truncate">{getScopeLabel()}</span>
+                        <ScopeIcon size={13} />
+                        <span className="hidden max-w-[90px] truncate sm:inline">{scopeLabel}</span>
                         <ChevronDown size={12} />
                     </button>
-
-                    {/* Scope Dropdown with Individual PDFs */}
-                    {showScopeMenu && (
-                        <div className={cn(
-                            "absolute top-full left-0 mt-1 w-52 max-h-64 overflow-y-auto rounded-lg shadow-lg border z-50",
-                            isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-                        )}>
-                            {/* All PDFs option */}
-                            <button
-                                onClick={() => handleScopeChange("all")}
-                                disabled={openDocIds.length === 0}
-                                className={cn(
-                                    "w-full flex items-center gap-2 px-3 py-2 text-sm text-left border-b transition-colors",
-                                    scope === "all"
-                                        ? (isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-600")
-                                        : (isDarkMode ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-50 text-gray-700"),
-                                    isDarkMode ? "border-gray-700" : "border-gray-200",
-                                    openDocIds.length === 0 && "opacity-50 cursor-not-allowed"
-                                )}
-                            >
-                                <Files size={14} />
-                                <span>All open PDFs</span>
-                                {openDocIds.length > 0 && (
-                                    <span className="ml-auto text-xs opacity-60">({openDocIds.length})</span>
-                                )}
-                            </button>
-
-                            {/* Divider label */}
-                            {documents.length > 0 && (
-                                <div className={cn(
-                                    "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide",
-                                    isDarkMode ? "text-gray-500 bg-gray-900" : "text-gray-400 bg-gray-50"
-                                )}>
-                                    Individual PDFs
-                                </div>
-                            )}
-
-                            {/* Individual PDF options */}
-                            {documents.map((doc, idx) => (
-                                <button
-                                    key={doc.id}
-                                    onClick={() => handleScopeChange(doc.id)}
-                                    className={cn(
-                                        "w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors",
-                                        scope === doc.id
-                                            ? (isDarkMode ? "bg-blue-900/30 text-blue-400" : "bg-blue-50 text-blue-600")
-                                            : (isDarkMode ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-50 text-gray-700"),
-                                        idx === documents.length - 1 && "rounded-b-lg"
-                                    )}
-                                >
-                                    <FileText size={14} className="flex-shrink-0" />
-                                    <span className="truncate" title={doc.name}>
-                                        {truncateName(doc.name, 25)}
-                                    </span>
-                                    {doc.id === currentDocId && (
-                                        <span className={cn(
-                                            "ml-auto text-xs px-1.5 py-0.5 rounded",
-                                            isDarkMode ? "bg-gray-700 text-gray-400" : "bg-gray-200 text-gray-500"
-                                        )}>current</span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    )}
                 </div>
-
-                {/* Search Input */}
-                <div className="relative flex-1">
+                <label className="relative flex flex-1 items-center">
+                    <span className="sr-only">Search text</span>
+                    <Search size={14} className="pointer-events-none absolute left-2 text-text-muted" />
                     <input
                         ref={inputRef}
                         type="text"
@@ -291,194 +241,117 @@ export function SearchBar({
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
                         onFocus={() => results.length > 0 && setIsOpen(true)}
-                        placeholder="Search document..."
-                        className={cn(
-                            "w-full px-3 py-1.5 pl-8 text-sm border-y focus:outline-none focus:ring-2 focus:ring-blue-500",
-                            isDarkMode
-                                ? "bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500"
-                                : "bg-white border-gray-300 text-gray-900 placeholder-gray-400"
-                        )}
+                        placeholder="Search…"
+                        role="combobox"
+                        aria-expanded={isOpen}
+                        aria-controls={listId}
+                        aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+                        className="h-full w-full bg-transparent pl-7 pr-2 text-sm text-text outline-none placeholder:text-text-muted"
                     />
-                    <Search
-                        size={14}
-                        className={cn(
-                            "absolute left-2.5 top-1/2 -translate-y-1/2",
-                            isDarkMode ? "text-gray-500" : "text-gray-400"
-                        )}
-                    />
-                </div>
-
-                {/* Search Button */}
-                <button
-                    onClick={runSearch}
-                    disabled={isLoading || !query.trim()}
-                    className={cn(
-                        "px-3 py-1.5 text-sm font-medium rounded-r-lg transition-colors",
-                        "bg-blue-600 text-white hover:bg-blue-700",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                </label>
+                {isLoading
+                    ? <span className="grid w-8 place-items-center text-text-muted"><Loader2 size={14} className="animate-spin" /></span>
+                    : query && (
+                        <button className="grid w-8 place-items-center text-text-muted hover:text-text" aria-label="Clear search" onClick={() => { setQuery(''); setResults([]); setIsOpen(false); inputRef.current?.focus(); }}>
+                            <X size={14} />
+                        </button>
                     )}
-                >
-                    {isLoading ? "..." : compact ? <Search size={14} /> : "Search"}
-                </button>
             </div>
 
-            {/* Error Message */}
-            {error && (
-                <div className={cn(
-                    "absolute top-full left-0 right-0 mt-1 p-2 text-xs rounded-lg border z-50",
-                    isDarkMode
-                        ? "bg-red-900/20 border-red-800 text-red-400"
-                        : "bg-red-50 border-red-200 text-red-600"
-                )}>
-                    {error}
+            {showScopeMenu && (
+                <div role="menu" aria-label="Search scope" className="absolute left-0 top-full z-popover mt-1 max-h-72 w-60 overflow-y-auto rounded-lg border border-line bg-surface-3 py-1 shadow-elev-3">
+                    {scopeItem("current", currentDocName ? `This document` : "Current document", <FileText size={14} />)}
+                    {scopeItem("all", "All open documents", <Files size={14} />, openDocIds.length > 0 && <span className="ml-auto text-xs text-text-muted">{openDocIds.length}</span>, openDocIds.length === 0)}
+                    {documents.length > 0 && <div className="mt-1 border-t border-line-soft px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-text-muted">Individual documents</div>}
+                    {documents.map(doc => scopeItem(
+                        doc.id,
+                        doc.name,
+                        <FileText size={14} className="shrink-0" />,
+                        doc.id === currentDocId && <span className="ml-auto rounded-sm bg-sunken px-1.5 text-xs text-text-muted">current</span>,
+                    ))}
                 </div>
             )}
 
-            {/* Results Dropdown */}
-            {isOpen && results.length > 0 && (
-                <div className={cn(
-                    "absolute top-full left-0 right-0 mt-1 max-h-96 overflow-y-auto rounded-lg shadow-xl border z-50",
-                    isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-                )}>
-                    {scope === "all" && groupedResults ? (
-                        // Grouped view for multi-doc search
-                        Object.entries(groupedResults).map(([docId, docResults]) => (
-                            <div key={docId}>
-                                {/* Document Header - Show PDF name */}
-                                <div className={cn(
-                                    "px-3 py-2 text-xs font-semibold uppercase tracking-wide border-b sticky top-0",
-                                    isDarkMode
-                                        ? "bg-gray-900 border-gray-700 text-gray-400"
-                                        : "bg-gray-50 border-gray-200 text-gray-500"
-                                )}>
-                                    <div className="flex items-center gap-2">
-                                        <FileText size={12} />
-                                        <span className="truncate" title={getDocName(docId)}>
-                                            {getDocName(docId)}
-                                        </span>
-                                        <span className="ml-auto flex-shrink-0">{docResults.length} results</span>
+            {isOpen && (
+                <div className="absolute right-0 top-full z-popover mt-1 w-[440px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-line bg-surface-3 shadow-elev-3 animate-[dialog-in_var(--dur-surface)_var(--ease)]">
+                    {error ? (
+                        <ErrorState title="Search failed" description={error} onRetry={() => void runSearch()} />
+                    ) : isLoading && !results.length ? (
+                        <div className="space-y-3 p-4" aria-busy="true">
+                            {[0, 1, 2].map(row => <div key={row} className="space-y-1.5"><div className="skeleton h-3 w-24" /><div className="skeleton h-3" /></div>)}
+                        </div>
+                    ) : results.length === 0 ? (
+                        <EmptyState compact title={`No matches for “${submittedQuery || query}”`} description={scope === 'current' ? 'Try “All open documents” in the scope menu.' : 'Check spelling or try a shorter phrase.'} />
+                    ) : (
+                        <>
+                            <div ref={listRef} id={listId} role="listbox" aria-label="Search results" className="max-h-[60vh] overflow-y-auto">
+                                {groups.map(group => (
+                                    <div key={group.key} role="group" aria-label={group.key}>
+                                        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line-soft bg-surface-2 px-3 py-1.5 text-xs font-semibold text-text-soft">
+                                            <FileText size={12} className="shrink-0" />
+                                            <span className="truncate" title={group.key}>{group.key}</span>
+                                            <span className="ml-auto shrink-0 font-normal text-text-muted">{group.items.length} {group.items.length === 1 ? 'match' : 'matches'}</span>
+                                        </div>
+                                        {group.items.map(({ result, index }) => {
+                                            return (
+                                                <ResultItem
+                                                    key={`${result.docId}-${result.page}-${index}`}
+                                                    id={`${listId}-${index}`}
+                                                    index={index}
+                                                    active={index === activeIndex}
+                                                    result={result}
+                                                    query={submittedQuery}
+                                                    onHover={() => setActiveIndex(index)}
+                                                    onClick={() => handleSelect(result)}
+                                                />
+                                            );
+                                        })}
                                     </div>
-                                </div>
-                                {/* Results for this document - show page numbers */}
-                                {docResults.map((r, i) => (
-                                    <ResultItem
-                                        key={`${docId}-${i}`}
-                                        result={r}
-                                        onClick={() => handleSelect(r)}
-                                        isDarkMode={isDarkMode}
-                                        docName={getDocName(r.docId)}
-                                    />
                                 ))}
                             </div>
-                        ))
-                    ) : (
-                        // Flat view for single-doc search - show page numbers
-                        results.map((r, i) => {
-                            // Resolve the correct document name for this result
-                            // 1. Try to find by fingerprint (robust)
-                            let resultDocName = "";
-                            if (r.pdfFingerprint) {
-                                const match = documents.find(d => d.fingerprint === r.pdfFingerprint);
-                                if (match) resultDocName = match.name;
-                            }
-
-                            // 2. Fallback to the explicit scope's document name.
-                            if (!resultDocName && scope !== 'all' && scope !== 'current') {
-                                resultDocName = documentNames[scope] || documents.find(d => d.id === scope)?.name || '';
-                            }
-
-                            // 3. Fallback to currentDocName (but this is unstable with hover, so use as last resort)
-                            if (!resultDocName) {
-                                resultDocName = currentDocName || "Unknown PDF";
-                            }
-
-                            return (
-                                <ResultItem
-                                    key={i}
-                                    result={r}
-                                    onClick={() => handleSelect(r)}
-                                    isDarkMode={isDarkMode}
-                                    docName={resultDocName}
-                                />
-                            );
-                        })
+                            <div className="flex items-center justify-between border-t border-line-soft bg-surface-2 px-3 py-1.5 text-xs text-text-muted">
+                                <span>{results.length}{results.length === RESULT_LIMIT ? '+' : ''} results</span>
+                                <span className="flex items-center gap-2"><KeyCaps shortcut="ArrowUp" /><KeyCaps shortcut="ArrowDown" /> move <KeyCaps shortcut="Enter" /> open</span>
+                            </div>
+                        </>
                     )}
-                </div>
-            )}
-
-            {/* No Results */}
-            {isOpen && results.length === 0 && !error && !isLoading && query.trim() && (
-                <div className={cn(
-                    "absolute top-full left-0 right-0 mt-1 p-4 text-sm text-center rounded-lg shadow-lg border z-50",
-                    isDarkMode
-                        ? "bg-gray-800 border-gray-700 text-gray-400"
-                        : "bg-white border-gray-200 text-gray-500"
-                )}>
-                    No results found for "{query}"
                 </div>
             )}
         </div>
     );
 }
 
-// Result Item Component
-function ResultItem({
-    result,
-    onClick,
-    isDarkMode,
-    docName
-}: {
+function ResultItem({ id, index, active, result, query, onHover, onClick }: {
+    id: string;
+    index: number;
+    active: boolean;
     result: SearchResult;
+    query: string;
+    onHover: () => void;
     onClick: () => void;
-    isDarkMode: boolean;
-    docName?: string;  // Display name of the PDF
 }) {
+    const segments = useMemo(() => highlightSegments(snippetAround(result.text, query, 70), query), [result.text, query]);
     return (
         <div
+            id={id}
+            data-index={index}
+            role="option"
+            aria-selected={active}
+            onPointerMove={onHover}
             onClick={onClick}
             className={cn(
-                "p-3 border-b last:border-b-0 cursor-pointer transition-colors",
-                isDarkMode
-                    ? "border-gray-700 hover:bg-gray-700"
-                    : "border-gray-100 hover:bg-gray-50"
+                "cursor-pointer border-b border-line-soft px-3 py-2 transition-colors duration-state last:border-b-0",
+                active ? "bg-accent-soft" : "hover:bg-sunken",
             )}
         >
-            <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* PDF Name Tag */}
-                    {docName && (
-                        <span className={cn(
-                            "text-xs font-medium px-1.5 py-0.5 rounded truncate max-w-[120px]",
-                            isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-200 text-gray-600"
-                        )} title={docName}>
-                            {docName.length > 18 ? docName.slice(0, 15) + '...' : docName}
-                        </span>
-                    )}
-                    {/* Page Number Tag */}
-                    <span className={cn(
-                        "text-xs font-medium px-1.5 py-0.5 rounded",
-                        isDarkMode ? "bg-blue-900/50 text-blue-300" : "bg-blue-100 text-blue-700"
-                    )}>
-                        Page {result.page}
-                    </span>
-                </div>
-                <span className={cn(
-                    "text-xs flex-shrink-0",
-                    result.score > 0.7
-                        ? "text-green-500"
-                        : result.score > 0.5
-                            ? "text-yellow-500"
-                            : "text-gray-400"
-                )}>
-                    {(result.score * 100).toFixed(0)}%
-                </span>
+            <div className="mb-1 flex items-center gap-2">
+                <span className="rounded-sm border border-line bg-surface-1 px-1.5 text-xs font-medium text-text-soft">p. {result.page}</span>
+                {active && <span className="ml-auto text-xs text-accent">Enter to open</span>}
             </div>
-            {/* Shorter text preview - single line */}
-            <p className={cn(
-                "text-xs line-clamp-1",
-                isDarkMode ? "text-gray-400" : "text-gray-500"
-            )}>
-                {result.text.slice(0, 80)}{result.text.length > 80 ? "..." : ""}
+            <p className="line-clamp-2 text-sm leading-snug text-text-soft">
+                {segments.map((segment, segmentIndex) => segment.match
+                    ? <mark key={segmentIndex} className="rounded-sm bg-hl-yellow px-0.5 text-ink-black">{segment.text}</mark>
+                    : <span key={segmentIndex}>{segment.text}</span>)}
             </p>
         </div>
     );

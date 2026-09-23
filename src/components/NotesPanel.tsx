@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Link, MapPin, Plus, Trash2, Unlink, X } from 'lucide-react';
-import katex from 'katex';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Download, Eye, Link, MapPin, PenLine, Plus, Trash2, Unlink } from 'lucide-react';
 import type { DocumentNote, NoteAnchor } from '@/core/notes/models';
 import { exportNotesMarkdown, notesInDocumentOrder } from '@/core/notes/notes';
+import { cn } from '@/lib/utils';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
+import { Markdown } from './ui/Markdown';
+import { EmptyState } from './ui/States';
 import { VirtualizedList } from './ui/VirtualizedList';
 
 interface NotesPanelProps {
@@ -13,7 +15,8 @@ interface NotesPanelProps {
     notes: DocumentNote[];
     activeNoteId: string | null;
     focusedHighlightId: string | null;
-    onClose: () => void;
+    /** Colour of the highlight an anchor points at, for the chip swatch. */
+    highlightColor?: (highlightId: string) => string | undefined;
     onCreate: () => void;
     onSelect: (noteId: string) => void;
     onChange: (note: DocumentNote) => void;
@@ -22,6 +25,8 @@ interface NotesPanelProps {
     onAttachFocused: () => void;
     onDetachAnchor: (note: DocumentNote, highlightId: string) => void;
 }
+
+const ROW_HEIGHT = 262;
 
 function downloadMarkdown(filename: string, markdown: string) {
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
@@ -33,20 +38,10 @@ function downloadMarkdown(filename: string, markdown: string) {
     URL.revokeObjectURL(url);
 }
 
-function InlineMarkdown({ text }: { text: string }) {
-    const parts = text.split(/(\$[^$]+\$)/g);
-    return <>{parts.map((part, index) => {
-        if (part.startsWith('$') && part.endsWith('$')) {
-            const html = katex.renderToString(part.slice(1, -1), { throwOnError: false, strict: 'warn' });
-            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} />;
-        }
-        return <span key={index}>{part}</span>;
-    })}</>;
-}
-
-function NoteCard({ note, active, onSelect, onChange, onDelete, onFocusAnchor, onDetachAnchor }: {
+function NoteCard({ note, active, highlightColor, onSelect, onChange, onDelete, onFocusAnchor, onDetachAnchor }: {
     note: DocumentNote;
     active: boolean;
+    highlightColor?: (highlightId: string) => string | undefined;
     onSelect: () => void;
     onChange: (note: DocumentNote) => void;
     onDelete: () => void;
@@ -54,9 +49,21 @@ function NoteCard({ note, active, onSelect, onChange, onDelete, onFocusAnchor, o
     onDetachAnchor: (highlightId: string) => void;
 }) {
     const [draft, setDraft] = useState(note.body);
+    // Empty notes open in the editor; written notes open rendered.
+    const [editing, setEditing] = useState(!note.body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const cardRef = useRef<HTMLElement>(null);
 
-    useEffect(() => { if (active) textareaRef.current?.focus(); }, [active]);
+    useEffect(() => {
+        if (!active) return;
+        if (editing) textareaRef.current?.focus();
+        const card = cardRef.current;
+        if (card) {
+            card.classList.remove('focus-pulse');
+            void card.offsetWidth;
+            card.classList.add('focus-pulse');
+        }
+    }, [active, editing]);
 
     const save = () => {
         if (draft === note.body) return;
@@ -65,85 +72,135 @@ function NoteCard({ note, active, onSelect, onChange, onDelete, onFocusAnchor, o
 
     return (
         <article
-            className={`mx-2 h-[250px] rounded-lg border p-3 ${active ? 'border-accent bg-accent-soft' : 'border-line bg-surface-2'}`}
+            ref={cardRef}
+            aria-current={active || undefined}
+            className={cn(
+                'mx-3 flex h-[250px] flex-col rounded-lg border p-3 transition-[transform,box-shadow,border-color] duration-surface',
+                active ? '-translate-y-0.5 border-accent bg-surface-2 shadow-elev-3' : 'border-line bg-surface-2 shadow-elev-1 hover:-translate-y-px hover:shadow-elev-2',
+            )}
             onClick={onSelect}
         >
-            <div className="mb-2 flex items-center justify-between text-xs text-text-soft">
-                <span>{note.anchors.length} {note.anchors.length === 1 ? 'anchor' : 'anchors'}</span>
-                <IconButton aria-label="Delete note" onClick={event => { event.stopPropagation(); onDelete(); }}><Trash2 size={14} /></IconButton>
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-text-muted">
+                <span>{note.anchors.length} {note.anchors.length === 1 ? 'highlight' : 'highlights'} · {new Date(note.updatedAt).toLocaleDateString()}</span>
+                <div className="flex gap-1">
+                    <IconButton
+                        size="sm"
+                        aria-label={editing ? 'Preview note' : 'Edit note'}
+                        title={editing ? 'Preview' : 'Edit'}
+                        onClick={event => { event.stopPropagation(); if (editing) save(); setEditing(!editing); }}
+                    >
+                        {editing ? <Eye size={13} /> : <PenLine size={13} />}
+                    </IconButton>
+                    <IconButton size="sm" aria-label="Delete note" onClick={event => { event.stopPropagation(); onDelete(); }}><Trash2 size={13} /></IconButton>
+                </div>
             </div>
-            <div className="mb-2 flex min-h-8 gap-1 overflow-x-auto" aria-label="Note anchors">
+            <div className="mb-2 flex min-h-7 shrink-0 gap-1 overflow-x-auto" aria-label="Linked highlights">
                 {note.anchors.map(anchor => (
-                    <span key={anchor.id} className="inline-flex h-7 shrink-0 items-center rounded border border-line bg-surface-1 text-xs">
-                        <button className="inline-flex h-full items-center gap-1 px-2" title={anchor.quote || 'Highlighted region'} onClick={event => { event.stopPropagation(); onFocusAnchor(anchor); }}>
-                            <MapPin size={12} />Page {anchor.pageNum}
+                    <span key={anchor.id} className="inline-flex h-7 max-w-[180px] shrink-0 items-center overflow-hidden rounded border border-line bg-surface-1 text-xs shadow-elev-1">
+                        <span className="h-full w-1.5 shrink-0" style={{ background: highlightColor?.(anchor.highlightId) ?? 'var(--hl-yellow)' }} aria-hidden="true" />
+                        <button
+                            className="inline-flex h-full min-w-0 items-center gap-1 px-2 text-text-soft hover:text-text"
+                            title={anchor.quote || 'Highlighted region'}
+                            onClick={event => { event.stopPropagation(); onFocusAnchor(anchor); }}
+                        >
+                            <MapPin size={11} className="shrink-0" />
+                            <span className="shrink-0">p. {anchor.pageNum}</span>
+                            {anchor.quote && <span className="truncate text-text-muted">“{anchor.quote}”</span>}
                         </button>
-                        <button className="h-full border-l border-line px-1 text-text-muted hover:text-text" aria-label={`Detach page ${anchor.pageNum} anchor`} onClick={event => { event.stopPropagation(); onDetachAnchor(anchor.highlightId); }}>
+                        <button className="h-full shrink-0 border-l border-line px-1.5 text-text-muted hover:text-danger" aria-label={`Detach page ${anchor.pageNum} highlight`} onClick={event => { event.stopPropagation(); onDetachAnchor(anchor.highlightId); }}>
                             <Unlink size={11} />
                         </button>
                     </span>
                 ))}
-                {!note.anchors.length && <span className="text-xs text-text-muted">No anchors yet</span>}
+                {!note.anchors.length && <span className="self-center text-xs text-text-muted">No highlights linked yet</span>}
             </div>
-            <textarea
-                ref={textareaRef}
-                value={draft}
-                onChange={event => setDraft(event.target.value)}
-                onBlur={save}
-                onClick={event => event.stopPropagation()}
-                placeholder="Write a note… Use $…$ for inline math."
-                className="h-24 w-full resize-none rounded border border-line bg-surface-1 p-2 text-sm text-text outline-none focus:border-accent"
-            />
-            {draft && <div className="mt-2 truncate text-xs text-text-soft"><InlineMarkdown text={draft} /></div>}
+            {editing ? (
+                <textarea
+                    ref={textareaRef}
+                    value={draft}
+                    onChange={event => setDraft(event.target.value)}
+                    onBlur={save}
+                    onClick={event => event.stopPropagation()}
+                    placeholder={'Write a note…\n# Heading, - lists, **bold**, $x^2$'}
+                    className="min-h-0 flex-1 resize-none rounded border border-line bg-sunken p-2 text-sm text-text shadow-[var(--edge-press)] outline-none focus:border-accent"
+                />
+            ) : (
+                <div
+                    className="min-h-0 flex-1 cursor-text overflow-y-auto rounded p-1"
+                    onDoubleClick={event => { event.stopPropagation(); setEditing(true); }}
+                    title="Double-click to edit"
+                >
+                    {draft.trim() ? <Markdown source={draft} /> : <p className="text-sm text-text-muted">Empty note</p>}
+                </div>
+            )}
         </article>
     );
 }
 
+/** Measures the element's height so the virtual list fills whatever space the dock gives it. */
+function useElementHeight<T extends HTMLElement>(fallback: number) {
+    const ref = useRef<T>(null);
+    const [height, setHeight] = useState(fallback);
+    useLayoutEffect(() => {
+        const element = ref.current;
+        if (!element) return;
+        const observer = new ResizeObserver(([entry]) => setHeight(Math.max(ROW_HEIGHT, entry.contentRect.height)));
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+    return [ref, height] as const;
+}
+
 export function NotesPanel(props: NotesPanelProps) {
-    const { activeNoteId, documentId, documentTitle, focusedHighlightId, notes, onAttachFocused, onChange, onClose, onCreate, onDelete, onDetachAnchor, onFocusAnchor, onSelect } = props;
+    const { activeNoteId, documentId, documentTitle, focusedHighlightId, highlightColor, notes, onAttachFocused, onChange, onCreate, onDelete, onDetachAnchor, onFocusAnchor, onSelect } = props;
     const ordered = useMemo(() => notesInDocumentOrder(notes), [notes]);
     const active = notes.find(note => note.id === activeNoteId);
     const focusedAlreadyAttached = Boolean(active && focusedHighlightId && active.anchors.some(anchor => anchor.highlightId === focusedHighlightId));
-    const listHeight = Math.max(260, (typeof window === 'undefined' ? 720 : window.innerHeight) - 235);
+    const [listRef, listHeight] = useElementHeight<HTMLDivElement>(480);
 
     return (
-        <aside className="flex h-full w-80 shrink-0 flex-col border-l border-line bg-surface-1 text-text shadow-elev-3" aria-label="Document notes">
-            <header className="border-b border-line p-3">
-                <div className="flex items-center justify-between">
-                    <div><h2 className="font-semibold">Notes</h2><p className="text-xs text-text-muted">{ordered.length} notes</p></div>
-                    <IconButton aria-label="Close notes" onClick={onClose}><X size={17} /></IconButton>
+        <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-line-soft p-3">
+                <div className="grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="primary" leadingIcon={<Plus size={14} />} onClick={onCreate}>New note</Button>
+                    <Button size="sm" leadingIcon={<Link size={14} />} disabled={!active || !focusedHighlightId || focusedAlreadyAttached} onClick={onAttachFocused}>Link highlight</Button>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button leadingIcon={<Plus size={14} />} onClick={onCreate}>New note</Button>
-                    <Button leadingIcon={<Link size={14} />} disabled={!active || !focusedHighlightId || focusedAlreadyAttached} onClick={onAttachFocused}>Attach highlight</Button>
-                </div>
-                <p className="mt-2 text-xs text-text-muted">Select a note to make it active. New highlights attach to the active note.</p>
-            </header>
-            {ordered.length ? (
-                <VirtualizedList
-                    items={ordered}
-                    rowHeight={262}
-                    height={listHeight}
-                    getKey={item => `${item.id}-${item.updatedAt}`}
-                    label="Notes in document order"
-                    renderItem={note => (
-                        <NoteCard
-                            note={note}
-                            active={note.id === activeNoteId}
-                            onSelect={() => onSelect(note.id)}
-                            onChange={onChange}
-                            onDelete={() => onDelete(note)}
-                            onFocusAnchor={onFocusAnchor}
-                            onDetachAnchor={highlightId => onDetachAnchor(note, highlightId)}
-                        />
-                    )}
-                />
-            ) : (
-                <div className="grid flex-1 place-items-center p-6 text-center text-sm text-text-muted">Create a note, then highlight related passages. Multiple highlights can belong to the same note.</div>
-            )}
-            <footer className="mt-auto border-t border-line p-3">
-                <Button className="w-full" leadingIcon={<Download size={15} />} disabled={!ordered.length} onClick={() => downloadMarkdown(`${documentTitle.replace(/\.pdf$/i, '')}-notes.md`, exportNotesMarkdown(documentTitle, documentId, ordered))}>Export Markdown</Button>
+                <p className="mt-2 text-xs leading-relaxed text-text-muted">The active note collects new highlights. Click a page chip to jump to its passage.</p>
+            </div>
+            <div ref={listRef} className="min-h-0 flex-1 pt-3">
+                {ordered.length ? (
+                    <VirtualizedList
+                        items={ordered}
+                        rowHeight={ROW_HEIGHT}
+                        height={listHeight}
+                        getKey={item => `${item.id}-${item.updatedAt}`}
+                        label="Notes in document order"
+                        renderItem={note => (
+                            <NoteCard
+                                note={note}
+                                active={note.id === activeNoteId}
+                                highlightColor={highlightColor}
+                                onSelect={() => onSelect(note.id)}
+                                onChange={onChange}
+                                onDelete={() => onDelete(note)}
+                                onFocusAnchor={onFocusAnchor}
+                                onDetachAnchor={highlightId => onDetachAnchor(note, highlightId)}
+                            />
+                        )}
+                    />
+                ) : (
+                    <EmptyState
+                        compact
+                        title="No notes yet"
+                        description="Create a note, then highlight related passages. One note can gather highlights from many pages."
+                    />
+                )}
+            </div>
+            <footer className="shrink-0 border-t border-line p-3">
+                <Button className="w-full" size="sm" leadingIcon={<Download size={14} />} disabled={!ordered.length} onClick={() => downloadMarkdown(`${documentTitle.replace(/\.pdf$/i, '')}-notes.md`, exportNotesMarkdown(documentTitle, documentId, ordered))}>
+                    Export notes as Markdown
+                </Button>
             </footer>
-        </aside>
+        </div>
     );
 }

@@ -3,6 +3,11 @@
 // Every value here resolves to a custom property defined in src/styles/tokens.css.
 // Tailwind is a way to reference the tokens, never a second place to define them
 // — so `bg-surface-2` and `var(--surface-2)` can never drift apart.
+// Token colours go through color-mix so Tailwind's opacity modifier works on
+// them: `bg-accent-soft/70` becomes 70% of the token over transparent. A plain
+// `var(--x)` value cannot take an alpha, and Tailwind 3 silently drops the class.
+const token = (name) => `color-mix(in srgb, var(--${name}) calc(<alpha-value> * 100%), transparent)`;
+
 export default {
   darkMode: 'class',
   content: [
@@ -12,47 +17,47 @@ export default {
   theme: {
     extend: {
       colors: {
-        ground: "var(--ground)",
+        ground: token("ground"),
         surface: {
-          1: "var(--surface-1)",
-          2: "var(--surface-2)",
-          3: "var(--surface-3)",
-          4: "var(--surface-4)",
+          1: token("surface-1"),
+          2: token("surface-2"),
+          3: token("surface-3"),
+          4: token("surface-4"),
         },
-        sunken: "var(--sunken)",
+        sunken: token("sunken"),
         line: {
-          DEFAULT: "var(--line)",
-          soft: "var(--line-soft)",
+          DEFAULT: token("line"),
+          soft: token("line-soft"),
         },
         text: {
-          DEFAULT: "var(--text)",
-          soft: "var(--text-soft)",
-          muted: "var(--text-muted)",
-          onaccent: "var(--text-on-accent)",
+          DEFAULT: token("text"),
+          soft: token("text-soft"),
+          muted: token("text-muted"),
+          onaccent: token("text-on-accent"),
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          hover: "var(--accent-hover)",
-          soft: "var(--accent-soft)",
+          DEFAULT: token("accent"),
+          hover: token("accent-hover"),
+          soft: token("accent-soft"),
         },
-        danger: { DEFAULT: "var(--danger)", soft: "var(--danger-soft)" },
-        warning: { DEFAULT: "var(--warning)", soft: "var(--warning-soft)" },
-        success: { DEFAULT: "var(--success)", soft: "var(--success-soft)" },
+        danger: { DEFAULT: token("danger"), soft: token("danger-soft") },
+        warning: { DEFAULT: token("warning"), soft: token("warning-soft") },
+        success: { DEFAULT: token("success"), soft: token("success-soft") },
 
         // Annotation palette — theme-invariant. A yellow highlight is content
         // the user drew and stays the same colour in both themes; the UI
         // accent is deliberately kept clear of every one of these.
         hl: {
-          yellow: "var(--hl-yellow)",
-          pink:   "var(--hl-pink)",
-          green:  "var(--hl-green)",
-          blue:   "var(--hl-blue)",
-          orange: "var(--hl-orange)",
+          yellow: token("hl-yellow"),
+          pink:   token("hl-pink"),
+          green:  token("hl-green"),
+          blue:   token("hl-blue"),
+          orange: token("hl-orange"),
         },
         ink: {
-          black: "var(--ink-black)",
-          blue:  "var(--ink-blue)",
-          red:   "var(--ink-red)",
+          black: token("ink-black"),
+          blue:  token("ink-blue"),
+          red:   token("ink-red"),
         },
 
         // Retained so the pre-token components keep rendering during migration.

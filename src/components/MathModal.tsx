@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-// import 'katex/dist/contrib/mhchem.js'; // Try to import mhchem if available, otherwise might fail build if not present
-import { X, Check, Calculator } from 'lucide-react';
-
-
-// We'll try to load mhchem dynamically or assuming it's patched into katex
-// If not, we'll proceed without it for now or user can install it.
-// Actually, in a React env, usually: import 'katex/dist/contrib/mhchem';
+import { Calculator, Check } from 'lucide-react';
+import { Dialog } from './ui/Dialog';
+import { Button } from './ui/Button';
+import { Switch } from './ui/Switch';
 
 interface MathModalProps {
     isOpen: boolean;
@@ -16,132 +13,117 @@ interface MathModalProps {
     initialLatex?: string;
 }
 
+const snippets = [
+    { label: 'x²', title: 'Superscript', insert: '^{}' },
+    { label: 'xᵢ', title: 'Subscript', insert: '_{}' },
+    { label: 'a⁄b', title: 'Fraction', insert: '\\frac{}{}' },
+    { label: '√', title: 'Square root', insert: '\\sqrt{}' },
+    { label: 'Σ', title: 'Sum', insert: '\\sum_{i=1}^{n} ' },
+    { label: '∫', title: 'Integral', insert: '\\int_{a}^{b} ' },
+    { label: '→', title: 'Arrow', insert: '\\rightarrow ' },
+    { label: 'H₂O', title: 'Chemistry', insert: '\\ce{}' },
+] as const;
+
 export function MathModal({ isOpen, onClose, onInsert, initialLatex = '' }: MathModalProps) {
     const [latex, setLatex] = useState(initialLatex);
     const [displayMode, setDisplayMode] = useState(true);
     const previewRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    // Reset the draft each time the dialog opens (state adjusted during
+    // render rather than in an effect, so there is no stale first frame).
+    const [openedWith, setOpenedWith] = useState<string | null>(isOpen ? initialLatex : null);
+    if (isOpen && openedWith !== initialLatex) {
+        setOpenedWith(initialLatex);
+        setLatex(initialLatex);
+    } else if (!isOpen && openedWith !== null) {
+        setOpenedWith(null);
+    }
 
     useEffect(() => {
-        if (isOpen) {
-            setLatex(initialLatex);
-        }
-    }, [isOpen, initialLatex]);
-
-    useEffect(() => {
-        if (previewRef.current) {
-            try {
-                katex.render(latex || '\\text{Type a formula...}', previewRef.current, {
-                    displayMode: displayMode,
-                    throwOnError: false,
-                    macros: {
-                        "\\ce": "\\text{#1}", // Fallback for ce if mhchem not loaded
-                    }
-                });
-            } catch (e) {
-                previewRef.current.textContent = "Invalid LaTeX";
-            }
+        if (!previewRef.current) return;
+        try {
+            katex.render(latex || '\\text{Type a formula…}', previewRef.current, {
+                displayMode,
+                throwOnError: false,
+                macros: { '\\ce': '\\text{#1}' }, // Fallback until mhchem is bundled.
+            });
+        } catch {
+            previewRef.current.textContent = 'Invalid LaTeX';
         }
     }, [latex, displayMode, isOpen]);
 
-    if (!isOpen) return null;
-
-    const insertSymbol = (symbol: string) => {
-        // Simple append for now. 
-        // Ideal: insert at cursor position.
-        setLatex(prev => prev + symbol);
+    // Insert at the caret and place it inside the first empty brace pair,
+    // so "Frac" leaves the cursor ready for the numerator.
+    const insertSnippet = (snippet: string) => {
+        const input = inputRef.current;
+        const start = input?.selectionStart ?? latex.length;
+        const end = input?.selectionEnd ?? latex.length;
+        const next = latex.slice(0, start) + snippet + latex.slice(end);
+        const braces = snippet.indexOf('{}');
+        const caret = start + (braces === -1 ? snippet.length : braces + 1);
+        setLatex(next);
+        requestAnimationFrame(() => {
+            input?.focus();
+            input?.setSelectionRange(caret, caret);
+        });
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-                    <div className="flex items-center gap-2">
-                        <Calculator className="text-blue-600 dark:text-blue-400" />
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            Insert Math Equation
-                        </h2>
+        <Dialog
+            open={isOpen}
+            onClose={onClose}
+            size="xl"
+            icon={<Calculator size={16} />}
+            title="Insert equation"
+            description="LaTeX with a live preview"
+            bodyClassName="p-0"
+            footer={(
+                <>
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button variant="primary" leadingIcon={<Check size={16} />} disabled={!latex.trim()} onClick={() => onInsert(latex, displayMode)}>
+                        Insert equation
+                    </Button>
+                </>
+            )}
+        >
+            <div className="grid min-h-[420px] md:grid-cols-2">
+                <div className="flex flex-col gap-3 border-b border-line-soft p-4 md:border-b-0 md:border-r">
+                    <div className="grid grid-cols-4 gap-2" role="toolbar" aria-label="Insert snippet">
+                        {snippets.map(snippet => (
+                            <button
+                                key={snippet.title}
+                                type="button"
+                                title={snippet.title}
+                                aria-label={snippet.title}
+                                onClick={() => insertSnippet(snippet.insert)}
+                                className="depth-pressable h-9 border border-line text-sm text-text"
+                            >
+                                {snippet.label}
+                            </button>
+                        ))}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    >
-                        <X size={24} />
-                    </button>
+                    <label className="flex flex-1 flex-col gap-1 text-xs font-semibold text-text-soft">
+                        LaTeX
+                        <textarea
+                            ref={inputRef}
+                            value={latex}
+                            onChange={(e) => setLatex(e.target.value)}
+                            className="min-h-40 flex-1 resize-none rounded-lg border border-line bg-sunken p-3 font-mono text-sm font-normal text-text shadow-[var(--edge-press)] outline-none focus:border-accent"
+                            placeholder="\frac{a}{b} or \ce{H2O}"
+                            spellCheck={false}
+                            autoFocus
+                        />
+                    </label>
+                    <Switch label="Display mode" description="Centred block equation instead of inline" checked={displayMode} onChange={setDisplayMode} />
                 </div>
-
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Editor Column */}
-                    <div className="w-1/2 flex flex-col border-r dark:border-gray-700 p-4 gap-4">
-
-                        {/* Toolbar */}
-                        <div className="grid grid-cols-6 gap-2">
-                            <button onClick={() => insertSymbol('^{}')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Sup</button>
-                            <button onClick={() => insertSymbol('_{}')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Sub</button>
-                            <button onClick={() => insertSymbol('\\frac{}{}')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Frac</button>
-                            <button onClick={() => insertSymbol('\\sqrt{}')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Sqrt</button>
-                            <button onClick={() => insertSymbol('\\rightarrow ')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Arrow</button>
-                            <button onClick={() => insertSymbol('\\ce{}')} className="p-2 border rounded hover:bg-gray-100 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 text-sm">Chem</button>
-                        </div>
-
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                LaTeX Input
-                            </label>
-                            <textarea
-                                value={latex}
-                                onChange={(e) => setLatex(e.target.value)}
-                                className="w-full h-full p-4 font-mono text-sm border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300"
-                                placeholder="Type \frac{a}{b} or \ce{H2O}..."
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={displayMode}
-                                    onChange={(e) => setDisplayMode(e.target.checked)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                Display Mode (Block)
-                            </label>
-                        </div>
+                <div className="flex flex-col bg-surface-2 p-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">Preview</h3>
+                    <div className="grid flex-1 place-items-center overflow-auto rounded-lg border border-line bg-white p-6 text-xl text-ink-black shadow-page">
+                        <div ref={previewRef} aria-live="polite" />
                     </div>
-
-                    {/* Preview Column */}
-                    <div className="w-1/2 bg-gray-50 dark:bg-gray-900/50 p-6 flex flex-col">
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
-                            Live Preview
-                        </h3>
-                        <div className="flex-1 flex items-center justify-center overflow-auto border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4">
-                            <div
-                                ref={previewRef}
-                                className="text-xl text-gray-900 dark:text-white"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 rounded-lg font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => onInsert(latex, displayMode)}
-                        disabled={!latex.trim()}
-                        className="px-6 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Check size={20} />
-                        Insert Equation
-                    </button>
                 </div>
             </div>
-        </div>
+        </Dialog>
     );
 }

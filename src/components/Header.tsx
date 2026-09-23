@@ -9,6 +9,8 @@ import { SearchBar, type SearchResult } from './SearchBar';
 import { WORKSPACE_TAB_MIME } from '@/core/workspace/layout';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
+import { useUiStore } from '@/lib/ui/ui-store';
+import { revealInDocument } from '@/lib/ui/navigate';
 
 interface HeaderProps {
     onOpenPDF: () => void;
@@ -24,8 +26,10 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat, onFocusDocument, onShowLibrary }: HeaderProps) {
-    const { focusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore();
-    const [showSettings, setShowSettings] = useState(false);
+    const { focusedDocId } = useAppStore();
+    const showSettings = useUiStore(state => state.settingsOpen);
+    const openSettings = useUiStore(state => state.openSettings);
+    const closeSettings = useUiStore(state => state.closeSettings);
 
 
     // Context Menu State
@@ -38,65 +42,9 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
 
     const closeContextMenu = () => setContextMenu(null);
 
-    // Handle search result selection
     const handleSearchSelect = useCallback((result: SearchResult) => {
-        console.log('[Header] handleSearchSelect called:', result);
-
-        // Map the result's docId (from Qdrant, possibly stale) to current session's docId
-        // using pdfFingerprint for reliable matching
-        let targetDocId = result.docId;
-
-        if (result.pdfFingerprint) {
-            // Find the current document with matching fingerprint
-            const matchingDoc = documents.find(d => d.pdfFingerprint === result.pdfFingerprint);
-            if (matchingDoc) {
-                targetDocId = matchingDoc.id;
-                console.log('[Header] Mapped fingerprint to current docId:', targetDocId);
-            } else {
-                console.warn('[Header] No open document matches fingerprint:', result.pdfFingerprint);
-            }
-        }
-
-        // 1. Focus the document if different
-        if (targetDocId !== focusedDocId) {
-            console.log('[Header] Focusing different document:', targetDocId);
-            onFocusDocument(targetDocId);
-        }
-
-        // 2. Set the search highlight with spans if available
-        const highlight: any = {
-            docId: targetDocId,  // Use mapped docId
-            page: result.page,
-            bbox: result.bbox
-        };
-
-        // Include spans for precise word-level highlighting
-        if (result.spans && result.spans.length > 0) {
-            highlight.spans = result.spans;
-            console.log('[Header] Using span-level highlights:', result.spans.length, 'spans');
-        }
-
-        console.log('[Header] Setting search highlight:', highlight);
-        setSearchHighlight(highlight);
-
-        // 3. Scroll to the page (using custom event)
-        setTimeout(() => {
-            // Find the page element within the correct document pane
-            const docPane = document.querySelector(`[data-doc-id="${targetDocId}"]`);
-            const pageElement = docPane?.querySelector(`[data-page-num="${result.page}"]`)
-                || document.querySelector(`[data-page-num="${result.page}"]`);
-            console.log('[Header] Scrolling to page element:', pageElement);
-            if (pageElement) {
-                pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
-
-        // 4. Clear highlight after 5 seconds
-        setTimeout(() => {
-            console.log('[Header] Clearing search highlight');
-            clearSearchHighlight();
-        }, 5000);
-    }, [documents, focusedDocId, onFocusDocument, setSearchHighlight, clearSearchHighlight]);
+        revealInDocument(result, documents, onFocusDocument);
+    }, [documents, onFocusDocument]);
 
     // Handle focusing a different document from search
     const handleFocusDocument = useCallback((docId: string) => {
@@ -197,7 +145,7 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                     onClick={onToggleAIChat}
                     pressed={showAIChat}
                     aria-label="Toggle AI assistant"
-                    title="AI Assistant"
+                    title="Assistant (Ctrl+J)"
                 >
                     <Sparkles size={18} />
                 </IconButton>
@@ -215,15 +163,15 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                 <div className="h-4 w-px bg-line mx-1" />
 
                 <IconButton
-                    onClick={() => setShowSettings(true)}
+                    onClick={() => openSettings()}
                     aria-label="Open settings"
-                    title="Settings"
+                    title="Settings (Ctrl+,)"
                 >
                     <SettingsIcon size={18} />
                 </IconButton>
             </div>
 
-            <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            <SettingsModal isOpen={showSettings} onClose={closeSettings} />
 
             {/* Context Menu */}
             {contextMenu && (

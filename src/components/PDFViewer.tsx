@@ -51,7 +51,7 @@ import {
 import { pageWorkspaceStorage } from '@/lib/pages/storage';
 import { PageOrganizer } from './PageOrganizer';
 import { Button } from './ui/Button';
-import { LayoutGrid, StickyNote } from 'lucide-react';
+import { LayoutGrid, ListTree, StickyNote } from 'lucide-react';
 import { rotateAnnotation } from '@/core/pages/annotations';
 import {
     addAnchorToNote,
@@ -65,6 +65,12 @@ import {
 } from '@/core/notes/notes';
 import type { DocumentNote, NoteAnchor } from '@/core/notes/models';
 import { NotesPanel } from './NotesPanel';
+import { DocumentDock } from './DocumentDock';
+import { readDockTab, type DockTab } from '@/lib/ui/dock';
+import { OutlinePanel } from './OutlinePanel';
+import { ToolbarGroup } from './ui/ToolbarGroup';
+import { IconButton } from './ui/IconButton';
+import { useRegisterCommands } from '@/lib/commands/registry';
 import { libraryDB } from '@/lib/storage/library-db';
 
 // Configure worker
@@ -92,7 +98,8 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     const workingPdfBytesRef = useRef<Uint8Array | null>(null);
     const pageRenderRevisionRef = useRef(0);
     const [showPageOrganizer, setShowPageOrganizer] = useState(false);
-    const [showNotes, setShowNotes] = useState(false);
+    // The right-hand dock: null when closed, otherwise the visible tab.
+    const [dockTab, setDockTab] = useState<DockTab | null>(null);
     const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
     const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -699,7 +706,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         await commitAnnotationOperation(operation);
         if (!previous && anchored.type === 'highlight') {
             setFocusedHighlightId(anchored.id);
-            if (activeNote) setShowNotes(true);
+            if (activeNote) setDockTab('notes');
         }
     }, [activeNoteId, commitAnnotationOperation, fileId]);
 
@@ -877,7 +884,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     const focusHighlight = useCallback((highlight: HighlightAnnotation) => {
         setFocusedHighlightId(highlight.id);
-        setShowNotes(true);
+        setDockTab('notes');
         const pageElement = containerRef.current?.querySelector(`[data-page-id="${highlight.pageId ?? ''}"]`);
         pageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, []);
@@ -886,7 +893,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         const note = createDocumentNote(crypto.randomUUID());
         await commitAnnotationOperation(createAddNoteOperation(note, fileId));
         setActiveNoteId(note.id);
-        setShowNotes(true);
+        setDockTab('notes');
     }, [commitAnnotationOperation, fileId]);
 
     const handleNoteChange = useCallback(async (note: DocumentNote) => {
@@ -927,6 +934,35 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         if (highlight) focusHighlight(highlight);
     }, [focusHighlight]);
 
+    const highlightColor = useCallback((highlightId: string) => {
+        const highlight = annotationsRef.current.find(item => item.id === highlightId);
+        return highlight?.style?.color;
+    }, []);
+
+    const toggleDock = useCallback((tab: DockTab) => {
+        setDockTab(current => current === tab ? null : tab);
+    }, []);
+
+    const scrollToPageId = useCallback((pageId: string) => {
+        const frame = containerRef.current?.querySelector<HTMLElement>(`[data-page-id="${pageId}"]`);
+        frame?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (frame) {
+            frame.classList.remove('focus-pulse');
+            void frame.offsetWidth;
+            frame.classList.add('focus-pulse');
+        }
+    }, []);
+
+    // Document commands exist only while this document is the focused one.
+    const isFocusedDocument = useAppStore(state => state.focusedDocId === fileId);
+    useRegisterCommands(`document:${fileId}`, [
+        { id: 'document.panel', title: dockTab ? 'Hide side panel' : 'Show side panel', group: 'Document', shortcut: 'Mod+\\', allowInInput: true, keywords: ['dock', 'sidebar'], run: () => setDockTab(current => current ? null : readDockTab(stableId)) },
+        { id: 'document.notes', title: dockTab === 'notes' ? 'Hide notes' : 'Show notes', group: 'Document', shortcut: 'Mod+Shift+N', allowInInput: true, keywords: ['annotations', 'panel'], run: () => toggleDock('notes') },
+        { id: 'document.outline', title: dockTab === 'outline' ? 'Hide outline' : 'Show outline', group: 'Document', shortcut: 'Mod+Shift+O', allowInInput: true, keywords: ['contents', 'toc', 'chapters'], run: () => toggleDock('outline') },
+        { id: 'document.new-note', title: 'New note', group: 'Document', keywords: ['write', 'comment'], run: () => void handleCreateNote() },
+        { id: 'document.pages', title: 'Organise pages', group: 'Document', shortcut: 'Mod+Shift+P', enabled: role !== 'viewer', keywords: ['reorder', 'rotate', 'split', 'merge', 'extract', 'delete page'], run: () => setShowPageOrganizer(true) },
+    ], isFocusedDocument);
+
     const handlePagesScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
         if (readingProgressTimeoutRef.current) clearTimeout(readingProgressTimeoutRef.current);
         const scrollContainer = event.currentTarget;
@@ -963,20 +999,21 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // ... Render logic (Pages) ...
     return (
         <div className="relative flex h-full flex-1 flex-col bg-ground">
-            <Button
-                size="sm"
-                className="absolute right-5 top-5 z-20"
-                leadingIcon={<LayoutGrid size={16} />}
-                disabled={role === 'viewer'}
-                onClick={() => setShowPageOrganizer(true)}
-            >Pages</Button>
-            <Button
-                size="sm"
-                className="absolute right-28 top-5 z-20"
-                leadingIcon={<StickyNote size={16} />}
-                onClick={() => setShowNotes(value => !value)}
-            >Notes</Button>
             <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="relative flex min-w-0 flex-1">
+            <div className="depth-float absolute right-5 top-4 z-20 flex items-center gap-1 border border-line-soft p-1">
+                <ToolbarGroup label="Document panels">
+                    <IconButton size="md" aria-label="Notes" title="Notes (Ctrl+Shift+N)" pressed={dockTab === 'notes'} onClick={() => toggleDock('notes')}>
+                        <StickyNote size={16} />
+                    </IconButton>
+                    <IconButton size="md" aria-label="Outline" title="Outline (Ctrl+Shift+O)" pressed={dockTab === 'outline'} onClick={() => toggleDock('outline')}>
+                        <ListTree size={16} />
+                    </IconButton>
+                </ToolbarGroup>
+                <Button size="sm" variant="ghost" leadingIcon={<LayoutGrid size={15} />} disabled={role === 'viewer'} onClick={() => setShowPageOrganizer(true)} title="Organise pages (Ctrl+Shift+P)">
+                    Pages
+                </Button>
+            </div>
             <div ref={containerRef} className="flex-1 overflow-y-auto flex flex-col items-center gap-4 p-4" onScroll={handlePagesScroll}>
                 {(pageDocument?.pages ?? []).map((page, index) => {
                     const pageNum = index + 1;
@@ -1004,14 +1041,22 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     );
                 })}
             </div>
-            {showNotes && (
-                <NotesPanel
+            </div>
+            {dockTab && (
+                <DocumentDock
+                    documentId={stableId}
+                    tab={dockTab}
+                    onTabChange={setDockTab}
+                    onClose={() => setDockTab(null)}
+                    noteCount={notes.length}
+                    outline={<OutlinePanel pdfDoc={pdfDoc} pages={pageDocument?.pages ?? []} onNavigate={scrollToPageId} />}
+                    notes={<NotesPanel
                     documentId={stableId}
                     documentTitle={fileName}
                     notes={notes}
                     activeNoteId={activeNoteId}
                     focusedHighlightId={focusedHighlightId}
-                    onClose={() => setShowNotes(false)}
+                    highlightColor={highlightColor}
                     onCreate={handleCreateNote}
                     onSelect={setActiveNoteId}
                     onChange={handleNoteChange}
@@ -1019,6 +1064,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     onFocusAnchor={focusNoteAnchor}
                     onAttachFocused={handleAttachFocusedHighlight}
                     onDetachAnchor={handleDetachNoteAnchor}
+                />}
                 />
             )}
             </div>

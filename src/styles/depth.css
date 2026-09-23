@@ -170,6 +170,83 @@
     transform-style: preserve-3d;
 }
 
+/* --- entrances ------------------------------------------------------ */
+/*
+ * Dialogs rise a few pixels and settle from a slightly smaller scale, which
+ * reads as the sheet being lifted toward the viewer. Durations come from
+ * tokens, so reduced motion collapses them to zero automatically.
+ */
+@keyframes dialog-in {
+    from { opacity: 0; transform: translateY(8px) scale(.98); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes dialog-scrim {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes panel-in {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* A single attention pulse, used when navigation lands on a note or result. */
+@keyframes focus-pulse {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+    100% { box-shadow: 0 0 0 10px transparent; }
+}
+
+.focus-pulse {
+    animation: focus-pulse calc(var(--dur-entrance) * 2.5) var(--ease) 1;
+}
+
+/* --- skeleton ------------------------------------------------------- */
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--sunken);
+    border-radius: var(--radius-sm);
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / .35), transparent);
+    animation: skeleton-sweep 1.4s var(--ease) infinite;
+}
+
+:root.dark .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / .06), transparent);
+}
+
+@keyframes skeleton-sweep {
+    to { transform: translateX(100%); }
+}
+
+/* --- keycap --------------------------------------------------------- */
+/* Keyboard hints render as small physical keys: raised face, darker lip. */
+.keycap {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.6em;
+    height: 1.6em;
+    padding: 0 .4em;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1;
+    color: var(--text-soft);
+    background-color: var(--surface-2);
+    background-image: var(--surface-raised-fill);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--edge-highlight);
+}
+
 /* --- reduced motion (safety net) ----------------------------------- */
 /*
  * The tokens.css @media block already zeroes durations and --tilt-max, but
@@ -187,5 +264,10 @@
 
     .depth-stack:hover::after {
         transform: translate(-3px, 6px) rotate(-1.5deg);
+    }
+
+    .skeleton::after,
+    .focus-pulse {
+        animation: none;
     }
 }

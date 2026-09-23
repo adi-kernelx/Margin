@@ -48,6 +48,20 @@ export async function isDocumentIngested(pdfFingerprint: string): Promise<boolea
 }
 
 /**
+ * Full status for display. Returns null when the service is unreachable, so
+ * the UI can tell "not indexed" apart from "cannot tell".
+ */
+export async function getIngestStatus(pdfFingerprint: string, signal?: AbortSignal): Promise<IngestStatusResponse | null> {
+    try {
+        const response = await fetch(`${INGEST_API_URL}/status/${encodeURIComponent(pdfFingerprint)}`, { signal });
+        if (!response.ok) return null;
+        return await response.json() as IngestStatusResponse;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Ingest OCR data for a document
  */
 export async function ingestOcrData(

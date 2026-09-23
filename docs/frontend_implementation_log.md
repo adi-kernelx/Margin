@@ -78,9 +78,9 @@ Service map as of September 22, 2026:
 | E1 | Service status dots | F2 | `GET :8000/health` | → `{ "status": "ok" }` | **Exists.** Not yet polled by the UI. |
 | E2 | Service status dots | F2 | `GET :9101/health` | → `{ "status": "ok" }` | **Exists.** Not yet polled by the UI. |
 | E3 | OCR a page | F3, F9.3 | `POST :8000/ocr/recognize?page=<n>` | multipart `file` (page image) → OCR sidecar JSON; tokens carry `confidence` | **Exists and wired.** |
-| E4 | Assistant answers | F6 | `POST :9101/query` | `{ question, mode: "qa"\|"summary"\|"compare"\|"explain"\|"extract", scope?: { docIds?, pages?, selection? }, topK = 8, sessionId? }` → `{ answer, confidence, sources: [{ docId, page?, bbox?, score, text?, relevance_score? }], metrics? }` | **Exists and wired.** The UI does not yet expose `mode` or `scope`; F6 will. |
-| E5 | "Index this document for AI" | F6 | `POST :9101/ingest` | `{ docId, pdfFingerprint, displayName?, ocrData: { "<page>": OcrPageData } }` → `{ success, chunksIngested, message, cached }` | **Exists and wired.** Synchronous — no progress. |
-| E6 | Index state badge | F6, F4 | `GET :9101/status/{fingerprint}` | → `{ ingested, chunkCount, pdfFingerprint }` | **Exists and wired.** Boolean state only. |
+| E4 | Assistant answers | F6 | `POST :9101/query` | `{ question, mode: "qa"\|"summary"\|"compare"\|"explain"\|"extract", scope?: { docIds?, pages?, selection? }, topK = 8, sessionId? }` → `{ answer, confidence, sources: [{ docId, page?, bbox?, score, text?, relevance_score? }], metrics? }` | **Exists and wired.** Since F6 the UI sends `mode`, `scope.docIds`, `scope.pages` and `sessionId`, and aborts the request on Stop. |
+| E5 | "Index this document for AI" | F6 | `POST :9101/ingest` | `{ docId, pdfFingerprint, displayName?, ocrData: { "<page>": OcrPageData } }` → `{ success, chunksIngested, message, cached }` | **Exists and wired.** Runs automatically after OCR (`useClientOcr`); synchronous — no progress. |
+| E6 | Index state badge | F6, F4 | `GET :9101/status/{fingerprint}` | → `{ ingested, chunkCount, pdfFingerprint }` | **Exists and wired.** Shown as the assistant's index badge since F6. Boolean state only. |
 | E7 | Semantic search mode | F6 | `POST /search` (search_api) | `{ query, docId?, pdfFingerprint?, limit = 5 }` → `{ results: [...], error? }` | **Exists in code, not deployed.** Needs a compose service and a fixed port before F6 can use it. |
 
 ### Missing endpoints — contracts for the backend to build
@@ -796,6 +796,233 @@ dragging and without a mouse.
 
 ---
 
+## Phase F6: Side panels — notes, outline, search, assistant
+
+**Date:** September 23, 2026
+**Status:** Implemented — pending manual acceptance
+**Objective:** Replace the loose sidebars and dropdowns with docked panels on
+the design system, and surface the assistant API fields the UI was ignoring.
+
+### F6.1: Pure helpers (core)
+
+**Added**
+- `src/core/ui/markdown.ts` (+ 7 tests) — small Markdown parser to a token
+  tree: `#`–`###` headings, bullet and numbered lists, `**bold**`, `*italic*`,
+  `` `code` ``, `[links](https://…)`, `$math$`. No HTML ever reaches the DOM;
+  link targets other than http(s)/mailto become plain text.
+- `src/core/search/snippet.ts` (+ 7 tests) — `highlightSegments`,
+  `snippetAround` (centred, word-trimmed, ellipsised) and a stable `groupBy`.
+- `src/core/ui/outline.ts` (+ 4 tests) — visible rows of a collapsible
+  outline tree, and `pageIdForSourceIndex`, which maps an outline target to
+  the *current* page record so outline links survive reorders and deletes.
+- `src/core/assistant/conversation.ts` (+ 10 tests) — conversation model,
+  titles, confidence bands, request-scope resolution, `parsePageList("1-3, 7")`,
+  elapsed-time formatting.
+
+### F6.2: Document dock (Notes + Outline)
+
+**Added — `DocumentDock.tsx`, `OutlinePanel.tsx`, `src/lib/ui/dock.ts`**
+- One right-hand dock per document at elevation 1 with a Notes / Outline tab
+  strip. Resizable from its left edge by pointer or keyboard (←/→ on the
+  separator); width is remembered globally, last tab per document.
+- The reader's two floating buttons became one raised panel toolbar (Notes,
+  Outline, Pages) that sits beside the scroll area instead of over the dock.
+- Outline reads `pdfDoc.getOutline()`, resolves named and explicit
+  destinations to page indexes, and falls back to a page-jump grid when the
+  PDF has no outline. Landing on a page plays one `focus-pulse`.
+
+**Rebuilt — `NotesPanel.tsx`**
+- Now content-only inside the dock. Cards sit at elevation 1, lift on hover
+  and rise to elevation 3 with an accent edge when active; activating a note
+  pulses it once.
+- Highlight chips carry a colour swatch taken from the actual highlight, the
+  page and a quote excerpt; detach stays one click.
+- Edit / Preview toggle: written notes open rendered (Markdown + KaTeX);
+  double-click the preview to edit. The list measures its container instead
+  of guessing from `window.innerHeight`.
+
+### F6.3: Search
+
+**Rebuilt — `SearchBar.tsx`** (0 raw palette classes, was 60+)
+- Sunken input with a scope menu; results in an elevation-3 popover grouped by
+  document with match highlighting on a centred snippet.
+- Full keyboard model: `Ctrl+F` focuses (via the command registry), ↑/↓ move,
+  Enter opens, Esc closes then collapses. Listbox/combobox ARIA wiring.
+- Loading skeleton, `EmptyState` with a scope hint, `ErrorState` with retry.
+
+**Added — `src/lib/ui/navigate.ts`**
+- `revealInDocument` — one "take me there" path shared by search results and
+  assistant sources (fingerprint → open tab mapping, highlight flash, scroll,
+  pulse). Replaces 60 lines of logging-heavy logic in `Header.tsx`.
+
+### ⚡ Plan Deviation: search stays in the header popover
+
+> **Plan said:** move search results into the side dock.
+> **Did instead:** kept a wider header popover with the dock's styling.
+> **Reasoning:** search spans documents while the dock is per document, and the
+> popover works on the library screen where no dock exists. Revisit when M3
+> lands and semantic results need more room.
+
+### F6.4: Assistant
+
+**Rebuilt — `AIChatSidebar.tsx`** (0 raw palette classes, was 59)
+- Mode selector exposing all five API modes (Ask, Summarise, Explain, Compare,
+  Extract) and a scope selector (this document, all open, specific pages).
+- Answer cards with a three-bar confidence meter (label + bars, not colour
+  alone), elapsed time, and raised source chips that jump to the page.
+- Index badge from `GET /status/{fingerprint}`; clear offline state when the
+  health poller reports the service down.
+- "Thinking · 4s" state with a live timer, and a **Stop** button that aborts
+  the fetch. This stands in for streaming until M1 exists.
+- History stored locally in its own IndexedDB database (`margin-assistant`),
+  keyed by the document's stable id, capped at 50 conversations per document.
+  The mock "Recent chats" list is gone.
+
+### ⚡ Plan Deviation: no manual "Index this document" button
+
+> **Plan said:** an "Index this document for AI" action.
+> **Did instead:** a status badge only.
+> **Reasoning:** ingest already runs automatically after OCR in
+> `useClientOcr`; a second trigger would race it. A button becomes useful once
+> M2 gives progress and re-index semantics.
+
+### API register changes (F6)
+
+- E4, E5, E6 notes updated above. No new endpoints needed; M1 (streaming),
+  M2 (ingest progress) and M3 (deploy semantic search) remain open and the
+  UI degrades cleanly without them. The semantic-mode switch is not rendered
+  until M3 is deployed.
+
+---
+
+## Phase F7: Dialogs, settings, export, and system states
+
+**Date:** September 23, 2026
+**Status:** Implemented — pending manual acceptance
+
+### F7.1: Dialog primitive
+
+**Rebuilt — `ui/Dialog.tsx`**
+- Portal to `body`; dim scrim with a 2px blur; panel at elevation 4 rising in
+  with `dialog-in` (token durations, so reduced motion collapses it).
+- Focus trap (Tab / Shift+Tab wrap), initial focus unless a child claims it,
+  focus restored to the opener on close, Escape handled in capture phase.
+- New props: `size` (sm–xl), `icon`, `description`, `dismissible` (blocks
+  scrim, Escape and ×, e.g. while saving), `bodyClassName`.
+
+**Migrated to it:** `MathModal` (58 raw classes → 0; snippet buttons are key
+caps and insert at the caret, preview renders on white paper),
+`SaveOptionsModal` (now the export dialog), `SettingsModal`,
+`PermissionPrompt` (already on it since F2). `SaveModal.tsx` had no importers
+and was deleted.
+
+### F7.2: Export dialog
+
+`SaveOptionsModal` shows four raised option cards per document — PDF with
+editable annotations, flattened PDF, Margin JSON, complete package — plus
+"Save as…", an autosave `Switch`, a saved/unsaved badge (text + colour) and
+the needs-action warning. Also fixed a hooks-order bug: the old component
+called hooks after an early `return null`.
+
+**Not done:** "Markdown notes" is not a card here because notes live in the
+reader; it stays as "Export notes as Markdown" in the notes dock footer.
+
+### F7.3: Settings, sectioned
+
+Side-nav sections: **Appearance** (theme, reading filter), **Services** (live
+status per service, URL, "Test connection" via new `checkServiceNow`, last
+checked time), **Storage** (`navigator.storage.estimate()` meter and a
+"Keep data persistent" request via `navigator.storage.persist()`),
+**Shortcuts** (live from the registry), **About**. The open section is held in
+`src/lib/ui/ui-store.ts`, so the palette can open Settings on a section.
+
+**Not done:** editable service URLs — the URLs are constants in three client
+modules; making them configurable is a small follow-up, not a design task.
+
+### F7.4: State components
+
+**Added — `ui/States.tsx`, `ui/Switch.tsx`, `ui/Markdown.tsx`**
+- `EmptyState` (isometric `PaperStackArt` by default, or any art slot),
+  `ErrorState` (`role="alert"`, optional retry), `Skeleton` (sweep shimmer,
+  still under reduced motion).
+- `Switch` — raised thumb on a sunken track, `role="switch"`, state also in text.
+- New depth utilities in `depth.css`: `dialog-in`, `dialog-scrim`, `panel-in`,
+  `focus-pulse`, `.skeleton`, `.keycap`.
+- The workspace "no documents" screen now uses `EmptyState`.
+
+### F7.5: Keyboard layer
+
+**Added**
+- `src/core/ui/fuzzy.ts` (+ 9 tests) — ordered-subsequence matching that
+  scores word starts, consecutive runs and contiguous substrings, with match
+  positions for highlighting.
+- `src/core/ui/shortcuts.ts` (+ 8 tests) — parse `Mod+Shift+P`, match events
+  (Ctrl vs ⌘), shifted symbols like `?`, key-cap labels, editable-target check.
+- `src/lib/commands/registry.ts` — one action registry. Components register
+  commands while mounted (`useRegisterCommands`), so the palette only offers
+  what is possible now; document commands exist only for the focused document.
+- `CommandLayer.tsx` — command palette on `Ctrl+K` (grouped when browsing,
+  ranked when typing, ↑/↓/Enter, match highlighting) and the shortcut sheet on
+  `?`. One window listener binds every registered shortcut; single-key
+  shortcuts never fire while typing; only the palette works while a dialog is open.
+- `WorkspaceCommands.tsx` — workspace, tool, and appearance actions.
+  Tool keys stay bound in `useKeyboardShortcuts` and are listed with
+  `bindKey: false` so nothing fires twice.
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+K | Command palette |
+| ? | Shortcut sheet |
+| Ctrl+O | Open and add PDF |
+| Ctrl+F | Search |
+| Ctrl+J | Toggle assistant |
+| Ctrl+, | Settings |
+| Ctrl+Shift+L | Library |
+| Ctrl+\ | Toggle document panel (last tab) |
+| Ctrl+Shift+N / O | Notes / Outline |
+| Ctrl+Shift+P | Organise pages |
+
+### F7.6: First-run coach marks
+
+`CoachMarks.tsx` — a three-step floating card (Import, Annotate, Organise) at
+elevation 3; dismissible, remembered under `margin:coach-marks:v1`.
+
+### ⚡ Bug fix: opacity modifiers on token colours were silently dropped
+
+> Tailwind 3 cannot apply `/70` to a colour defined as a bare `var(--x)`, and
+> drops the class without warning — F4's library drop overlay
+> (`bg-accent-soft/70`) and card busy scrim (`bg-surface-2/60`) rendered with
+> no fill. `tailwind.config.js` now defines every token colour as
+> `color-mix(in srgb, var(--x) calc(<alpha-value> * 100%), transparent)`.
+> Verified in the built CSS: `.bg-accent-soft\/70{background-color:color-mix(in srgb,var(--accent-soft) 70%,transparent)}`.
+
+### API register changes (F7)
+
+- None. M4 (`GET /info`) stays optional; the Services section works without it.
+
+### Verification (F6 + F7)
+
+- **Automated:** tsc clean; core lint zero; tests **175 / 30 files** (was
+  130 / 24; +45); production build green. Lint on touched shell files is at or
+  below its pre-phase count (Header 1 → 0; Dashboard and PDFViewer unchanged).
+- **Raw palette classes: 0** across `src/components` and `src/pages` (was 323
+  in 5 files). F7's acceptance criterion is met.
+- **Browser check (dev server, dark theme):** palette opens on Ctrl+K and lists
+  every registered action; "set" ranks "Open settings" first; Ctrl+, opens
+  Settings with all five sections; storage meter reads real usage; Escape
+  closes and returns focus; Ctrl+J opens the assistant with the offline state.
+- **Manual acceptance (pending):**
+  1. Create 1,000 highlights; confirm no notes are created (8R.2 preserved).
+  2. Merge a PDF, then search text from the merged pages (8R.4 preserved).
+  3. With the assistant service running, ask a question; click a source chip
+     and confirm it lands on the right page. Press Stop mid-answer.
+  4. Open a PDF with a table of contents; open Outline (Ctrl+Shift+O) and
+     follow a nested entry after reordering pages.
+  5. Tab through every dialog; focus must stay inside and return on close.
+  6. Press `?` outside a text field; the sheet lists every shortcut.
+
+---
+
 ## Upcoming
 
 | Phase | Status | Blocked by |
@@ -805,7 +1032,7 @@ dragging and without a mouse.
 | F3 Reading zone | **Implemented** | F2 |
 | F4 Library | **Implemented** | F1 |
 | F5 Page organiser | **Implemented** | F4 (shared virtual-grid, FLIP) |
-| F6 Side panels | Not started | F2; M1–M3 for full assistant/search |
-| F7 Dialogs and states | Not started | F2 |
+| F6 Side panels | **Implemented** | Streaming (M1), ingest progress (M2), semantic search (M3) still open |
+| F7 Dialogs and states | **Implemented** | — |
 | F8 Demo build | Not started | F4–F7 |
 | F9.x Future surfaces | Not started | Corresponding backend weeks; M5–M8 |

@@ -75,6 +75,17 @@ async function probe(descriptor: ServiceDescriptor): Promise<ServiceHealth> {
     }
 }
 
+/** One immediate probe, used by Settings' "Test connection". */
+export async function checkServiceNow(key: ServiceKey): Promise<ServiceHealth> {
+    const descriptor = SERVICES.find(service => service.key === key);
+    if (!descriptor) return 'offline';
+    const { set } = useServiceHealthStore.getState();
+    set(key, 'checking');
+    const state = await probe(descriptor);
+    set(key, state);
+    return state;
+}
+
 let started = false;
 let timers: number[] = [];
 

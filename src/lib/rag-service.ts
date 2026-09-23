@@ -31,13 +31,14 @@ export interface QueryResponse {
 
 const RAG_API_URL = 'http://localhost:9101';
 
-export async function queryRag(req: QueryRequest): Promise<QueryResponse> {
+export async function queryRag(req: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
     const res = await fetch(`${RAG_API_URL}/query`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(req),
+        signal,
     });
 
     if (!res.ok) {
