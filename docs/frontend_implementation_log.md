@@ -8,8 +8,8 @@ that endpoint already exists, and — where it does not — the contract the
 backend should be built to.
 
 **Started:** September 22, 2026
-**Last updated:** September 22, 2026 (F2 and F3 implemented)
-**Current phase:** F2 and F3 implemented; awaiting user acceptance
+**Last updated:** September 23, 2026 (F4 and F5 implemented)
+**Current phase:** F4 and F5 implemented; awaiting user acceptance
 **Main project log:** [`implementation_log.md`](implementation_log.md)
 
 ---
@@ -620,6 +620,182 @@ overlay on it reads as the user's own markup rather than interface.
 
 ---
 
+## Phase F4: Library
+
+**Date:** September 23, 2026
+**Status:** Implemented; awaiting user acceptance
+**Objective:** The library is the showcase of the depth system and the first
+thing a new user sees. Every card is a physical object on a desk.
+
+### F4.1: Shared pure helper
+
+**Created**
+- `src/core/ui/virtual-grid.ts` — `computeGridRange(sizing)` returns the
+  columns, visible index range, row offsets and total content height for a
+  fixed-size grid. Shared between the library and the page organiser so the
+  two never disagree on what "visible" means.
+- `src/core/ui/virtual-grid.test.ts` — 7 tests covering scroll advance,
+  overscan, index capping, empty and collapsed viewports, and the
+  minimum-one-column safety.
+
+### F4.2: Continue-reading shelf
+
+**Created — in `src/components/LibraryGrid.tsx`**
+- `ReadingShelfCard` — larger tilt card with the cover on one side and the
+  last-read page, page count and a token-coloured progress bar on the other.
+- Only rendered at the library root, and only for the three most recently
+  opened documents (`libraryDB.listAllFiles()` already orders by
+  `lastOpenedAt`).
+
+### F4.3: Document cards
+
+**Rewritten — `DocumentCard` in `src/components/LibraryGrid.tsx`**
+- Wrapped in `depth-stack` so two back sheets peek from behind the card and
+  fan out on hover.
+- The card itself uses `depth-tilt` driven by `usePointerTilt` (imported
+  from `src/lib/ui`), giving a 4° pointer-tracked tilt with a specular sheen.
+- Reference/copy status pill uses the same token surface tokens as the
+  chrome so it never competes with the accent.
+- Importing state overlays a shimmer loader on the cover placeholder.
+
+### F4.4: Isometric folder cards
+
+**Rewritten — `FolderCard` in `src/components/LibraryGrid.tsx`**
+- Three token-coloured divs under `.iso-scene`'s shared
+  `rotateX(55deg) rotateZ(-45deg)` transform make an isometric folder
+  silhouette. No SVG, no PNG.
+- Card includes item count derived from a single pass over `files`.
+- `depth-pressable` gives the whole card a hover lift.
+
+### F4.5: Sort, filter and drop-import
+
+**Added — `src/components/LibraryGrid.tsx`**
+- Filter field driven by `useDeferredValue`; the input updates immediately
+  and the O(N) filter runs at low priority so a large library stays
+  responsive under typed input.
+- Sort segmented control (Recent / Name / Size) with a pure comparator per
+  mode.
+- Drop overlay: dragging PDFs anywhere in the library raises an
+  accent-soft dim + dashed-outline card, and importing shows a progress
+  message. Uses `bg-accent-soft/70 backdrop-blur-sm`.
+- Total size and filtered/total counts displayed above the PDF grid.
+
+### F4.6: Isometric empty state
+
+**Added — `EmptyStateArt` in `src/components/LibraryGrid.tsx`**
+- Three stacked page rectangles (surface-3 / surface-2 / surface-1) under
+  the isometric transform with a rotated accent pen; scales and themes
+  with zero external assets.
+- Empty-state now surfaces both call-to-action buttons directly, not just
+  an explanation.
+
+### ⚡ Design Decision: no meaning rides on colour alone in the library
+
+> **Reasoning:** The depth-tilt card carries several signals — hover lift,
+> sheen, elevation change, storage badge. Every one of them is paired with a
+> token colour AND a text label AND an icon, so a colour-blind user still
+> sees the same hierarchy. The dropped-file overlay uses colour, motion, and
+> the border-dashed pattern together.
+
+### API register changes
+
+- No backend contact was added or changed in F4.
+
+---
+
+## Phase F5: Page organiser
+
+**Date:** September 23, 2026
+**Status:** Implemented; awaiting user acceptance
+**Objective:** The best demonstration of the depth system, and the most
+useful new feature on the roadmap. Every action must be reachable without
+dragging and without a mouse.
+
+### F5.1: Shared pure FLIP helper
+
+**Created**
+- `src/core/ui/flip.ts` — `computeFlip(before, after)` returns a
+  `{dx, dy, sx, sy}` delta; `invertTransform(delta)` renders it as a CSS
+  `translate() scale()` string. Divides by zero safely.
+- `src/core/ui/flip.test.ts` — 5 tests covering the identity case,
+  displacement, size change, zero-size protection, and the transform
+  serialisation.
+
+### F5.2: Organiser as elevation-4 overlay
+
+**Rewritten — `src/components/PageOrganizer.tsx`**
+- Full-viewport dialog wrapped in `.depth-dialog`. Header carries the page
+  count and selection count; undo, redo, and close sit next to each other in
+  its right-hand side.
+- Toolbar strip below the header holds "Blank page" and "Merge PDF" plus a
+  hint about drag/keyboard reordering.
+- Grid area scrolls independently.
+
+### F5.3: Physical page sheets
+
+**Rewritten — page tile in `PageOrganizer.tsx`**
+- Grabbing a tile lifts it (`-translate-y-1 scale-[1.03] rotate-[1.5deg]`
+  plus `shadow-elev-4 opacity-95`) so it reads as being off the desk.
+- A drag-handle affordance appears in the corner on hover.
+- Selection uses accent-soft fill and an accent ring; focus adds a second
+  accent ring so keyboard focus is always visible.
+
+### F5.4: FLIP reordering
+
+**Added — `useLayoutEffect` in `PageOrganizer.tsx`**
+- Before each render commits, the effect measures every visible tile's
+  bounding box and stores it in a `Map<pageId, DOMRect>`.
+- After the DOM updates (a reorder, delete, insert or rotate), the effect
+  runs `computeFlip` for each tile whose position moved, then plays the
+  inverse transform back to identity with the Web Animations API
+  (`duration: 220ms, easing: cubic-bezier(.2, 0, 0, 1)`).
+- Skipped when `prefers-reduced-motion: reduce` is set — the movement still
+  happens, but no animation plays.
+
+### F5.5: Non-drag alternatives
+
+**Added — `PageOrganizer.tsx`**
+- Floating selection bar (bottom, elevation 3) with Move-left, Move-right,
+  Rotate CCW, Rotate CW, Extract, Split, and Delete buttons.
+- Keyboard: arrows move focus, `Alt+Arrow` moves the focused page one slot;
+  registered on the window while the organiser is open.
+- Every action reachable from the selection bar is also reachable from the
+  header or top toolbar.
+
+### ⚡ Design Decision: FLIP measures in the shell, arithmetic in the core
+
+> **Reasoning:** DOM measurement (`getBoundingClientRect`) belongs in the
+> shell because it needs a real browser. Everything else — the delta, the
+> inverse transform string, and the identity case — is pure and testable in
+> Node. Splitting it that way meant the FLIP animation shipped with tests,
+> which every previous attempt at a Margin drag-reorder did not.
+
+### API register changes
+
+- No backend contact was added or changed in F5.
+
+### Verification (F4 + F5)
+
+- **Automated:** tsc, core lint, tests (130 / 24 files), and the production
+  build all green. New tests: 7 virtual-grid + 5 FLIP.
+- **Raw palette classes:** unchanged at 323 across 5 files — F4 and F5 built
+  on components that were already token-clean.
+- **Manual acceptance (pending):**
+  1. Open the library at root; confirm the reading shelf shows the three
+     most recent docs and the progress bar tracks the last-read page.
+  2. Hover a document card; confirm it tilts, the back sheets fan out, the
+     sheen follows the pointer, and none of it triggers layout.
+  3. Enable OS-level reduced motion; confirm the tilt and fan-out stop but
+     the elevation-on-hover still works.
+  4. Drop a PDF into the library; confirm the overlay appears, importing
+     completes and the file joins the grid.
+  5. Open the page organiser on a document; drag one page to a new
+     position and confirm the neighbours animate to their new places.
+  6. Focus a page and press Alt+→ / Alt+←; confirm the page moves without
+     the mouse.
+
+---
+
 ## Upcoming
 
 | Phase | Status | Blocked by |
@@ -627,8 +803,8 @@ overlay on it reads as the user's own markup rather than interface.
 | F1 Foundation v2 | **Implemented** | — |
 | F2 Chrome zone | **Implemented** | F1 |
 | F3 Reading zone | **Implemented** | F2 |
-| F4 Library | Ready to start | F1 (8R.3 done) |
-| F5 Page organiser | Not started | F4 |
+| F4 Library | **Implemented** | F1 |
+| F5 Page organiser | **Implemented** | F4 (shared virtual-grid, FLIP) |
 | F6 Side panels | Not started | F2; M1–M3 for full assistant/search |
 | F7 Dialogs and states | Not started | F2 |
 | F8 Demo build | Not started | F4–F7 |
