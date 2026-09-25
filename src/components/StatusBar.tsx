@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import type { DocumentEntry } from '@/types';
 import { useAppStore } from '@/lib/store';
 import { useSaveStore, type SaveStoreState } from '@/lib/saving/save-manager';
+import { SERVICES_ENABLED } from '@/lib/features';
 import { SERVICES, useServiceHealthStore, type ServiceHealth, type ServiceKey } from '@/lib/services/health';
 import { cn } from '@/lib/utils';
 
@@ -93,8 +94,8 @@ export function StatusBar({ documents, paneCount }: StatusBarProps) {
 
             <div className="flex items-center gap-4">
                 <span className={cn(dirtyCount > 0 && 'text-warning')}>{saveLabel}</span>
-                <span aria-hidden className="text-line">•</span>
-                {SERVICES.map(descriptor => (
+                {SERVICES_ENABLED && <span aria-hidden className="text-line">•</span>}
+                {SERVICES_ENABLED && SERVICES.map(descriptor => (
                     <HealthDot
                         key={descriptor.key satisfies ServiceKey}
                         state={healthByKey[descriptor.key]}

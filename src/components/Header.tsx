@@ -11,6 +11,7 @@ import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { useUiStore } from '@/lib/ui/ui-store';
 import { revealInDocument } from '@/lib/ui/navigate';
+import { ASSISTANT_ENABLED } from '@/lib/features';
 
 interface HeaderProps {
     onOpenPDF: () => void;
@@ -141,14 +142,14 @@ export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocume
                 />
 
                 {/* AI Assistant Button */}
-                <IconButton
+                {ASSISTANT_ENABLED && <IconButton
                     onClick={onToggleAIChat}
                     pressed={showAIChat}
                     aria-label="Toggle AI assistant"
                     title="Assistant (Ctrl+J)"
                 >
                     <Sparkles size={18} />
-                </IconButton>
+                </IconButton>}
 
 
                 <Button

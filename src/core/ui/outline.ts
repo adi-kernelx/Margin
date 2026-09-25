@@ -30,14 +30,18 @@ export function visibleOutlineRows(nodes: readonly OutlineNode[], expanded: Read
 interface PageLike {
     id: string;
     kind: string;
+    sourceId?: string;
     sourcePageIndex?: number;
 }
 
 /**
- * Maps an original-document page index to the current page record. Pages can
- * be reordered or deleted after load, so a PDF outline entry pointing at
- * "page 5" must follow that page, not the fifth slot.
+ * Maps a page index in a source PDF to the current page record. Pages can be
+ * reordered, deleted or merged in from other files after load, so an outline
+ * entry pointing at "page 5 of the original" must follow that page, not the
+ * fifth slot, and must not land on page 5 of a merged-in document.
  */
-export function pageIdForSourceIndex(pages: readonly PageLike[], sourcePageIndex: number): string | null {
-    return pages.find(page => page.kind === 'pdf' && page.sourcePageIndex === sourcePageIndex)?.id ?? null;
+export function pageIdForSourceIndex(pages: readonly PageLike[], sourcePageIndex: number, sourceId?: string): string | null {
+    return pages.find(page => page.kind === 'pdf'
+        && page.sourcePageIndex === sourcePageIndex
+        && (sourceId === undefined || page.sourceId === sourceId))?.id ?? null;
 }

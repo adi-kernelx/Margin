@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode demo",
     "build": "tsc -b && vite build",
+    "build:demo": "tsc -b && vite build --mode demo",
+    "demo:pdf": "node scripts/make-demo-pdf.mjs",
+    "demo:check": "node scripts/check-demo-build.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

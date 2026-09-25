@@ -3,6 +3,7 @@ import { useRegisterCommands } from '@/lib/commands/registry';
 import { useThemeStore } from '@/lib/theme/theme';
 import { requestSearchFocus, useUiStore } from '@/lib/ui/ui-store';
 import type { DocumentEntry } from '@/types';
+import { ASSISTANT_ENABLED, SERVICES_ENABLED } from '@/lib/features';
 
 interface WorkspaceCommandsProps {
     documents: DocumentEntry[];
@@ -38,9 +39,9 @@ export function WorkspaceCommands({
         { id: 'workspace.open', title: 'Open and add PDF', group: 'Workspace', shortcut: 'Mod+O', allowInInput: true, keywords: ['import', 'file'], run: onOpenPdf },
         { id: 'workspace.library', title: 'Show library', group: 'Workspace', shortcut: 'Mod+Shift+L', keywords: ['home', 'files'], run: onShowLibrary },
         { id: 'workspace.search', title: 'Search documents', group: 'Workspace', shortcut: 'Mod+F', allowInInput: true, keywords: ['find'], run: requestSearchFocus },
-        { id: 'workspace.assistant', title: assistantOpen ? 'Hide assistant' : 'Show assistant', group: 'Workspace', shortcut: 'Mod+J', allowInInput: true, keywords: ['ai', 'chat', 'ask'], run: onToggleAssistant },
+        { id: 'workspace.assistant', title: assistantOpen ? 'Hide assistant' : 'Show assistant', group: 'Workspace', shortcut: 'Mod+J', allowInInput: true, keywords: ['ai', 'chat', 'ask'], enabled: ASSISTANT_ENABLED, run: onToggleAssistant },
         { id: 'workspace.settings', title: 'Open settings', group: 'Workspace', shortcut: 'Mod+,', allowInInput: true, keywords: ['preferences'], run: () => openSettings() },
-        { id: 'workspace.services', title: 'Check service connections', group: 'Workspace', keywords: ['ocr', 'health', 'offline'], run: () => openSettings('services') },
+        { id: 'workspace.services', title: 'Check service connections', group: 'Workspace', keywords: ['ocr', 'health', 'offline'], enabled: SERVICES_ENABLED, run: () => openSettings('services') },
         { id: 'workspace.storage', title: 'Storage usage', group: 'Workspace', keywords: ['disk', 'persist', 'quota'], run: () => openSettings('storage') },
         { id: 'workspace.close', title: 'Close focused document', group: 'Workspace', enabled: Boolean(focusedDocId), run: () => { if (focusedDocId) onCloseDocument(focusedDocId); } },
         ...documents.map(doc => ({ id: `workspace.focus.${doc.id}`, title: `Switch to ${doc.name}`, group: 'Workspace' as const, keywords: ['tab', 'document'], run: () => onFocusDocument(doc.id) })),

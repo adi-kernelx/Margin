@@ -7,6 +7,7 @@ import { SERVICES, checkServiceNow, useServiceHealthStore, type ServiceHealth } 
 import { selectCommands, useCommandStore } from '@/lib/commands/registry';
 import { useUiStore, type SettingsSection } from '@/lib/ui/ui-store';
 import { cn } from '@/lib/utils';
+import { SERVICES_ENABLED } from '@/lib/features';
 import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
 import { SegmentedControl } from './ui/SegmentedControl';
@@ -27,7 +28,7 @@ const readingFilterOptions = [
 
 const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
     { id: 'appearance', label: 'Appearance', icon: <Palette size={15} /> },
-    { id: 'services', label: 'Services', icon: <Server size={15} /> },
+    ...(SERVICES_ENABLED ? [{ id: 'services' as const, label: 'Services', icon: <Server size={15} /> }] : []),
     { id: 'storage', label: 'Storage', icon: <Database size={15} /> },
     { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={15} /> },
     { id: 'about', label: 'About', icon: <Info size={15} /> },
@@ -229,7 +230,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </nav>
                 <div className="p-5">
                     {section === 'appearance' && <AppearanceSection />}
-                    {section === 'services' && <ServicesSection />}
+                    {SERVICES_ENABLED && section === 'services' && <ServicesSection />}
                     {section === 'storage' && <StorageSection />}
                     {section === 'shortcuts' && <ShortcutsSection />}
                     {section === 'about' && <AboutSection />}

@@ -28,7 +28,7 @@ import type { Annotation, HighlightAnnotation, Operation } from '@/lib/annotatio
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { extractAnnotationData, embedAnnotations } from '@/lib/pdf-data-manager';
 import { localFileDB } from '@/lib/storage/local-file-db';
-import { useClientOcr } from '@/hooks/useClientOcr';
+import { useOcr } from '@/hooks/useOcr';
 import { OcrTextLayer } from './OcrTextLayer';
 import type { OcrPageResult } from '@/lib/ocr/client-ocr';
 import { localSearchRegistry } from '@/lib/search/local-search';
@@ -153,7 +153,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     // Suppress unused warning
 
     // Client-side OCR Hook (Local Only)
-    const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useClientOcr(fileId, pdfDoc);
+    const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useOcr(fileId, pdfDoc);
     const ocrPagesRef = useRef(ocrPages);
     useEffect(() => { ocrPagesRef.current = ocrPages; }, [ocrPages]);
     useEffect(() => {
@@ -1049,7 +1049,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     onTabChange={setDockTab}
                     onClose={() => setDockTab(null)}
                     noteCount={notes.length}
-                    outline={<OutlinePanel pdfDoc={pdfDoc} pages={pageDocument?.pages ?? []} onNavigate={scrollToPageId} />}
+                    outline={<OutlinePanel documentKey={stableId} loadSource={loadSource} pages={pageDocument?.pages ?? []} onNavigate={scrollToPageId} />}
                     notes={<NotesPanel
                     documentId={stableId}
                     documentTitle={fileName}

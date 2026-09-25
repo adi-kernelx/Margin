@@ -1,10 +1,9 @@
 
-import { useState, useRef, useEffect } from 'react';
+import { lazy, Suspense, useState, useRef, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { DocumentsGrid } from '@/components/DocumentsGrid';
 import { Header } from '@/components/Header';
 import { PermissionPrompt } from '@/components/PermissionPrompt';
-import { AIChatSidebar } from '@/components/AIChatSidebar';
 import type { DocumentEntry } from '@/types';
 import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -31,6 +30,7 @@ import {
 import { ToastContainer } from '@/components/ui/Toast';
 import { StatusBar } from '@/components/StatusBar';
 import { startServiceHealthPolling } from '@/lib/services/health';
+import { ASSISTANT_ENABLED, IS_DEMO, SERVICES_ENABLED } from '@/lib/features';
 import { Button } from '@/components/ui/Button';
 import { LibraryGrid } from '@/components/LibraryGrid';
 import { libraryDB } from '@/lib/storage/library-db';
@@ -39,6 +39,19 @@ import { CommandLayer } from '@/components/CommandLayer';
 import { CoachMarks } from '@/components/CoachMarks';
 import { EmptyState, PaperStackArt } from '@/components/ui/States';
 import { WorkspaceCommands } from '@/components/WorkspaceCommands';
+
+// Loaded on first open; compiled out entirely when the assistant is disabled.
+const AIChatSidebar = ASSISTANT_ENABLED
+    ? lazy(() => import('@/components/AIChatSidebar').then(module => ({ default: module.AIChatSidebar })))
+    : null;
+
+// Demo-only surfaces live in their own chunk and are absent from the normal build.
+const DemoShowcase = IS_DEMO
+    ? lazy(() => import('@/demo/DemoShowcase').then(module => ({ default: module.DemoShowcase })))
+    : null;
+const DemoBanner = IS_DEMO
+    ? lazy(() => import('@/demo/DemoBanner').then(module => ({ default: module.DemoBanner })))
+    : null;
 
 // Pending permission request info
 interface PendingPermission {
@@ -104,7 +117,7 @@ export default function Dashboard() {
 
     // Kick off service-health polling once. The store is a singleton, so a
     // second call is a no-op.
-    useEffect(() => { startServiceHealthPolling(); }, []);
+    useEffect(() => { if (SERVICES_ENABLED) startServiceHealthPolling(); }, []);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -296,12 +309,13 @@ export default function Dashboard() {
         }
     };
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
+    // Imports detached File objects (no file handle): the <input> fallback and
+    // the demo's bundled sample both come through here.
+    const importFiles = async (files: File[]) => {
             const newDocs: DocumentEntry[] = [];
+            let alreadyOpenId: string | null = null;
 
-            for (let i = 0; i < e.target.files.length; i++) {
-                const file = e.target.files[i];
+            for (const file of files) {
                 const libraryEntry = await libraryDB.importFile(file, pendingImportFolderRef.current);
                 const docId = libraryEntry.id;
                 const stableId = await computeStableIdForFile(file);
@@ -324,7 +338,10 @@ export default function Dashboard() {
                     });
                 }
 
-                if (documents.some(document => document.id === docId)) continue;
+                if (documents.some(document => document.id === docId)) {
+                    alreadyOpenId = docId;
+                    continue;
+                }
                 newDocs.push({
                     id: docId,
                     stableId: stableId,
@@ -335,8 +352,17 @@ export default function Dashboard() {
             }
 
             if (newDocs.length) addDocumentsToWorkspace(newDocs);
-            e.target.value = '';
-        }
+            else if (alreadyOpenId) {
+                focusDocument(alreadyOpenId);
+                setShowLibrary(false);
+            }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files) return;
+        const files = [...e.target.files];
+        e.target.value = '';
+        await importFiles(files);
     };
 
 
@@ -515,6 +541,8 @@ export default function Dashboard() {
     };
 
     const [showAIChat, setShowAIChat] = useState(false);
+    // The demo opens on its showcase; the normal build never has one.
+    const [showShowcase, setShowShowcase] = useState(IS_DEMO);
     return (
         <div className={cn(
             "flex h-screen w-screen overflow-hidden flex-col bg-ground text-text",
@@ -528,8 +556,9 @@ export default function Dashboard() {
                 showAIChat={showAIChat}
                 onToggleAIChat={() => setShowAIChat(!showAIChat)}
                 onFocusDocument={focusDocument}
-                onShowLibrary={() => setShowLibrary(true)}
+                onShowLibrary={() => { setShowShowcase(false); setShowLibrary(true); }}
             />
+            {DemoBanner && <Suspense fallback={null}><DemoBanner /></Suspense>}
 
             <input
                 ref={fileInputRef}
@@ -556,7 +585,15 @@ export default function Dashboard() {
 
                 <div className="flex-1 overflow-hidden relative bg-ground flex">
                     <div className="flex-1 overflow-hidden relative">
-                        {showLibrary ? (
+                        {DemoShowcase && showShowcase ? (
+                            <Suspense fallback={null}>
+                                <DemoShowcase
+                                    onOpenSample={async (file) => { await importFiles([file]); setShowShowcase(false); }}
+                                    onOpenOwn={() => { setShowShowcase(false); void handleOpenPDF(); }}
+                                    onSkip={() => { setShowShowcase(false); setShowLibrary(true); }}
+                                />
+                            </Suspense>
+                        ) : showLibrary ? (
                             <LibraryGrid onOpen={handleOpenLibraryFile} onAddReferences={(folderId) => void handleOpenPDF(folderId)} />
                         ) : documents.length === 0 ? (
                             <EmptyState
@@ -577,6 +614,8 @@ export default function Dashboard() {
                         )}
                     </div>
                     {/* Render AI Chat Sidebar here as a sibling */}
+                    {AIChatSidebar && showAIChat && (
+                    <Suspense fallback={null}>
                     <AIChatSidebar
                         isOpen={showAIChat}
                         onClose={() => setShowAIChat(false)}
@@ -584,6 +623,8 @@ export default function Dashboard() {
                         onFocusDocument={focusDocument}
                         variant="embedded"
                     />
+                    </Suspense>
+                    )}
                 </div>
             </div>
 
@@ -600,7 +641,7 @@ export default function Dashboard() {
                 onCloseDocument={removeDocument}
                 onFocusDocument={focusDocument}
             />
-            <CoachMarks />
+            {!showShowcase && <CoachMarks />}
         </div>
     );
 }

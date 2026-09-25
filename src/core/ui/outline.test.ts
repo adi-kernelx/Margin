@@ -34,4 +34,13 @@ describe('pageIdForSourceIndex', () => {
         expect(pageIdForSourceIndex(pages, 0)).toBe('a');
         expect(pageIdForSourceIndex(pages, 7)).toBeNull();
     });
+
+    it('ignores pages merged in from another source', () => {
+        const pages = [
+            { id: 'merged', kind: 'pdf', sourceId: 'appendix', sourcePageIndex: 0 },
+            { id: 'first', kind: 'pdf', sourceId: 'original', sourcePageIndex: 0 },
+        ];
+        expect(pageIdForSourceIndex(pages, 0, 'original')).toBe('first');
+        expect(pageIdForSourceIndex(pages, 0)).toBe('merged');
+    });
 });

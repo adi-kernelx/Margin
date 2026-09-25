@@ -33,3 +33,19 @@ jobs:
 
       - name: Build
         run: npx vite build
+
+      # The static demo (VITE_DEMO=1) is built on every push so it cannot rot.
+      # The check script fails if demo code leaks into the normal build or if
+      # OCR / assistant code leaks into the demo.
+      - name: Build demo
+        run: npx vite build --mode demo
+
+      - name: Check demo split
+        run: node scripts/check-demo-build.mjs
+
+      - name: Upload demo
+        uses: actions/upload-artifact@v4
+        with:
+          name: margin-demo
+          path: dist-demo
+          retention-days: 14

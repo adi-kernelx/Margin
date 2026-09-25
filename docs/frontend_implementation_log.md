@@ -1023,6 +1023,115 @@ elevation 3; dismissible, remembered under `margin:coach-marks:v1`.
 
 ---
 
+## Phase F8: Demo build and showcase surface
+
+**Date:** September 26, 2026
+**Status:** Implemented — pending manual acceptance
+**Objective:** One static link anyone can open to understand Margin in
+thirty seconds, with no Python services behind it.
+
+### F8.1: Build target and feature flags
+
+**Added**
+- `.env.demo` (`VITE_DEMO=1`, committed — no secrets) and `npm run
+  build:demo` / `npm run dev:demo`, i.e. `vite build --mode demo`.
+- `vite.config.ts`: demo mode writes to `dist-demo/` with `base: './'`, so the
+  output works from any sub-path of any static host.
+- `src/lib/features.ts`: `IS_DEMO`, `ASSISTANT_ENABLED`, `SERVICES_ENABLED`.
+  After Vite's env replacement each is a literal, so Rollup folds the gated
+  branches away. Gated: the assistant panel (now a lazy chunk in the normal
+  build too), its header button and commands, health polling, the status-bar
+  service pips, and the Settings → Services section.
+
+### ⚡ Design Decision: OCR is removed by a module alias, not a flag
+
+> A `FLAG ? useClientOcr : stub` ternary left Tesseract in the demo bundle:
+> the OCR modules have top-level side effects, so Rollup keeps them even when
+> nothing calls them. Components now import `@/hooks/useOcr`, which the demo
+> build aliases to `useOcr.demo.ts` (a stub that never starts). The OCR
+> client, Tesseract and the ingest calls are never bundled.
+
+### F8.2: Bundled sample document
+
+- `scripts/make-demo-pdf.mjs` (`npm run demo:pdf`) generates
+  `src/demo/assets/eigenvalues-primer.pdf` with pdf-lib: three pages on
+  eigenvalues with numbered equations, theorem boxes, sub/superscripts
+  (Greek and operators from the standard Symbol font) and a **nested outline**
+  (4 chapters, 7 sections). Reproducible, no third-party content, 16 KB.
+  `.gitignore` gets an exception for this folder.
+
+### F8.3: Showcase and demo notice
+
+**Added — `src/demo/` (own chunks, demo build only)**
+- `DemoShowcase.tsx` — the demo's landing view: what Margin is, three
+  feature cards, and **Open the sample paper** / Open your own PDF / Go to the
+  library. The hero has three parallax layers (field, isometric paper stack,
+  floating note card) that follow the pointer; parallax is off under reduced
+  motion and on touch.
+- `GradientField.tsx` — the canvas hero: a 48 × 28 generative field in the
+  accent and ground colours, upscaled. Re-reads the theme each frame; draws
+  one still frame under reduced motion; pauses off screen and in background
+  tabs.
+- `DemoBanner.tsx` — slim notice under the header: data stays in this
+  browser, OCR and the assistant are off. Dismissal lasts one session.
+- `src/core/ui/parallax.ts` (+ 6 tests) — `parallaxOffset` and the bounded
+  `gradientField` function.
+- The first-run coach marks wait until the showcase is closed.
+
+**Changed — `Dashboard.tsx`**: the file-input import path is now
+`importFiles(files)`, shared with the sample loader; an already-open file is
+focused instead of silently ignored.
+
+### F8.4: CI
+
+`.github/workflows/ci.yml` now builds the demo on every push, runs
+`scripts/check-demo-build.mjs`, and uploads `dist-demo` as the `margin-demo`
+artifact (14 days). The check fails when:
+- `dist/` contains the showcase, banner or sample PDF;
+- `dist-demo/` lacks the showcase or sample, references `localhost:8000`,
+  `localhost:9101` or `tesseract`, or uses absolute `/assets/` paths.
+
+To keep the sample PDF out of the normal build (Vite emits `?url` assets
+before tree-shaking), `@/demo/*` is aliased to `src/lib/empty-module.ts`
+outside demo mode.
+
+### ⚡ Bug fix: the Outline panel never found a table of contents (F6)
+
+> The viewer renders a copy rebuilt page by page by `materializePageDocument`,
+> and pdf-lib's `copyPages` drops `/Outlines`. F6's panel read the outline
+> from that copy, so every PDF fell back to the page grid. The panel now reads
+> the stored original source (`loadSource('original')`), resolves every
+> destination once and releases the PDF.js document. `pageIdForSourceIndex`
+> takes a `sourceId` so entries never land on a merged-in document's pages;
+> entries whose page was deleted stay listed but disabled. Found while testing
+> the sample, which has an outline by design.
+
+### API register changes (F8)
+
+- None. The demo runs as static files by design.
+
+### Verification (F8)
+
+- **Automated:** tsc clean; core lint zero; tests **182 / 31 files** (+7);
+  both builds green; `check-demo-build` passes (90 normal assets, 92 demo).
+- **Bundle contents:** demo — no `tesseract`, no `localhost:8000/9101`, no
+  `/ingest`, no assistant code; `DemoShowcase` (7 KB) and `DemoBanner` (1 KB)
+  are separate chunks. Normal build — no demo chunks, no sample PDF; the
+  assistant is now its own 15 KB lazy chunk.
+- **Browser check (`vite preview --mode demo`, static files):** showcase,
+  banner and canvas render; no assistant button or service pips; "Open the
+  sample paper" imports it and renders all 3 pages; Outline lists 4 chapters,
+  expands to sections, and entries land on the right pages (2.1 → p. 2,
+  §3 → p. 2, Further reading → p. 3).
+- **Manual acceptance (pending):**
+  1. Serve `dist-demo/` from a static host sub-path (e.g. GitHub Pages) and
+     open the sample with the network panel open: no requests to any service.
+  2. Turn on OS reduced motion: the field is still and parallax stops.
+  3. Highlight, add a note, reload: everything persists in the browser.
+  4. Watch the pointer parallax — three layers, subtle, no jank.
+
+---
+
 ## Upcoming
 
 | Phase | Status | Blocked by |
@@ -1034,5 +1143,5 @@ elevation 3; dismissible, remembered under `margin:coach-marks:v1`.
 | F5 Page organiser | **Implemented** | F4 (shared virtual-grid, FLIP) |
 | F6 Side panels | **Implemented** | Streaming (M1), ingest progress (M2), semantic search (M3) still open |
 | F7 Dialogs and states | **Implemented** | — |
-| F8 Demo build | Not started | F4–F7 |
+| F8 Demo build | **Implemented** | — |
 | F9.x Future surfaces | Not started | Corresponding backend weeks; M5–M8 |

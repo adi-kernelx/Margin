@@ -28,6 +28,7 @@ package-lock.json.bak
 # Build Outputs
 # -------------------
 dist/
+dist-demo/
 dist-ssr/
 build/
 *.local
@@ -57,6 +58,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.demo
 .runtimeconfig.json
 
 # Sensitive Keys & Credentials
@@ -175,6 +177,7 @@ ERASER_ENHANCEMENT.md
 *.pdf
 !docs/*.pdf
 !public/*.pdf
+!src/demo/assets/*.pdf
 
 # -------------------
 # Firebase

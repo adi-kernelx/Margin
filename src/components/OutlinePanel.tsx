@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist';
 import { ChevronRight, FileText } from 'lucide-react';
 import { pageIdForSourceIndex, visibleOutlineRows, type OutlineNode } from '@/core/ui/outline';
 import type { PageRecord } from '@/core/pages/models';
@@ -9,26 +9,24 @@ import { EmptyState, Skeleton } from './ui/States';
 type RawOutline = Awaited<ReturnType<pdfjsLib.PDFDocumentProxy['getOutline']>>;
 type Destination = RawOutline[number]['dest'];
 
+/** The source whose outline is shown; merged-in files keep their own outlines out. */
+const OUTLINE_SOURCE = 'original';
+
 interface OutlinePanelProps {
-    pdfDoc: pdfjsLib.PDFDocumentProxy | null;
+    /** Changes whenever a different document is shown. */
+    documentKey: string;
+    /** Bytes of a stored page source. The rendered document is rebuilt page by
+     *  page and carries no outline, so the outline is read from the original. */
+    loadSource: (sourceId: string) => Promise<Uint8Array | null | undefined>;
     pages: readonly PageRecord[];
     onNavigate: (pageId: string) => void;
 }
 
-function toNodes(items: RawOutline, prefix = ''): OutlineNode[] {
-    return items.map((item, index) => ({
-        id: `${prefix}${index}`,
-        title: item.title || 'Untitled',
-        children: toNodes(item.items ?? [], `${prefix}${index}.`),
-    }));
-}
-
-function destinationsById(items: RawOutline, prefix = '', into = new Map<string, Destination>()): Map<string, Destination> {
-    items.forEach((item, index) => {
-        into.set(`${prefix}${index}`, item.dest);
-        destinationsById(item.items ?? [], `${prefix}${index}.`, into);
-    });
-    return into;
+interface LoadedOutline {
+    key: string;
+    nodes: OutlineNode[] | null;
+    /** Outline node id → zero-based page index in the original source. */
+    pageIndexById: Map<string, number>;
 }
 
 async function resolvePageIndex(pdfDoc: pdfjsLib.PDFDocumentProxy, dest: Destination): Promise<number | null> {
@@ -44,27 +42,49 @@ async function resolvePageIndex(pdfDoc: pdfjsLib.PDFDocumentProxy, dest: Destina
 }
 
 /**
+ * Reads the outline and resolves every destination up front, so the PDF.js
+ * document can be released immediately instead of living as long as the panel.
+ */
+async function readOutline(bytes: Uint8Array): Promise<Omit<LoadedOutline, 'key'>> {
+    const pdfDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+    try {
+        const raw = await pdfDoc.getOutline();
+        if (!raw?.length) return { nodes: null, pageIndexById: new Map() };
+        const pageIndexById = new Map<string, number>();
+        const convert = async (items: RawOutline, prefix: string): Promise<OutlineNode[]> => Promise.all(items.map(async (item, index) => {
+            const id = `${prefix}${index}`;
+            const pageIndex = await resolvePageIndex(pdfDoc, item.dest);
+            if (pageIndex !== null) pageIndexById.set(id, pageIndex);
+            return { id, title: item.title || 'Untitled', children: await convert(item.items ?? [], `${id}.`) };
+        }));
+        return { nodes: await convert(raw, ''), pageIndexById };
+    } finally {
+        void pdfDoc.destroy();
+    }
+}
+
+/**
  * The PDF's own table of contents. Falls back to a plain page list when the
  * file has no outline, so the tab is always useful for navigation.
  */
-export function OutlinePanel({ pdfDoc, pages, onNavigate }: OutlinePanelProps) {
-    // Tagged with the document it was read from, so a new document reads as
-    // "loading" without resetting state inside the effect.
-    const [loaded, setLoaded] = useState<{ doc: pdfjsLib.PDFDocumentProxy; outline: RawOutline | null } | null>(null);
+export function OutlinePanel({ documentKey, loadSource, pages, onNavigate }: OutlinePanelProps) {
+    // Tagged with the document it was read for, so switching documents reads
+    // as "loading" without resetting state inside the effect.
+    const [loaded, setLoaded] = useState<LoadedOutline | null>(null);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
-    const outline = pdfDoc && loaded?.doc === pdfDoc ? loaded.outline : undefined;
+    const current = loaded?.key === documentKey ? loaded : null;
 
     useEffect(() => {
-        if (!pdfDoc) return;
         let cancelled = false;
-        void pdfDoc.getOutline().then(result => { if (!cancelled) setLoaded({ doc: pdfDoc, outline: result?.length ? result : null }); })
-            .catch(() => { if (!cancelled) setLoaded({ doc: pdfDoc, outline: null }); });
+        const empty = { key: documentKey, nodes: null, pageIndexById: new Map<string, number>() };
+        void loadSource(OUTLINE_SOURCE)
+            .then(bytes => (bytes ? readOutline(bytes) : empty))
+            .then(result => { if (!cancelled) setLoaded({ ...result, key: documentKey }); })
+            .catch(() => { if (!cancelled) setLoaded(empty); });
         return () => { cancelled = true; };
-    }, [pdfDoc]);
+    }, [documentKey, loadSource]);
 
-    const nodes = useMemo(() => (outline ? toNodes(outline) : []), [outline]);
-    const destinations = useMemo(() => (outline ? destinationsById(outline) : new Map<string, Destination>()), [outline]);
-    const rows = useMemo(() => visibleOutlineRows(nodes, expanded), [nodes, expanded]);
+    const rows = useMemo(() => visibleOutlineRows(current?.nodes ?? [], expanded), [current, expanded]);
 
     const toggle = (id: string) => setExpanded(previous => {
         const next = new Set(previous);
@@ -73,19 +93,18 @@ export function OutlinePanel({ pdfDoc, pages, onNavigate }: OutlinePanelProps) {
         return next;
     });
 
-    const open = async (id: string) => {
-        if (!pdfDoc) return;
-        const index = await resolvePageIndex(pdfDoc, destinations.get(id) ?? null);
-        if (index === null) return;
-        const pageId = pageIdForSourceIndex(pages, index);
+    const open = (id: string) => {
+        const index = current?.pageIndexById.get(id);
+        if (index === undefined) return;
+        const pageId = pageIdForSourceIndex(pages, index, OUTLINE_SOURCE);
         if (pageId) onNavigate(pageId);
     };
 
-    if (!pdfDoc || outline === undefined) {
+    if (!current) {
         return <div className="space-y-3 p-4" aria-busy="true">{[0, 1, 2, 3].map(row => <Skeleton key={row} className="h-4" />)}</div>;
     }
 
-    if (outline === null) {
+    if (!current.nodes) {
         if (!pages.length) return <EmptyState compact title="No pages" />;
         return (
             <div className="flex-1 overflow-y-auto p-2">
@@ -105,24 +124,33 @@ export function OutlinePanel({ pdfDoc, pages, onNavigate }: OutlinePanelProps) {
 
     return (
         <ul role="tree" aria-label="Table of contents" className="flex-1 overflow-y-auto p-2">
-            {rows.map(row => (
-                <li key={row.node.id} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.hasChildren ? row.expanded : undefined}>
-                    <div className="group flex items-center rounded transition-colors duration-state hover:bg-sunken" style={{ paddingLeft: row.depth * 14 }}>
-                        {row.hasChildren ? (
-                            <button className="grid size-6 shrink-0 place-items-center text-text-muted hover:text-text" aria-label={row.expanded ? `Collapse ${row.node.title}` : `Expand ${row.node.title}`} onClick={() => toggle(row.node.id)}>
-                                <ChevronRight size={13} className={cn('transition-transform duration-state', row.expanded && 'rotate-90')} />
+            {rows.map(row => {
+                // An entry whose page was deleted stays visible but inert.
+                const index = current.pageIndexById.get(row.node.id);
+                const reachable = index !== undefined && pageIdForSourceIndex(pages, index, OUTLINE_SOURCE) !== null;
+                return (
+                    <li key={row.node.id} role="treeitem" aria-level={row.depth + 1} aria-expanded={row.hasChildren ? row.expanded : undefined}>
+                        <div className="group flex items-center rounded transition-colors duration-state hover:bg-sunken" style={{ paddingLeft: row.depth * 14 }}>
+                            {row.hasChildren ? (
+                                <button className="grid size-6 shrink-0 place-items-center text-text-muted hover:text-text" aria-label={row.expanded ? `Collapse ${row.node.title}` : `Expand ${row.node.title}`} onClick={() => toggle(row.node.id)}>
+                                    <ChevronRight size={13} className={cn('transition-transform duration-state', row.expanded && 'rotate-90')} />
+                                </button>
+                            ) : <span className="size-6 shrink-0" />}
+                            <button
+                                className={cn(
+                                    'min-w-0 flex-1 truncate py-1.5 pr-2 text-left text-sm disabled:cursor-default disabled:opacity-50',
+                                    row.depth === 0 ? 'font-medium text-text' : 'text-text-soft',
+                                )}
+                                title={reachable ? row.node.title : `${row.node.title} (page removed)`}
+                                disabled={!reachable}
+                                onClick={() => open(row.node.id)}
+                            >
+                                {row.node.title}
                             </button>
-                        ) : <span className="size-6 shrink-0" />}
-                        <button
-                            className={cn('min-w-0 flex-1 truncate py-1.5 pr-2 text-left text-sm', row.depth === 0 ? 'font-medium text-text' : 'text-text-soft')}
-                            title={row.node.title}
-                            onClick={() => void open(row.node.id)}
-                        >
-                            {row.node.title}
-                        </button>
-                    </div>
-                </li>
-            ))}
+                        </div>
+                    </li>
+                );
+            })}
         </ul>
     );
 }
