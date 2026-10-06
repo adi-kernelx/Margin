@@ -1,0 +1,39 @@
+{
+  "method": "logistic",
+  "seed": 20261006,
+  "rows": 548,
+  "errors": 327,
+  "sample_count": 50,
+  "requested_count": 50,
+  "sample_by_class": {
+    "algorithm": 6,
+    "definition": 6,
+    "example": 10,
+    "notation": 3,
+    "other": 7,
+    "proof": 8,
+    "theorem": 10
+  },
+  "sample_by_fold": {
+    "0": 8,
+    "1": 10,
+    "2": 9,
+    "3": 11,
+    "4": 12
+  },
+  "sample_missing_train_class": 0,
+  "weak_label_evaluation": true,
+  "test_evaluated": false,
+  "warning": "Class/fold-covered diagnostic sample; not prevalence or independent gold evidence.",
+  "reviewed_count": 50,
+  "review_by_reason": {
+    "context_needed": 6,
+    "extraction_noise": 2,
+    "fragment": 11,
+    "mixed_role": 3,
+    "rare_class": 5,
+    "semantic_confusion": 19,
+    "weak_label_suspect": 4
+  },
+  "review_warning": "Text-only diagnostic judgments, not PDF-page verification or independent gold labels."
+}

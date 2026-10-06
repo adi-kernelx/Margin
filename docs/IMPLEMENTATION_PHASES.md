@@ -109,6 +109,23 @@ baseline table with confidence intervals.
 
 ### ML2 — Block classifier v1 (Oct 13–19)
 
+Started October 6 at the user's request, while ML1 human-data acceptance is
+pending. Substeps are sequential; ML2.1–ML2.7 are implemented and verified.
+Grouped weak-label development is measured; final independent-label acceptance
+remain later work. Next is repaired-data acceptance and training-label enrichment.
+
+| Substep | Scope | Status |
+|---|---|---|
+| ML2.1 | Heading-free weak training inputs, source cap, train-only grouped folds | Implemented; 548 rows, five folds; no classifier trained |
+| ML2.2 | Majority/heading baselines and first heading-free TF-IDF/logistic classifier | Implemented at user's request; ten active model tests; 141 Python tests pass; training-only smoke fit, no held-out scores |
+| ML2.3 | Five train-only source-fold runs, majority comparison, out-of-fold class metrics and document intervals | Implemented and measured; weak-label logistic accuracy 0.403 / macro F1 0.236; gold test untouched |
+| ML2.4 | Multinomial Naive Bayes on identical source folds and TF-IDF settings | Implemented and measured; accuracy 0.422 / macro F1 0.237; 157 Python tests pass; gold test untouched |
+| ML2.5 | Layout-only LightGBM on identical source folds; five layout measurements plus category | Implemented and measured; accuracy 0.297 / macro F1 0.165; definition recall zero; 174 Python tests pass; gold test untouched |
+| ML2.6 | Reproducible 50-mistake development audit and two fixed text candidates, requested to improve accuracy | Complete text-only provisional audit; balanced logistic accuracy 0.412 / macro F1 0.270 / definition recall 0.391; does not beat NB accuracy; 192 Python tests pass; not independent gold acceptance |
+| ML2.7 | Training-data quality repair: fragmented blocks and heading/table associations | Implemented; six rendered source pages checked, 549 revised rows; 208 Python tests pass; original source folds/reports preserved; balanced accuracy 0.408 / macro F1 0.264, changed data not an identical-row improvement |
+| ML2.8 | Accept repaired training snapshot and independently review/enrich train-only labels, especially rare classes | Next; no further tuning or frozen-test evaluation until data acceptance |
+| Later ML2 steps | Evaluation on completed hand labels, final error analysis and BM25 | Pending; exact units defined when reached |
+
 - Train on `text_without_heading` so the model cannot learn the heading regex.
 - Baselines: majority class; headings only (the regex).
 - Models: TF-IDF + logistic regression; multinomial Naive Bayes; LightGBM with

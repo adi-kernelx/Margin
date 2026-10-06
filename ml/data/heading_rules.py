@@ -232,7 +232,10 @@ def detect_heading(
 
     # After keyword (+ optional number), check for continuation verbs
     # that signal this is a sentence, not a heading.
-    if _CONTINUATION_VERBS.match(rest):
+    formatted_proof_body = (subtype == "proof" and heading_number is None
+                            and (is_bold or has_font_change or is_uppercase)
+                            and re.match(r"^\s+(Let|Assume|Suppose|We|By|First|For)\b", rest))
+    if _CONTINUATION_VERBS.match(rest) and not formatted_proof_body:
         return None
 
     # "Algorithm B responds..." — short identifier (1–2 chars) followed by
@@ -268,6 +271,10 @@ def detect_heading(
     # without a number, an algorithm heading needs a name followed by "("
     # and heading formatting (NIST: "Algorithm BitsToBytes(b)" in bold).
     if subtype == "algorithm" and heading_number is None:
+        # A results-table column header can look like a named function:
+        # "Algorithm xi (ms) (ms) ...". Repeated time units are not a procedure.
+        if len(re.findall(r"\((?:ms|us|µs|s)\)", rest)) >= 2:
+            return None
         if not (_FUNCTION_NAME.match(rest) and (is_bold or has_font_change)):
             return None
 

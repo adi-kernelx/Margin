@@ -1,0 +1,873 @@
+{
+  "weak_label_evaluation": true,
+  "test_evaluated": false,
+  "rows": 549,
+  "dataset_revision": "ML2.7",
+  "documents": 27,
+  "label_order": [
+    "definition",
+    "theorem",
+    "proof",
+    "example",
+    "notation",
+    "algorithm",
+    "other"
+  ],
+  "seed": 20261006,
+  "bootstrap_resamples": 2000,
+  "folds": [
+    {
+      "fold": 0,
+      "train_rows": 349,
+      "dev_rows": 200,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "example",
+      "missing_train_classes": [],
+      "missing_dev_classes": [
+        "algorithm",
+        "notation",
+        "other"
+      ]
+    },
+    {
+      "fold": 1,
+      "train_rows": 349,
+      "dev_rows": 200,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "example",
+      "missing_train_classes": [],
+      "missing_dev_classes": [
+        "algorithm",
+        "notation"
+      ]
+    },
+    {
+      "fold": 2,
+      "train_rows": 492,
+      "dev_rows": 57,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "example",
+      "missing_train_classes": [],
+      "missing_dev_classes": [
+        "algorithm",
+        "notation"
+      ]
+    },
+    {
+      "fold": 3,
+      "train_rows": 500,
+      "dev_rows": 49,
+      "train_groups": 8,
+      "dev_groups": 6,
+      "majority_label": "theorem",
+      "missing_train_classes": [],
+      "missing_dev_classes": [
+        "definition",
+        "proof"
+      ]
+    },
+    {
+      "fold": 4,
+      "train_rows": 506,
+      "dev_rows": 43,
+      "train_groups": 9,
+      "dev_groups": 5,
+      "majority_label": "example",
+      "missing_train_classes": [],
+      "missing_dev_classes": [
+        "definition"
+      ]
+    }
+  ],
+  "methods": {
+    "majority": {
+      "accuracy": 0.22586520947176686,
+      "macro_f1": 0.05923170218247859,
+      "per_class": {
+        "definition": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 92
+        },
+        "theorem": {
+          "precision": 0.061224489795918366,
+          "recall": 0.023076923076923078,
+          "f1": 0.0335195530726257,
+          "support": 130
+        },
+        "proof": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 123
+        },
+        "example": {
+          "precision": 0.242,
+          "recall": 0.8962962962962963,
+          "f1": 0.38110236220472443,
+          "support": 135
+        },
+        "notation": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "algorithm": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 24
+        },
+        "other": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 41
+        }
+      },
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0,
+          92,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
+          0,
+          127,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          123,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          14,
+          0,
+          121,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          23,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          6,
+          0,
+          35,
+          0,
+          0,
+          0
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.16191413184992307,
+          0.26816893187692814
+        ],
+        "macro_f1": [
+          0.0455660562575855,
+          0.07145885462512565
+        ],
+        "definition": [
+          0.0,
+          0.0
+        ],
+        "theorem": [
+          0.0,
+          0.0967741935483871
+        ],
+        "proof": [
+          0.0,
+          0.0
+        ],
+        "example": [
+          0.29315430786176677,
+          0.44073117716972837
+        ],
+        "notation": [
+          0.0,
+          0.0
+        ],
+        "algorithm": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "logistic": {
+      "accuracy": 0.40255009107468126,
+      "macro_f1": 0.2321369328934025,
+      "per_class": {
+        "definition": {
+          "precision": 0.6538461538461539,
+          "recall": 0.18478260869565216,
+          "f1": 0.288135593220339,
+          "support": 92
+        },
+        "theorem": {
+          "precision": 0.36312849162011174,
+          "recall": 0.5,
+          "f1": 0.42071197411003236,
+          "support": 130
+        },
+        "proof": {
+          "precision": 0.4039408866995074,
+          "recall": 0.6666666666666666,
+          "f1": 0.5030674846625767,
+          "support": 123
+        },
+        "example": {
+          "precision": 0.40425531914893614,
+          "recall": 0.4222222222222222,
+          "f1": 0.41304347826086957,
+          "support": 135
+        },
+        "notation": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "algorithm": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 24
+        },
+        "other": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 41
+        }
+      },
+      "confusion_matrix": [
+        [
+          17,
+          40,
+          28,
+          7,
+          0,
+          0,
+          0
+        ],
+        [
+          6,
+          65,
+          27,
+          32,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          20,
+          82,
+          20,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          32,
+          45,
+          57,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          13,
+          7,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          7,
+          13,
+          20,
+          0,
+          0,
+          0
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.33021311384032254,
+          0.4782608695652174
+        ],
+        "macro_f1": [
+          0.19418896618171902,
+          0.2867087960560607
+        ],
+        "definition": [
+          0.13696589915476537,
+          0.5217638339920947
+        ],
+        "theorem": [
+          0.29090132090132087,
+          0.49412734324499025
+        ],
+        "proof": [
+          0.35294117647058826,
+          0.5561524368395789
+        ],
+        "example": [
+          0.25415221291866025,
+          0.6231427839836122
+        ],
+        "notation": [
+          0.0,
+          0.0
+        ],
+        "algorithm": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "naive_bayes": {
+      "accuracy": 0.37158469945355194,
+      "macro_f1": 0.21016378938585656,
+      "per_class": {
+        "definition": {
+          "precision": 0.6666666666666666,
+          "recall": 0.13043478260869565,
+          "f1": 0.21818181818181817,
+          "support": 92
+        },
+        "theorem": {
+          "precision": 0.3125,
+          "recall": 0.5384615384615384,
+          "f1": 0.3954802259887006,
+          "support": 130
+        },
+        "proof": {
+          "precision": 0.3711340206185567,
+          "recall": 0.5853658536585366,
+          "f1": 0.45425867507886436,
+          "support": 123
+        },
+        "example": {
+          "precision": 0.4424778761061947,
+          "recall": 0.37037037037037035,
+          "f1": 0.4032258064516129,
+          "support": 135
+        },
+        "notation": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "algorithm": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 24
+        },
+        "other": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 41
+        }
+      },
+      "confusion_matrix": [
+        [
+          12,
+          62,
+          10,
+          8,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          70,
+          34,
+          21,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          34,
+          72,
+          17,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          43,
+          41,
+          50,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          7,
+          15,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          6,
+          21,
+          14,
+          0,
+          0,
+          0
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.2947085373317013,
+          0.43098562671151935
+        ],
+        "macro_f1": [
+          0.17113086212703257,
+          0.2651272986986166
+        ],
+        "definition": [
+          0.045972624374835486,
+          0.5106382978723404
+        ],
+        "theorem": [
+          0.2597215733906381,
+          0.4473720558301832
+        ],
+        "proof": [
+          0.3135097770581642,
+          0.5403844807978304
+        ],
+        "example": [
+          0.2929231337767923,
+          0.5512931034482759
+        ],
+        "notation": [
+          0.0,
+          0.0
+        ],
+        "algorithm": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "balanced_logistic": {
+      "accuracy": 0.4080145719489982,
+      "macro_f1": 0.2637751059713103,
+      "per_class": {
+        "definition": {
+          "precision": 0.6065573770491803,
+          "recall": 0.40217391304347827,
+          "f1": 0.48366013071895425,
+          "support": 92
+        },
+        "theorem": {
+          "precision": 0.38686131386861317,
+          "recall": 0.4076923076923077,
+          "f1": 0.3970037453183521,
+          "support": 130
+        },
+        "proof": {
+          "precision": 0.38095238095238093,
+          "recall": 0.6504065040650406,
+          "f1": 0.4804804804804805,
+          "support": 123
+        },
+        "example": {
+          "precision": 0.49523809523809526,
+          "recall": 0.3851851851851852,
+          "f1": 0.43333333333333335,
+          "support": 135
+        },
+        "notation": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "algorithm": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 24
+        },
+        "other": {
+          "precision": 0.05555555555555555,
+          "recall": 0.04878048780487805,
+          "f1": 0.05194805194805195,
+          "support": 41
+        }
+      },
+      "confusion_matrix": [
+        [
+          37,
+          23,
+          21,
+          2,
+          0,
+          0,
+          9
+        ],
+        [
+          14,
+          53,
+          36,
+          20,
+          0,
+          0,
+          7
+        ],
+        [
+          7,
+          17,
+          80,
+          14,
+          0,
+          0,
+          5
+        ],
+        [
+          1,
+          23,
+          46,
+          52,
+          0,
+          0,
+          13
+        ],
+        [
+          1,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          13,
+          7,
+          4,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          7,
+          18,
+          13,
+          0,
+          0,
+          2
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.3362221137482025,
+          0.4702584519904577
+        ],
+        "macro_f1": [
+          0.23368626717353339,
+          0.2983723696656827
+        ],
+        "definition": [
+          0.3181818181818182,
+          0.5548433400216082
+        ],
+        "theorem": [
+          0.2673618538324421,
+          0.4748415321796616
+        ],
+        "proof": [
+          0.3134201441770738,
+          0.5503099979306942
+        ],
+        "example": [
+          0.26255701500724427,
+          0.6504254112308564
+        ],
+        "notation": [
+          0.0,
+          0.0
+        ],
+        "algorithm": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.0,
+          0.18867924528301888
+        ]
+      }
+    },
+    "word_char_logistic": {
+      "accuracy": 0.4007285974499089,
+      "macro_f1": 0.26412442287767723,
+      "per_class": {
+        "definition": {
+          "precision": 0.5166666666666667,
+          "recall": 0.33695652173913043,
+          "f1": 0.40789473684210525,
+          "support": 92
+        },
+        "theorem": {
+          "precision": 0.41216216216216217,
+          "recall": 0.46923076923076923,
+          "f1": 0.43884892086330934,
+          "support": 130
+        },
+        "proof": {
+          "precision": 0.4520547945205479,
+          "recall": 0.5365853658536586,
+          "f1": 0.49070631970260226,
+          "support": 123
+        },
+        "example": {
+          "precision": 0.5172413793103449,
+          "recall": 0.4444444444444444,
+          "f1": 0.47808764940239046,
+          "support": 135
+        },
+        "notation": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 4
+        },
+        "algorithm": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 24
+        },
+        "other": {
+          "precision": 0.02531645569620253,
+          "recall": 0.04878048780487805,
+          "f1": 0.03333333333333333,
+          "support": 41
+        }
+      },
+      "confusion_matrix": [
+        [
+          31,
+          24,
+          13,
+          3,
+          0,
+          0,
+          21
+        ],
+        [
+          15,
+          61,
+          20,
+          23,
+          0,
+          0,
+          11
+        ],
+        [
+          9,
+          17,
+          66,
+          12,
+          0,
+          0,
+          19
+        ],
+        [
+          2,
+          25,
+          22,
+          60,
+          0,
+          0,
+          26
+        ],
+        [
+          0,
+          2,
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          10,
+          11,
+          3,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          9,
+          12,
+          15,
+          0,
+          0,
+          2
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.34263870320855616,
+          0.4842321288295364
+        ],
+        "macro_f1": [
+          0.2365199124279436,
+          0.30182119457344536
+        ],
+        "definition": [
+          0.2954211229946524,
+          0.48421463815789473
+        ],
+        "theorem": [
+          0.2723253931544866,
+          0.5296846248210999
+        ],
+        "proof": [
+          0.33718243111197965,
+          0.5840742897065673
+        ],
+        "example": [
+          0.3181742925948224,
+          0.6883968332508659
+        ],
+        "notation": [
+          0.0,
+          0.0
+        ],
+        "algorithm": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.0,
+          0.1875
+        ]
+      }
+    }
+  },
+  "comparison_warning": "Regenerated weak-label rows; scores are not identical-row improvements over earlier reports.",
+  "development_candidates": {
+    "balanced_logistic": {
+      "C": 1.0,
+      "class_weight": "balanced",
+      "word_ngrams": [
+        1,
+        2
+      ]
+    },
+    "word_char_logistic": {
+      "C": 1.0,
+      "class_weight": "balanced",
+      "word_ngrams": [
+        1,
+        2
+      ],
+      "char_analyzer": "char_wb",
+      "char_ngrams": [
+        3,
+        5
+      ],
+      "char_min_df": 2
+    },
+    "selection_warning": "Candidates informed by development errors; not independent gold performance."
+  }
+}

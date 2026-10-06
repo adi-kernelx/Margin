@@ -351,7 +351,7 @@ def detect_gutter(rows: list[list[SpanInfo]], page_width: float) -> Optional[flo
     steps = 41
     for k in range(steps):
         x = page_width * (0.40 + 0.20 * k / (steps - 1))
-        free = left = right = 0
+        free = left = right = prose_pairs = 0
         for row in rows:
             if is_free(row, x):
                 free += 1
@@ -359,8 +359,14 @@ def detect_gutter(rows: list[list[SpanInfo]], page_width: float) -> Optional[flo
                 left += 1
             if any(s.bbox[0] >= x for s in row):
                 right += 1
+            left_text = " ".join(s.text for s in row if s.bbox[2] <= x)
+            right_text = " ".join(s.text for s in row if s.bbox[0] >= x)
+            if (is_free(row, x) and len(re.findall(r"\b[A-Za-z]{3,}\b", left_text)) >= 2
+                    and len(re.findall(r"\b[A-Za-z]{3,}\b", right_text)) >= 2):
+                prose_pairs += 1
         n = len(rows)
-        if free / n >= 0.75 and left / n >= 0.3 and right / n >= 0.3 and free / n > best_free:
+        if (free / n >= 0.75 and left / n >= 0.3 and right / n >= 0.3
+                and prose_pairs >= 3 and free / n > best_free):
             best_x, best_free = x, free / n
     return best_x
 
@@ -481,10 +487,14 @@ def _mark_display_math(visual_lines: list[VisualLine], page_width: float) -> Non
         math_count = sum(1 for ch in text_stripped if _is_math_char(ch))
         digit_count = sum(1 for ch in text_stripped if ch.isdigit())
         alpha_count = sum(1 for ch in text_stripped if ch.isalpha() and not _is_math_char(ch))
+        ascii_operators = sum(ch in "=+-*/|<>" for ch in text_stripped)
+        prose_words = re.findall(r"\b[A-Za-z]{3,}\b", vl.text)
         centred = vl.bbox[0] > page_width * 0.15 and (page_width - vl.bbox[2]) > page_width * 0.15
         line_height = vl.bbox[3] - vl.bbox[1]
 
-        if centred and (math_count / n_non_ws > 0.3 or n_non_ws < 30):
+        if ("=" in vl.text or (math_count + ascii_operators) / n_non_ws > 0.25) and len(prose_words) <= 2:
+            vl.is_display_math = True
+        elif centred and (math_count / n_non_ws > 0.3 or n_non_ws < 30):
             vl.is_display_math = True
         elif n_non_ws < 8 and (math_count + digit_count) > alpha_count:
             vl.is_display_math = True
@@ -734,13 +744,39 @@ def group_lines_into_blocks(
                     h = None
             if h and i + 1 < len(blocks):
                 next_blk = blocks[i + 1]
-                if next_blk.column == blk.column:
+                if (next_blk.column == blk.column
+                        and not line_heading(next_blk.lines[0], None, body_font)
+                        and next_blk.lines[0].bbox[1] - blk.lines[-1].bbox[3] <= 4 * median_lh):
                     next_blk.lines = blk.lines + next_blk.lines
                     i += 1
                     continue
         merged.append(blk)
         i += 1
 
+    return extend_math_blocks(merged, median_lh, body_font) if not is_toc_page else merged
+
+
+def extend_math_blocks(blocks: list[RawBlock], median_lh: float, body_font: str = "") -> list[RawBlock]:
+    """Keep nearby displayed maths and its immediate conclusion with its heading.
+
+    Never cross pages, columns, another heading or a gap over four line heights.
+    General paragraph merging and cross-page role propagation remain out of scope.
+    """
+    merged = []
+    for block in blocks:
+        if merged:
+            previous = merged[-1]
+            heading = line_heading(previous.lines[0], None, body_font)
+            first, last = block.lines[0], previous.lines[-1]
+            conclusion = last.is_display_math and re.match(r"^(Then|Hence|Thus|Because)\b", first.text)
+            same_region = (previous.column == block.column and previous.page_idx == block.page_idx
+                           and 0 <= first.bbox[1] - last.bbox[3] <= 4 * median_lh)
+            if (heading and heading.weak_label != "algorithm" and same_region
+                    and not line_heading(first, None, body_font)
+                    and (first.is_display_math or conclusion)):
+                previous.lines.extend(block.lines)
+                continue
+        merged.append(block)
     return merged
 
 

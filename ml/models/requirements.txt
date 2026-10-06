@@ -1,0 +1,3 @@
+# Version used to verify the ML2.2 classifier.
+scikit-learn==1.6.1
+lightgbm==4.7.0

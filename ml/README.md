@@ -291,3 +291,230 @@ Inherited differences and limits:
 Tests inject deterministic model outputs for metrics and exercise the actual
 chunker on native PDF text. Bootstrap is handwritten in `ml/eval/stats.py`;
 the separate smoke run checks actual pretrained model inference.
+
+## ML2.1 — Prepare weak-supervised training inputs
+
+```bash
+python -m ml.data.prepare_training
+```
+
+Already generated, ignored outputs: `ml/out/ml2/train_blocks.jsonl` and
+`ml/out/ml2/training_report.json`. The command refuses to overwrite existing
+training rows; use a new `--out` directory for a reproducibility check.
+
+Only frozen **train** sources contribute. Rows use `text_without_heading`,
+never full-text fallback. Unlabelled blocks do not become negative `other`
+examples. Heading-free bodies under 30 characters are discarded. The fixed
+200-row source cap cycles weak classes within each source to retain rare labels.
+This changes class proportions and is not a population sampling scheme.
+
+Result: 548 rows, labelled algorithm 26, definition 92, example 131, notation 4,
+other 42, proof 123, theorem 130. Drops: 9,125 unlabelled, 73 short bodies,
+264 above source cap. Both dominant sources retain 200 rows each; they still
+account for 73% of training rows. The cap limits their absolute size but does
+not solve source imbalance. Nine training groups supply zero usable labels.
+
+Each row has a fixed fold (0–4), whole source groups stay together. For grouped
+CV hold out one fold, fit on the other four, and fit TF-IDF/preprocessing only
+on those four. Never fit a vocabulary on all folds before scoring. Grouped fold
+sizes are 200/200/57/46/45; all folds miss some classes. Report those gaps and
+use aggregate out-of-fold class metrics rather than claiming balanced folds.
+No model, vectoriser, classifier features or gold evaluation were implemented
+in ML2.1. Existing layout measurements are carried through unchanged.
+
+ML1's 300 independent labels and full question benchmark remain pending.
+The model/evaluation steps are for the user to implement with review, as the
+handoff requires. Next is ML2.2, after review of this data preparation.
+
+## ML2.2 — First classifier
+
+At the user's explicit request, `ml/models/first_classifier.py` now implements
+majority label, heading prediction with abstention, and a fitted
+TF-IDF/logistic-regression Pipeline. `ml/models/README.md` explains the settings,
+failure cases and vocabulary leakage checks.
+
+Ten active acceptance tests pass in `ml/tests/test_classifier_exercise.py`;
+the earlier skip gate has been removed. A training-only smoke fit succeeded on
+548 rows, seven classes and 15,169 features. No held-out performance was
+measured or model persisted; grouped CV is the next step, not part of ML2.2.
+
+## ML2.3 — Grouped development evaluation
+
+```bash
+python -m ml.eval.classifier_cv
+```
+
+Runs five folds on the prepared train rows only. Each run learns a new
+vocabulary and logistic model on the other four folds and a new majority label
+on those same training rows. Every row receives one out-of-fold prediction.
+The runner rejects frozen-test sources, manifest/group mismatch, duplicate
+IDs, missing folds and sources divided across folds.
+
+`ml/results/classifier_cv.json` contains aggregate counts/scores/confusion
+matrices (rows gold, columns predicted; `label_order` defines both axes), fold
+missing-class warnings and 95% file-bootstrap intervals from 2,000 resamples.
+Macro F1 averages all seven classes; undefined precision/recall/F1 is zero
+and class support/missing classes are reported. Intervals recompute metrics
+after resampling whole files; they do not average individual-question F1.
+File resampling does not fully model correlation between PDFs sharing a source.
+
+The numeric result is committable. Row identity, filenames, weak gold labels
+and predictions stay in ignored `ml/out/ml2/cv_predictions.jsonl`; no source
+text is included. Full model artifacts are not saved. Weak gold labels here
+are automatic supervision, not verified truth.
+
+Actual development results: majority accuracy 0.2153, macro F1 0.0702;
+logistic accuracy 0.4033, macro F1 0.2362. Definition recall is 0.1957;
+notation, algorithm and other F1 are zero. These limitations remain; no settings
+were changed after seeing results. The heading baseline is omitted because
+comparing it with its own generated labels is circular.
+
+Grouped development is complete. Frozen test groups and human labels remain
+untouched. Final prose-definition recall and gold evaluation still require
+the 300 independent labels; the 200-question retrieval benchmark is separate.
+
+## ML2.4 — Multinomial Naive Bayes comparison
+
+```bash
+python -m ml.eval.classifier_cv --with-naive-bayes
+```
+
+Fits both models separately on identical train/dev folds and the same TF-IDF
+settings. NB uses `MultinomialNB(alpha=1.0)` with default empirical class priors;
+nonnegative TF-IDF values are valid inputs, though they are weights rather than
+literal token counts. No smoothing or representation tuning was performed.
+
+The comparison goes to `ml/results/classifier_nb_cv.json`; the prior logistic
+result remains intact. Row audit: ignored `ml/out/ml2/cv_nb_predictions.jsonl`.
+Bootstrap uses identical file draws for all methods. Each class has precision,
+recall, F1 and support, F1 confidence bounds, plus a confusion matrix.
+
+NB accuracy 0.4215 [0.3439, 0.4985], macro F1 0.2373 [0.1918, 0.3030].
+Logistic remains 0.4033 [0.3369, 0.4846], macro F1 0.2362 [0.1925, 0.2967].
+The macro improvement is tiny; no statistical superiority claim is made.
+NB's definition recall drops to 0.1304 from logistic's 0.1957, and both have
+zero F1 on notation, algorithm and other. The accuracy gain does not solve
+concept extraction. Gold test sources remain untouched.
+
+Next goal: a separately scoped LightGBM/layout-feature comparison on the same
+train-only source folds, with explicit attention to definition recall and rare
+classes. Human-labelled evaluation remains a prerequisite for final acceptance.
+
+## ML2.5 — Layout-only LightGBM comparison
+
+```powershell
+python -m venv --system-site-packages .venv-ml
+.\.venv-ml\Scripts\python.exe -m pip install --no-deps lightgbm==4.7.0
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --with-naive-bayes --with-layout
+.\.venv-ml\Scripts\python.exe -m pytest ml/tests -p no:cacheprovider
+```
+
+These setup commands reuse this machine's numpy/scipy/scikit-learn installations;
+on another machine install `ml/models/requirements.txt` and the extraction/test
+dependencies in a dedicated environment instead. No global package was changed.
+
+Five layout measurements plus category are fitted only on the four training
+folds. The same five source folds, 548 rows, 27 files, seven-class macro denominator
+and 2,000 file-bootstrap draws are used for all models. Fixed settings and input
+validation are explained in `ml/models/README.md`. Numeric-only report:
+`ml/results/classifier_layout_cv.json`. Identity/prediction audit remains ignored
+in `ml/out/ml2/cv_layout_predictions.jsonl`. Previous reports are not overwritten.
+
+LightGBM accuracy: 0.2974 [0.1970, 0.3509]; macro F1: 0.1646 [0.0913, 0.1885].
+Definition recall and F1 are zero, as are notation/algorithm/other F1. It predicts
+19 definitions, all incorrect against weak labels. The text-model metrics and
+fold metadata exactly match ML2.4. This is a weak-label development comparison,
+not independent human-label or prose-definition evidence. Do not select layout
+as the production model or claim statistical superiority from interval overlap.
+
+Next goal: ML2.6, a reproducible 50-mistake development audit to separate label
+noise, source/layout variation and model mistakes. Frozen-test human labels and
+gold evaluation remain pending; do not substitute this audit for gold acceptance.
+
+## ML2.6 — Development audit and controlled improvement
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.error_audit
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --with-naive-bayes --with-improved
+```
+
+The audit selects 50 of the original logistic model's 327 errors, cycling seeded
+class/fold buckets. It is diagnostic coverage, not an unbiased prevalence sample.
+Text, file/page references and per-case provisional notes stay ignored in
+`ml/out/ml2/error_audit.jsonl` and `error_audit_review.json`. Notes bind to a digest
+of the ordered sample IDs and never modify labels. Re-running on another machine
+without the local review file yields the same sample with pending notes; the
+published numeric summary does not substitute for the local review evidence.
+
+All 50 extracted texts were reviewed provisionally, not against original PDF
+pages: 19 semantic confusions, 11 fragments, six needing context, five rare-class
+cases, four suspect weak labels, three mixed-role blocks and two extraction-noise
+cases. These are judgment categories, not independent gold labels. Notably, two
+algorithm-labeled blocks contain timing tables; a theorem block includes a proof.
+Neither the original labels nor training rows/folds were changed.
+
+Two fixed candidates were tested. Balanced logistic: accuracy 0.4124
+[0.3477, 0.4749], macro F1 0.2700 [0.2400, 0.3046], definition recall 0.3913
+(original logistic 0.1957), definition precision 0.5902 (original 0.8571).
+Balanced word+character logistic: accuracy 0.3814, macro F1 0.2598, definition
+recall 0.3478. Best accuracy remains NB at 0.4215. Algorithm/notation F1 stays
+zero. Accuracy alone does not describe whether definitions are recoverable.
+
+`ml/results/classifier_improved_cv.json` contains every metric/interval and fixed
+candidate settings; `ml/results/error_audit_summary.json` contains aggregate
+diagnostic counts. Row predictions remain ignored in `cv_improved_predictions.jsonl`.
+Earlier model summaries and folds exactly match ML2.4. Since candidates were
+motivated by development errors, these results are not unbiased final scores;
+no statistical superiority is claimed, and the frozen test set remains untouched.
+
+Next goal: ML2.7, a narrow training-data quality repair addressing fragmented
+blocks and heading/table associations before further tuning. Independent human
+labels and final gold evaluation remain pending. No UI changes or UI check here.
+
+## ML2.7 — Training extraction quality repair
+
+Training-only PDFs were re-extracted after source-page inspection. Fixes:
+formatted `PROOF Let...` starts a proof; repeated timing units prevent an
+Algorithm table column from becoming a procedure label; sparse equation spans
+no longer establish a two-column gutter without at least three bilateral prose
+rows; nearby displayed equations and immediate Then/Hence/Thus/Because conclusions
+stay with their labelled block. Merging stops at headings, page/column boundaries
+or gaps above four line heights. Lone headings cannot consume another heading.
+
+The PDF skill guided inspection of six rendered source pages, not UI operation.
+The theorem previously suspected of a wrong label was actually missing its
+conclusion. Two timing tables lost algorithm labels; neither was changed to
+`other`. Unlabelled still means unknown, not a negative example.
+
+```powershell
+# Choose a fresh directory: existing datasets are never overwritten.
+.\.venv-ml\Scripts\python.exe -m ml.data.repair_training --out ml/out/ml27/reproduction
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/ml27/reproduction/train_blocks.jsonl --with-naive-bayes --with-improved --out ml/results/classifier_repaired_cv.json --audit ml/out/ml27/reproduction/cv_predictions.jsonl --dataset-revision ML2.7
+.\.venv-ml\Scripts\python.exe -m ml.eval.training_quality
+```
+
+The quality command compares the accepted local run in `ml/out/ml27/verified`
+with the preserved `ml/out/ml2` snapshot. Regeneration needs that snapshot's
+`training_report.json` to preserve all 23 source-fold memberships, including
+sources with zero usable labels. No frozen-test PDF is processed. The new run
+extracts 9,360 blocks / 938 weak labels from 40 training PDFs; after the unchanged
+200-row source cap and length filter, 549 rows across 27 PDFs remain. Fold sizes
+are 200/200/57/49/43: memberships unchanged, block counts changed.
+
+`ml/results/training_repair_summary.json`: introductory fragments ending in
+given-by/yields/expressed-as/linear-map/compute fall from five to zero in selected
+rows. This is only a heuristic, not a claim that all statements are complete.
+385 rows have exactly matching file/page/text/label content in both snapshots.
+Indices/IDs can shift when blocks merge; old samples and audits were not rewritten.
+
+Repaired-data accuracy / macro F1: logistic 0.4026 / 0.2321, NB 0.3716 / 0.2102,
+balanced logistic 0.4080 / 0.2638, word+character 0.4007 / 0.2641. Balanced
+definition recall is 0.4022, precision 0.6066. Algorithm/notation F1 still zero.
+Scores and intervals are in `ml/results/classifier_repaired_cv.json`; changed
+weak-label rows prevent an identical-data improvement claim. Nothing deployed.
+
+Remaining: mathematical fraction/subscript ordering, unlabelled proof continuation
+paragraphs, cross-page association and independent gold acceptance. The prose
+requirement may miss genuine equation-only two-column pages. Next goal is ML2.8:
+accept the repaired training snapshot and build a small independently reviewed
+training-label set with more rare-class examples before further model tuning.

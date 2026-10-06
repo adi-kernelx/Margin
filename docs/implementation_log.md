@@ -2211,9 +2211,855 @@ rerun the full baseline with intervals. ML1 is not complete; ML2 has not started
 
 ---
 
+### ML1 tooling Git checkpoint
+
+**Date:** October 6, 2026
+
+The user requested a commit before starting ML2. Staged only ML code, the
+manifest, Git exclusions, implementation plan/log and the lazy ingestion import
+change. PDF files, extracted text, real question/label JSONLs, handoff/agent files
+and unrelated frontend documentation remained outside the commit.
+
+**Git checkpoint:** `13d5106` — `feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+This checkpoints ML1 tooling, not completed hand labels, full question
+benchmark or manual page acceptance. The SHA is recorded in this follow-up
+entry because a commit cannot contain its own final SHA.
+
+---
+
+## Phase ML2: Block Classifier v1 — ML2.1 Training Data Preparation
+
+**Date:** October 6, 2026
+
+**Objective:** prepare heading-free weak supervision and source-isolated
+development folds before implementing a classifier. The user requested only
+ML2.1, starting early relative to the planned October 13–19 week. No classifier
+or gold evaluation was run; ML1 human-data acceptance remains pending.
+
+### Files created / modified
+
+**Data plumbing**
+
+- `ml/data/prepare_training.py` — filters to frozen train sources before
+  examining labels/text; never maps unlabelled to `other`. Requires heading-free
+  text, drops bodies shorter than 30 characters, cycles classes to cap each
+  source at 200 rows, and assigns whole groups to five development folds.
+  Carries existing layout measurements without designing classifier features.
+- `ml/out/ml2/train_blocks.jsonl` — ignored generated training rows: identity,
+  physical page, heading-free text, weak label, category, layout values and fold.
+- `ml/out/ml2/training_report.json` — ignored counts, exclusions, fold membership
+  and missing-class warnings. The generator refuses to overwrite training rows.
+
+**Tests and documentation**
+
+- `ml/tests/test_training_data.py` — seven cases for held-out source exclusion,
+  heading-free input, source cap and rare-class retention, deterministic input
+  order, disjoint group folds, unlabelled/short-body exclusion, unfrozen/overlap
+  rejection, missing heading-free body and duplicate block ID rejection.
+- `ml/README.md` — preparation command, fold usage, vocabulary-fit restrictions,
+  weak-label caveats, actual counts and pending user-written classifier work.
+- `docs/IMPLEMENTATION_PHASES.md` — introduces sequential ML2 substeps. The
+  original plan had no ML2.1 numbering; this step explicitly covers data plumbing.
+- `docs/implementation_log.md` — checkpoint, this entry and updated current state.
+
+### Results and limits
+
+548 rows from 14 sources with usable labels; all 23 train sources are assigned
+to folds, including nine with zero usable weak labels. Discarded: 9,125
+unlabelled blocks, 73 short heading-free bodies and 264 above the source cap.
+
+| Weak label | Training rows |
+|---|---:|
+| definition | 92 |
+| theorem | 130 |
+| proof | 123 |
+| example | 131 |
+| notation | 4 |
+| algorithm | 26 |
+| other | 42 |
+
+Fold sizes: **200, 200, 57, 46, 45**. Sipser and MA3204 each occupy one
+200-row fold, the assignment source occupies the 57-row fold, and smaller
+sources share the last two. Zero-labelled groups remain assigned as sources,
+not fabricated negatives. Every fold lacks at least one class; several folds
+lack definitions or proofs. Notation has only four weak training examples.
+
+> ⚡ **Design Decision: fixed source cap with within-source class cycling**
+>
+> Cap each source at 200 rows, selecting in seeded class cycles. Rare labels
+> remain represented when their source is capped. All selection uses train data.
+>
+> **Reasoning:** weak labels concentrate in two sources. The cap limits absolute
+> contributions, but those sources still supply 400/548 rows (73%). It is not
+> equal source weighting or natural class frequency. The value is a documented
+> pre-training choice, not tuned against test scores.
+
+> ⚡ **Design Decision: heading-free input is mandatory**
+>
+> Missing `text_without_heading` fails validation instead of falling back to
+> the full block. A short or empty body is dropped. Unlabelled is not `other`.
+>
+> **Reasoning:** fallback would let a classifier learn the same heading rule
+> that created its training label. Assigning negatives to unlabelled prose
+> would teach it to reject the definitions the project wants to discover.
+
+> ⚡ **Design Decision: source folds before any fitted preprocessing**
+>
+> Whole source groups are assigned greedily by retained row count, with stable
+> tie-breaking. For each future CV run, one fold is development and the others
+> training; vocabulary/scalers must be fit only on those training folds.
+>
+> **Reasoning:** splitting large groups to make equal folds would leak templates.
+> Source isolation is more important than artificial fold balance. Missing-class
+> warnings are explicit; later evaluation must not pretend every fold can
+> estimate every class. No test source, test label or model score was consulted.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **131 passed**, seven new.
+- Preparation command executed on the actual corpus, yielding the counts above.
+- No UI change or manual interaction check needed for this script. Frontend and
+  JS session suites were not rerun; previous checkpoints remain historical.
+- No failing test exposed a new bug. Imbalanced folds and sparse classes were
+  found in the generated training audit and documented rather than concealed.
+- ML1 human labels/UI acceptance and full 200-question benchmark remain pending.
+
+**Git checkpoint:** ML2.1 uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next:** review ML2.1, then ML2.2 baseline contracts and the first classifier
+with user ownership. No further ML2 substep has been implemented.
+
+---
+
+### ML2.2: First-classifier contracts and user exercise
+
+**Date:** October 6, 2026
+
+**Objective:** prepare the majority and heading baseline contracts plus the
+first heading-free TF-IDF/logistic-regression classifier exercise. This entry
+records scaffold preparation, not a completed or trained classifier.
+
+### Files created / modified
+
+- `ml/models/__init__.py` — user-owned classifier package.
+- `ml/models/first_classifier.py` — three documented unimplemented contracts:
+  `majority_label`, `heading_prediction`, `fit_tfidf_classifier`. An explicit
+  `IMPLEMENTED=False` flag identifies their pending state; calls raise
+  `NotImplementedError` rather than return fabricated predictions.
+- `ml/models/README.md` — ordered implementation guide, starter parameters,
+  train-only vocabulary rules, abstention semantics and commands for review.
+- `ml/tests/test_classifier_exercise.py` — six prospective acceptance cases:
+  majority/ties, invalid labels, heading abstention, pipeline predictions,
+  held-out vocabulary isolation and invalid fitting inputs.
+- `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md`
+  — exercise status and explicit distinction between scaffold and completed model.
+
+> ⚡ **Design Decision: preserve the user's model-code ownership**
+>
+> HANDOFF.md section 5 says ML2+ model/evaluation code is written by the user
+> with review; assisted work may supply data plumbing. Therefore this step
+> supplies contracts, instructions and checks, not model implementations.
+>
+> **Reasoning:** a request to continue the phase does not erase its ownership
+> rule. The user starts with counting a majority class, then heading abstention,
+> then a Pipeline tying TF-IDF fitting to training data. No scores or trained
+> artifacts can be claimed until these functions are implemented and checked.
+
+> ⚡ **Design Decision: explicit pending tests, no fabricated green model gate**
+>
+> The six exercise cases skip with a named unimplemented reason while the flag
+> is false. Setting it true activates all assertions. Their purpose is to test
+> future user implementation; current tooling success is not classifier success.
+>
+> **Reasoning:** scoring a heading baseline against its own generated labels
+> would be circular; scoring a placeholder classifier would be misleading.
+> Independent hand labels and later grouped evaluation remain required.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **131 passed, 6 skipped**.
+  All skips are the pending classifier contracts, not environment failures.
+- Python imports of the new model scaffold succeed through test collection.
+- No model fitted, no CV/evaluation run, no test source inspected, no UI change.
+- scikit-learn 1.6.1 is already installed; no dependency installation performed.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Remaining:** user implements the three functions and activates/passes six
+tests; then review before grouped evaluation. ML2.2 is not complete.
+
+---
+
+### ML2.2 follow-up: Baselines and first classifier implemented
+
+**Date:** October 6, 2026
+
+**Objective:** complete the model functions after the user explicitly asked,
+"Can you write it for me?" This supersedes the earlier user-implementation
+restriction for these functions. Scope remains ML2.2, not grouped evaluation.
+
+### Files created / modified
+
+- `ml/models/first_classifier.py` — implements validated majority-class counting
+  with alphabetical ties; heading baseline returning a known label or abstaining
+  with `None`; heading-free TF-IDF plus logistic-regression fitting. Every call
+  creates a fresh Pipeline. Rejects invalid label containers, unknown classes,
+  missing/empty text, mismatched lengths and single-class fitting data.
+- `ml/tests/test_classifier_exercise.py` — removes the skip gate, strengthens
+  the prediction test to require actual toy-example learning, and adds malformed
+  label-container and independent-vocabulary cases. Ten active tests now pass.
+- `ml/models/requirements.txt` — records scikit-learn 1.6.1, already installed;
+  no package installation was performed.
+- `ml/models/README.md`, `ml/README.md` — replaces pending exercise instructions
+  with actual mechanism, parameters, checks and limits.
+- `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md` — implementation
+  completion, authorization and refreshed current-state tail.
+
+### Model mechanism
+
+The vectoriser learns word and bigram features (`ngram_range=(1, 2)`,
+`min_df=1`) from supplied training text. Logistic regression uses `C=1.0`,
+`max_iter=1000`, `random_state=20261006` and default class weighting. Vocabulary
+fit and classifier fit are tied together by a Pipeline; prediction only
+transforms new text. Model features come from heading-free input prepared in
+ML2.1; callers must retain that contract rather than passing original headings.
+
+> ⚡ **Design Decision: straightforward fixed baseline before tuning**
+>
+> Standard scikit-learn algorithms implement TF-IDF and logistic regression.
+> Parameters match the earlier scaffold and are fixed without reading test
+> labels or selecting settings against performance. Counting and input
+> validation remain explicit and small.
+>
+> **Reasoning:** this establishes a readable baseline before Naive Bayes,
+> LightGBM or feature experiments. Class balancing, custom feature design and
+> hyperparameter search belong to later comparisons, not this implementation.
+
+> ⚡ **Design Decision: no persistent model or claimed quality score**
+>
+> A disposable training-only fit used the 548 prepared rows: seven classes,
+> 15,169 vocabulary features. The majority label is `example` (131 rows).
+> No training accuracy, grouped development score or test performance is reported.
+>
+> **Reasoning:** successfully fitting verifies data/model compatibility, not
+> generalisation. Later CV must instantiate a fresh model for each fold, fitting
+> its vocabulary only on the other four. Independent labels remain required
+> for final quality acceptance.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **141 passed, no skips**.
+- All six previously pending tests now execute; four additional cases check
+  malformed containers and separate vocabularies across fitting calls.
+- Toy texts are correctly classified; a held-out-only token does not enter
+  vocabulary during prediction. Actual training-data smoke fit completed.
+- No new failing-test bug discovered. No UI, held-out evaluation or service
+  interaction; previous JS/frontend checkpoints were not rerun.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next:** grouped train/development evaluation as a separate ML2 step. ML2.2
+implementation is complete, but ML2 phase acceptance remains open.
+
+---
+
+### ML2.3: Grouped train/development evaluation
+
+**Date:** October 6, 2026
+
+**Objective:** measure the first classifier on unseen training-source groups,
+comparing it with a fold-specific majority predictor. Only the 548 prepared
+train rows were used. This is development against weak supervision, not final
+gold evaluation. The user explicitly requested this evaluation implementation.
+
+### Files created / modified
+
+- `ml/eval/classifier_cv.py` — validates train membership and whole-source fold
+  identity, fits a fresh TF-IDF/logistic model on four folds and predicts the
+  fifth. Repeats five times, recording exactly one prediction per row. Computes
+  majority baselines from each run's training portion. Handwritten confusion
+  matrix, per-class precision/recall/F1, accuracy and fixed-seven-class macro F1;
+  file-cluster bootstrap recomputes metrics over 2,000 seeded resamples.
+- `ml/results/classifier_cv.json` — numerical aggregate result, label-axis order,
+  counts, fold gaps and intervals; no source text, row identity or filenames.
+- `ml/out/ml2/cv_predictions.jsonl` — ignored audit of row identity, filename,
+  fold, weak gold and predictions; no source text. No model weights persisted.
+- `ml/tests/test_classifier_cv.py` — eight cases for hand-checked metrics,
+  fit/predict isolation, one prediction per row, held-out rejection,
+  cross-fold source/duplicate/missing-fold rejection, deterministic bootstrap
+  and empty-bootstrap rejection.
+- `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md`
+  — commands, measured development state, output semantics and limitations.
+
+> ⚡ **Design Decision: fresh vocabulary and majority per fold**
+>
+> Each run fits only the four training folds, including its vocabulary and
+> most frequent label. Development rows never enter feature fitting. Every
+> source stays in one fold; frozen test groups are rejected as inputs.
+>
+> **Reasoning:** fitting one vocabulary or selecting one majority from all
+> rows would allow development information into the baseline. Model settings
+> remain those fixed in ML2.2; no search or adjustment followed the results.
+
+> ⚡ **Design Decision: aggregate metrics with explicit rare-class gaps**
+>
+> Macro F1 averages all seven classes, undefined ratios use zero, and support
+> and missing-class lists are explicit. Confusion rows are gold, columns are
+> predicted, both using `label_order`. Bootstrap resamples 27 complete files,
+> then recomputes metrics; file clustering does not fully account for correlation
+> between related PDFs within a source group.
+>
+> **Reasoning:** unequal development folds and absent classes make an unweighted
+> mean of fold scores misleading. Aggregate out-of-fold predictions describe
+> this enriched/capped weak-labelled dataset. Intervals do not correct weak-label
+> error or establish performance on prose definitions. The heading predictor is
+> deliberately not scored against its own labels; it needs independent gold.
+
+### Actual development results
+
+| Method | Accuracy [95% interval] | Macro F1 [95% interval] |
+|---|---|---|
+| Fold-specific majority | 0.2153 [0.1536, 0.2475] | 0.0702 [0.0505, 0.0869] |
+| TF-IDF + logistic | 0.4033 [0.3369, 0.4846] | 0.2362 [0.1925, 0.2967] |
+
+Logistic class metrics:
+
+| Class | Precision | Recall | F1 | Weak support |
+|---|---:|---:|---:|---:|
+| definition | 0.8571 | 0.1957 | 0.3186 | 92 |
+| theorem | 0.3713 | 0.4769 | 0.4175 | 130 |
+| proof | 0.3687 | 0.6504 | 0.4706 | 123 |
+| example | 0.4296 | 0.4656 | 0.4469 | 131 |
+| notation | 0 | 0 | 0 | 4 |
+| algorithm | 0 | 0 | 0 | 26 |
+| other | 0 | 0 | 0 | 42 |
+
+The model beats the majority predictor here, but misses most weak definitions
+and fails three classes. All five folds lack some development classes. This
+is an initial development result, not a usable concept extractor or a claim of
+prose-definition recall. No test-set inspection or model tuning was performed.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **149 passed, no skips**.
+- Actual five-fold run: 548 out-of-fold predictions from 27 training PDFs;
+  numeric report and ignored row audit written. Real sklearn fitting succeeded.
+- Deterministic test fitters assert fit/dev texts are disjoint in every run.
+- Frozen groups were unchanged; no human-labelled test file was loaded.
+- No UI/frontend changes or rerun. No new bug was discovered by a failing test.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Remaining:** later model comparisons and independent human-label acceptance.
+ML1's 300 labels/UI acceptance and full 200-question baseline are still pending.
+No later ML2 model was implemented in this step.
+
+---
+
+### ML2.4: Multinomial Naive Bayes comparison
+
+**Date:** October 6, 2026
+
+**Objective:** compare multinomial Naive Bayes with logistic regression on the
+same 548 heading-free rows and five source-isolated train/development folds.
+The user authorised this step; no gold test or later model was evaluated.
+
+### Files created / modified
+
+- `ml/models/first_classifier.py` — adds `fit_tfidf_naive_bayes`; shares input
+  validation and fresh TF-IDF fitting through `_fit_tfidf`. Logistic settings
+  stay unchanged. NB uses `MultinomialNB(alpha=1.0)` and empirical class priors.
+- `ml/eval/classifier_cv.py` — allows multiple fitters on each fold. The optional
+  `--with-naive-bayes` compares both on identical train/development rows and
+  identical file-bootstrap resamples. Default logistic-only mode remains.
+- `ml/results/classifier_nb_cv.json` — aggregate majority/logistic/NB metrics,
+  per-class precision/recall/F1, confusion matrices, F1/accuracy/macro intervals
+  and fold warnings. The ML2.3 result file is preserved.
+- `ml/out/ml2/cv_nb_predictions.jsonl` — ignored row audit with both predictions;
+  no source text or persistent model. Original audit remains separate.
+- `ml/tests/test_naive_bayes.py` — eight cases for toy learning, fixed alpha,
+  prediction vocabulary immutability, independent fit vocabularies, invalid
+  inputs and identical train/dev exposure for both injected fitters.
+- `ml/README.md`, `ml/models/README.md`, `docs/IMPLEMENTATION_PHASES.md`,
+  `docs/implementation_log.md` — command, comparison, fixed settings and limitations.
+
+> ⚡ **Design Decision: same representation before introducing layout**
+>
+> Both models use word/bigram TF-IDF with min_df=1; only the classifier changes.
+> Each fit has its own vocabulary learned from the same training portion.
+> NB receives nonnegative TF-IDF weights with fixed Laplace smoothing alpha=1.
+>
+> **Reasoning:** this isolates the model comparison. TF-IDF is nonnegative and
+> usable with multinomial NB, although not literal counts. Representation,
+> smoothing and class-prior experiments are not performed in this step.
+
+> ⚡ **Design Decision: preserve earlier reports and avoid winner claims**
+>
+> Comparison has its own report and audit. Original logistic metrics, intervals
+> and fold metadata were checked for exact equality with the new run.
+>
+> **Reasoning:** the small macro F1 change and lower definition recall do not
+> justify choosing NB as the extractor. These are weak-label development
+> estimates; no paired statistical superiority test or gold evaluation is claimed.
+
+### Results
+
+| Method | Accuracy [95% interval] | Macro F1 [95% interval] |
+|---|---|---|
+| Majority | 0.2153 [0.1536, 0.2475] | 0.0702 [0.0505, 0.0869] |
+| Logistic | 0.4033 [0.3369, 0.4846] | 0.2362 [0.1925, 0.2967] |
+| Multinomial NB | 0.4215 [0.3439, 0.4985] | 0.2373 [0.1918, 0.3030] |
+
+NB class scores:
+
+| Class | Precision | Recall | F1 | Weak support |
+|---|---:|---:|---:|---:|
+| definition | 0.8000 | 0.1304 | 0.2243 | 92 |
+| theorem | 0.3467 | 0.6000 | 0.4394 | 130 |
+| proof | 0.4179 | 0.6829 | 0.5185 | 123 |
+| example | 0.5327 | 0.4351 | 0.4790 | 131 |
+| notation | 0 | 0 | 0 | 4 |
+| algorithm | 0 | 0 | 0 | 26 |
+| other | 0 | 0 | 0 | 42 |
+
+Accuracy rises but macro F1 changes by about 0.001. Definition recall falls
+from logistic's 0.1957 to 0.1304; notation/algorithm/other still fail. These
+models are not yet reliable concept extractors. The same sparse-class/fold
+limitations and file-level interval caveats from ML2.3 remain.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **157 passed, no skips**.
+- Actual five-fold comparison completed with 548 predictions per learned
+  method across 27 train PDFs. Both use the same training and development rows.
+- Earlier logistic report/fold equality confirmed; no test groups or hand
+  labels loaded, no hyperparameter tuning, no new dependencies installed.
+- No new product bug found by a failing test. No UI/frontend change or checks.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next goal to achieve:** separately implement a LightGBM/layout-feature
+comparison on these same train-only source folds, exposing definition recall
+and rare-class failures. Independent human-label acceptance remains pending.
+
+---
+
+## Phase ML2.5: Layout-only LightGBM Comparison
+
+**Date:** October 6, 2026
+**Objective:** compare a fixed layout-feature classifier with the existing text
+models on exactly the same train-only source folds, without touching gold data.
+
+### Model and feature boundary
+
+The model accepts five existing numeric measurements: bold ratio, relative font
+size, relative indent, maths-character ratio and relative gap above. Document
+category is one-hot encoded. The allowlist excludes text, filenames, source IDs,
+page numbers, labels and additional feature keys. Missing/non-finite measurements,
+boolean measurements, malformed categories and invalid labels are rejected.
+
+Each fold fits a new DictVectorizer and native LightGBM multiclass booster.
+Category vocabulary is learned from training rows only; an unseen development
+category contributes zero category columns without refitting. Class strings map
+to sorted training-only numeric IDs. A class missing from that training fold
+cannot be predicted. The settings were fixed before observing the scores:
+100 rounds, learning rate 0.05, 15 leaves, minimum 10 rows per leaf, two threads,
+seed 20261006, deterministic column-wise training. No class weighting or tuning.
+
+⚡ **Design Decision — layout only, not a text/layout ensemble.**
+
+**Reasoning:** the roadmap asks for LightGBM with layout features. Adding text
+now would confound whether layout alone transfers between source groups. The
+comparison is deliberately narrower; it does not test a combined model.
+
+⚡ **Design Decision — specialized learner in a local environment.**
+
+**Reasoning:** LightGBM was absent. An ignored `.venv-ml` reuses installed
+scientific packages and adds only LightGBM 4.7.0, leaving global packages alone.
+The first sandboxed virtual-environment setup failed at ensurepip; approved
+execution succeeded. Native LightGBM avoids a redundant sklearn estimator
+wrapper; the small adapter exposes only prediction and train-fitted encoding.
+Verbosity -1 removes repetitive tree informational messages, not Python warnings
+or input errors. No learner was hand-written and no trained artifact was saved.
+
+### Same-fold comparison and measured results
+
+The runner adds row-based fitters alongside text-based fitters. Both receive the
+same source-isolated train/development partitions. The layout option writes a
+new aggregate report and ignored row audit, preserving the two earlier reports.
+There are 548 out-of-fold predictions per model across 27 training PDFs.
+
+| Method | Accuracy | Accuracy 95% file CI | Macro F1 | Macro F1 95% file CI |
+|---|---:|---|---:|---|
+| Majority | 0.2153 | [0.1536, 0.2475] | 0.0702 | [0.0505, 0.0869] |
+| TF-IDF logistic | 0.4033 | [0.3369, 0.4846] | 0.2362 | [0.1925, 0.2967] |
+| TF-IDF NB | 0.4215 | [0.3439, 0.4985] | 0.2373 | [0.1918, 0.3030] |
+| Layout LightGBM | 0.2974 | [0.1970, 0.3509] | 0.1646 | [0.0913, 0.1885] |
+
+| Layout class | Precision | Recall | F1 | Weak support |
+|---|---:|---:|---:|---:|
+| definition | 0 | 0 | 0 | 92 |
+| theorem | 0.4433 | 0.3308 | 0.3789 | 130 |
+| proof | 0.5000 | 0.4715 | 0.4854 | 123 |
+| example | 0.2067 | 0.4733 | 0.2877 | 131 |
+| notation | 0 | 0 | 0 | 4 |
+| algorithm | 0 | 0 | 0 | 26 |
+| other | 0 | 0 | 0 | 42 |
+
+Nineteen predicted definitions are all incorrect against the weak labels.
+Layout is worse on aggregate than either text model and is not selected for
+production. Why it fails is not established by these scores; source/layout
+variation and weak-label noise require an audit, not an invented explanation.
+Intervals reuse the same 2,000 whole-file draws and fixed seven-class macro
+denominator. They do not fully capture shared-source correlation. No significance
+test, prose-definition measurement or independent gold evaluation is claimed.
+
+### Files created / modified
+
+- **Models (created):** `ml/models/layout_classifier.py` — feature allowlist,
+  finite-input validation, train-fitted category encoding and boosted-tree adapter.
+- **Models (modified):** `ml/models/requirements.txt` — pins LightGBM 4.7.0;
+  `ml/models/README.md` — settings, input boundary and dependency rationale.
+- **Evaluation (modified):** `ml/eval/classifier_cv.py` — row fitter support,
+  optional layout comparison, model configuration and independent output paths.
+- **Tests (created):** `ml/tests/test_layout_classifier.py` — 17 cases covering
+  forbidden fields, malformed/finite inputs, class validation, toy learning,
+  reproducibility, unseen categories, source-fold equivalence and method collisions.
+- **Results (created):** `ml/results/classifier_layout_cv.json` — numerical scores,
+  per-class metrics, confusion matrices, intervals, fold counts and fixed settings.
+- **Local outputs (ignored):** `ml/out/ml2/cv_layout_predictions.jsonl` — row IDs,
+  file identities, weak labels and out-of-fold predictions; no text. `.venv-ml/`
+  holds the dependency environment and is also ignored.
+- **Documentation / hygiene (modified):** `.gitignore` excludes `.venv-ml/`;
+  `ml/README.md` gives reproduction commands; `docs/IMPLEMENTATION_PHASES.md`
+  records ML2.5 and the next audit; this log records decisions and current state.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`:
+  **174 passed, no skips**, including 17 new layout-classifier cases.
+- Actual five-fold run completed. Earlier text-model summaries and fold metadata
+  exactly equal ML2.4; no frozen-test or hand-label data loaded.
+- Seven non-UI labelling-session JavaScript tests passed.
+- `npx tsc -b`, `npm test -- --run` (185 tests / 31 files),
+  `npx eslint src/core --max-warnings 0` and `npm run build`: all green.
+  Existing non-fatal build warnings remain, including outdated Browserslist data,
+  PDF.js image URLs, mixed import modes and large chunks. No UI was operated.
+- Git ignore checks confirm both the local environment and row audit are excluded.
+  No new product bug was exposed by a failing test. Unrelated frontend edits kept.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next goal to achieve:** ML2.6 — a reproducible 50-mistake development audit.
+Independent human labels, gold per-class intervals and prose-definition recall
+remain required for final ML2 acceptance. No commit requested for this substep.
+
+---
+
+## Phase ML2.6: Development Error Audit and Controlled Text Improvements
+
+**Date:** October 6, 2026
+**Objective:** review 50 train-development mistakes and, at the user's request,
+test a small improvement to the low classifier scores without touching test data.
+
+### Reproducible audit of 50 mistakes
+
+The original logistic classifier makes 327 errors against 548 weak labels.
+`error_audit.py` joins the existing out-of-fold predictions to training rows by
+block ID. It rejects held-out sources, duplicate/unknown IDs, mismatched labels,
+file/fold identities and invalid predictions. A seeded round-robin sample over
+weak-class/fold buckets covers 50 unique errors and all seven classes/five folds.
+This selection is for diagnostic coverage; its proportions are not error prevalence.
+
+All 50 full extracted texts were inspected and given local provisional notes:
+
+| Primary diagnostic reason | Cases |
+|---|---:|
+| Semantic/class-role confusion | 19 |
+| Incomplete extracted statement or argument | 11 |
+| Surrounding context required | 6 |
+| Sparse cross-source training support | 5 |
+| Suspect weak-label association | 4 |
+| More than one role in the same block | 3 |
+| PDF text ordering/footer noise | 2 |
+
+Notes are bound to a SHA-256 digest of the ordered sample IDs; stale/incomplete
+or invalid notes are rejected before any row is modified. Neither notes nor
+diagnoses change training labels. All source text, file/page references and
+per-case notes remain in ignored local outputs. The aggregate summary is public-safe.
+
+⚡ **Design Decision — provisional text review, not new gold labels.**
+
+**Reasoning:** a timing-results table is visibly not pseudocode, but deciding
+whether its algorithm label came from a caption, misplaced heading or merged
+block requires the original page. Two such table cases were found. Another
+theorem block explicitly includes its proof; several statements stop before
+their equations or conclusions. These are evidence for a data-quality repair,
+not authority to silently relabel or claim independently verified truth.
+No PDF-page/UI acceptance or human review is claimed here.
+
+### Two fixed improvement candidates
+
+⚡ **Plan Deviation — the user added an accuracy-improvement request.**
+
+**Reasoning:** ML2.6 was proposed as an audit only. The user asked to try to
+raise accuracy, so this substep adds two bounded, documented candidates rather
+than starting later roadmap phases or an unrestricted parameter search.
+
+1. **Balanced word/bigram logistic:** the original representation, C=1,
+   max_iter=1000 and seed remain unchanged; only training-derived inverse
+   class-frequency weighting is added.
+2. **Balanced word-plus-character logistic:** the same weighted learner adds
+   within-word character 3–5-grams, min_df=2, alongside word/bigrams through
+   an equal-weight FeatureUnion. This tests whether fragments transfer better
+   across PDF sources; it cannot reconstruct missing mathematical statements.
+
+Both were specified before running the comparison. Vocabularies and class
+weights are fitted independently inside each training fold. The same 548 rows,
+27 files, five source folds and 2,000 file-bootstrap draws are retained. There
+is no new dependency, saved model, data relabelling, test-set evaluation or
+production-model selection. Earlier reports are preserved.
+
+### Measured outcome and limitations
+
+| Method | Accuracy | 95% file CI | Macro F1 | 95% file CI | Definition recall |
+|---|---:|---|---:|---|---:|
+| Original logistic | 0.4033 | [0.3369, 0.4846] | 0.2362 | [0.1925, 0.2967] | 0.1957 |
+| Naive Bayes | 0.4215 | [0.3439, 0.4985] | 0.2373 | [0.1918, 0.3030] | 0.1304 |
+| Balanced logistic | 0.4124 | [0.3477, 0.4749] | 0.2700 | [0.2400, 0.3046] | 0.3913 |
+| Balanced word+character | 0.3814 | [0.3273, 0.4762] | 0.2598 | [0.2315, 0.3134] | 0.3478 |
+
+Balanced logistic finds 36 of 92 weak-labelled definitions rather than the
+original 18. Definition F1 improves from 0.3186 to 0.4706, but precision drops
+from 0.8571 to 0.5902: recovering more definitions also produces more false
+positives. Accuracy improves only 0.91 percentage points over original logistic
+and does not beat NB. Character features lower accuracy and macro F1 relative
+to balanced words and are not preferred. Notation and algorithm F1 remain zero;
+other F1 rises only to 0.0706. All per-class metrics/confusion matrices are saved.
+
+⚡ **Design Decision — keep the failed experiment and stop tuning here.**
+
+**Reasoning:** removing an unsuccessful candidate would hide evidence. The
+balanced candidate is useful for development because it improves class balance
+and definition recall, but it is not an accuracy breakthrough. The audit reveals
+missing content and label ambiguity that feature changes cannot resolve. Further
+repeated optimization on these same folds would make their scores increasingly
+selection-biased. These intervals are descriptive file-bootstrap intervals, not
+proof of statistical superiority or unbiased independent performance.
+
+### Files created / modified
+
+- **Evaluation (created):** `ml/eval/error_audit.py` — validated train-only join,
+  deterministic 50-error sampling, provisional-review digest binding and aggregate counts.
+- **Models (created):** `ml/models/improved_classifier.py` — fixed balanced-word
+  and balanced word/character logistic fits with lazy dependency imports.
+- **Models (modified):** `ml/models/first_classifier.py` — optional vectorizer
+  injection into the shared input-validated fitter; original defaults unchanged.
+- **Evaluation (modified):** `ml/eval/classifier_cv.py` — optional two-candidate
+  run, bootstrap summaries and settings, separate improved report/audit paths.
+- **Tests (created):** `ml/tests/test_error_audit.py` — nine cases for sampling,
+  identity/source integrity, empty-error handling and atomic review binding;
+  `ml/tests/test_improved_classifier.py` — nine cases for toy learning, fixed
+  balancing, invalid inputs, vocabulary isolation and bootstrap inclusion.
+- **Results (created):** `ml/results/error_audit_summary.json` — numeric sample
+  and provisional diagnosis counts; `ml/results/classifier_improved_cv.json` —
+  numerical baseline/candidate comparisons and fixed settings.
+- **Local outputs (ignored):** `ml/out/ml2/error_audit.jsonl` — full sample with
+  text and notes; `error_audit_review.json` — 50 digest-bound provisional notes;
+  `cv_improved_predictions.jsonl` — development prediction audit, no text.
+- **Documentation (modified):** `ml/README.md` — commands, results and caveats;
+  `ml/models/README.md` — feature/weight mechanics and official versioned references;
+  `docs/IMPLEMENTATION_PHASES.md` — substep state and proposed next repair; this log.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`:
+  **192 passed, no skips**; 18 new audit/candidate cases.
+- Actual five-fold candidate comparison completed; previous logistic/NB summaries
+  and fold metadata exactly match ML2.4. The frozen test set remains untouched.
+- Audit regeneration applies all 50 notes to the exact sample; Git ignore checks
+  confirm source texts and review artifacts remain excluded.
+- Typecheck, 185 frontend tests in 31 files, pure-core lint and production build
+  re-run green. Existing non-fatal build warnings remain; no frontend edits/UI test.
+- No new product bug was caught by a failing test. The diagnostic data issues
+  above were found by text inspection, not a test failure; page verification remains pending.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next goal to achieve:** ML2.7 — a narrow training-data quality repair focused
+on fragments and heading/table associations, preserving frozen memberships and
+baseline reports. Independent gold labels and prose-definition recall remain pending.
+
+---
+
+## Phase ML2.7: Training Block and Heading-Association Repair
+
+**Date:** October 7, 2026
+**Objective:** verify the ML2.6 data-quality diagnoses against source pages,
+repair general extraction rules, and regenerate training data without changing
+the frozen split, original source folds or previous baseline artifacts.
+
+### Source-page verification
+
+The PDF skill guided Poppler rendering and inspection of six physical pages
+from five local PDFs: the two timing tables, the lemma/proof page, the Newton
+proof slide, the derivative example slide and the convex-set theorem page.
+This was file-based document inspection, not browser/UI interaction. Original
+PDFs were not edited. Rendered images remain ignored under `ml/out/ml27/pages/`.
+
+The evidence confirms that the algorithm keyword belongs to a timing-table
+column, not a procedure heading. The lemma and its proof are visibly distinct.
+Both slide fragments have their missing displayed mathematics on the same page.
+The convex-set theorem was not wrongly labelled: the extractor had separated
+its final conclusion from the assumptions and set definition. This revises the
+earlier provisional diagnosis rather than silently replacing its historical note.
+
+### Extraction changes and boundaries
+
+- Recognize formatted unnumbered `PROOF Let/Assume/Suppose/We/By/First/For...`
+  openings without requiring a period. Ordinary references and lowercase
+  starts remain rejected; the heading removed from model input is only `PROOF`.
+- Reject unnumbered algorithm headings containing repeated time units. A
+  table-header variable followed by `(ms)` had matched the existing function-name
+  pattern. Numbered algorithms and actual named-function headings remain valid.
+- Require three rows containing prose on both sides before declaring a gutter.
+  The derivative slide's sparse, aligned equation spans had mimicked two columns,
+  placing the function definition after several subsequent lines.
+- Mark equality-heavy, low-prose lines as displayed mathematics without requiring
+  a high Greek-symbol ratio. A long Taylor equation had otherwise remained prose.
+- Keep nearby displayed maths and immediate Then/Hence/Thus/Because conclusions
+  with a labelled block. Do not cross another heading, page, column or a gap over
+  four line heights. Lone-heading merging also cannot consume the next heading.
+
+⚡ **Design Decision — preserve uncertain blocks as unlabelled.**
+
+**Reasoning:** the timing tables should lose false algorithm supervision, not
+become invented `other` examples. Rules use formatting, geometry and text structure,
+not a list of audited block IDs, filenames or desired prediction labels. Unlabelled
+still means unknown. Cross-page propagation and general paragraph merging are
+deferred because they can attach unrelated prose to a mathematical role.
+
+⚡ **Bug — equation merging could swallow the next heading.**
+
+**Reasoning:** a new regression test failed when an unformatted `Proof.` followed
+an unfinished theorem sentence. Context-sensitive heading detection rejected it
+as a wrapped reference, allowing the new merger to consume it. The merger now
+checks the next block's heading independently of the preceding sentence before
+joining. The test protects the heading/page/column/gap boundaries.
+
+⚡ **Bug — overlap diagnostics collapsed repeated identical rows.**
+
+**Reasoning:** a later fixture uses repeated text on the same page. Set-based
+content overlap counted eight signatures instead of 80 unchanged row occurrences.
+The summary now intersects Counters, preserving multiplicity while ignoring
+block-ID shifts caused by merges. The full suite was re-run after this failure.
+
+### Regeneration and frozen-fold hygiene
+
+`repair_training.py` reads only the 40 PDFs assigned to frozen training groups.
+Original training-report memberships supply all 23 source-to-fold assignments,
+including groups with no usable weak labels. The runner rejects incomplete,
+duplicate or held-out memberships and existing output datasets. No frozen-test
+PDFs or independent hand labels were re-extracted or used for this work.
+
+The verified run is `ml/out/ml27/verified/`. It contains 9,360 blocks and 938 weak
+labels before the unchanged 200-row source cap and 30-character body filter.
+The capped dataset has 549 rows / 27 PDFs: definition 92, theorem 130, proof 123,
+example 135, notation 4, algorithm 24 and other 41. Original source memberships
+are identical; fold row counts become 200/200/57/49/43. Earlier ML2.1 rows remain
+at 548 in their original location. Intermediate local repair runs are not the
+accepted evaluation snapshot and remain ignored.
+
+The selected-row unfinished-introduction heuristic falls from five to zero.
+It only checks endings such as given-by/yields/expressed-as/linear-map/compute;
+it cannot prove semantic completeness. Exactly 385 rows match on file, page,
+text and weak label across snapshots. The remaining changes include block
+merging and deterministic cap re-selection as block IDs shift. No old question,
+labelling sample, prediction audit or baseline report was rewritten.
+
+⚡ **Design Decision — changed data receives a separate evaluation revision.**
+
+**Reasoning:** changed bodies, label associations and source-cap selection mean
+that a before/after accuracy subtraction is not an identical-row model comparison.
+The runner now records `dataset_revision: ML2.7`, an explicit comparison warning
+and a separate local row-audit path. No hyperparameters changed in this substep.
+
+### Repaired-dataset results
+
+| Model | Accuracy | 95% file CI | Macro F1 | 95% file CI | Definition recall |
+|---|---:|---|---:|---|---:|
+| Original logistic settings | 0.4026 | [0.3302, 0.4783] | 0.2321 | [0.1942, 0.2867] | 0.1848 |
+| Naive Bayes | 0.3716 | [0.2947, 0.4310] | 0.2102 | [0.1711, 0.2651] | 0.1304 |
+| Balanced logistic | 0.4080 | [0.3362, 0.4703] | 0.2638 | [0.2337, 0.2984] | 0.4022 |
+| Balanced word+character | 0.4007 | [0.3426, 0.4842] | 0.2641 | [0.2365, 0.3018] | 0.3370 |
+
+Balanced logistic recovers 37 of 92 weak-labelled definitions, precision 0.6066
+and definition F1 0.4837. Algorithm and notation F1 remain zero. There is no
+accuracy breakthrough or production-model selection. The data fixes are justified
+by source-page structure, not by scores. Intervals still use 2,000 file-cluster
+resamples and seven-class macro F1; they do not remove source correlation, weak-label
+noise or development-selection bias. Full metrics/confusion matrices are saved.
+
+### Files created / modified
+
+- **Data (modified):** `ml/data/heading_rules.py` — formatted proof openings and
+  timing-table rejection; `ml/data/extract_blocks.py` — prose-backed gutter evidence,
+  display-math detection and bounded heading/equation/conclusion grouping.
+- **Data (created):** `ml/data/repair_training.py` — train-only regeneration,
+  original-fold validation and fresh-output protection.
+- **Data (modified):** `ml/data/prepare_training.py` — optional explicit source
+  folds; default preparation remains deterministic and unchanged in policy.
+- **Evaluation (created):** `ml/eval/training_quality.py` — aggregate class/row
+  counts, unfinished-intro heuristic and multiset content overlap with fold checks.
+- **Evaluation (modified):** `ml/eval/classifier_cv.py` — dataset revision/warning
+  and independent row-audit path for regenerated training inputs.
+- **Tests (created):** `ml/tests/test_training_repair.py` — 16 cases covering
+  formatted proof starts/references, table headers, ASCII/long equations, false
+  gutters, merge boundaries, lone headings, preserved folds and repeated content.
+- **Results (created):** `ml/results/training_repair_summary.json` — numerical
+  before/after data diagnostics; `ml/results/classifier_repaired_cv.json` — separate
+  repaired-row metrics, intervals, class supports and model settings.
+- **Local outputs (ignored):** `ml/out/ml27/verified/` — extracted blocks,
+  training rows/report and predictions; `ml/out/ml27/pages/` — inspection PNGs.
+- **Documentation (modified):** `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`
+  and this log — reproduction, changed-data caveats, limits and next unit.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`:
+  **208 passed, no skips** after both failing regression cases were repaired.
+- Verified source outputs: both timing tables are unlabelled; lemma and proof
+  are separate; the Newton proof includes its equation; the derivative example
+  includes its function and displayed derivation; the convex theorem includes
+  its conclusion. Source-page inspection covered six pages, not the entire corpus.
+- Training-only regeneration and five-fold evaluation completed; fold-membership
+  comparison and ignored-artifact checks passed. Original baselines retained.
+- Typecheck, 185 frontend tests / 31 files, core-boundary lint and production build
+  re-run green. Existing non-fatal build warnings remain. No UI was operated.
+- Remaining extraction limits: imperfect fraction/subscript order, unlabelled
+  continuation paragraphs, cross-page role boundaries and possible genuine
+  equation-only two-column pages rejected by the conservative prose rule.
+
+**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
+`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+
+**Next goal to achieve:** ML2.8 — accept the repaired training snapshot and build
+a small independently reviewed, train-only label set with more rare-class examples.
+Independent frozen-test labels and final gold acceptance remain pending.
+
+---
+
 ## Current Project State
 
-**As of:** October 6, 2026
+**As of:** October 7, 2026
 
 ### File tree (abridged by responsibility)
 
@@ -2254,12 +3100,25 @@ ml/
 ├── data/heading_rules.py         pure heading detection and removal
 ├── data/make_splits.py           validated deterministic source-group proposal
 ├── data/sample_for_labelling.py  enriched independent held-out sample
+├── data/prepare_training.py      train-only heading-free rows and source folds
+├── data/repair_training.py       training-only regeneration with original source folds
+├── models/first_classifier.py    majority/heading baselines, TF-IDF logistic and NB fitting
+├── models/layout_classifier.py   finite layout allowlist, category encoder and LightGBM
+├── models/improved_classifier.py balanced word and word/character candidates
 ├── splits.json                  user-accepted frozen memberships and counts
 ├── labels/label.html             offline labelling; local JSONLs ignored
 ├── eval/validate_questions.py    schema, frozen split and native-PDF evidence checks
 ├── eval/questions.schema.md      user question-authoring instructions
 ├── eval/baseline_current_rag.py   offline exact-vector and reranking baseline
 ├── eval/stats.py                 seeded document-cluster confidence intervals
+├── eval/classifier_cv.py         grouped logistic/NB/layout development and intervals
+├── eval/error_audit.py           train-only diagnostic sampling and review binding
+├── eval/training_quality.py      aggregate repair diagnostics and content overlap
+├── results/classifier_layout_cv.json  numerical four-method weak-label comparison
+├── results/classifier_improved_cv.json  fixed text-candidate comparison
+├── results/error_audit_summary.json  aggregate provisional 50-error diagnoses
+├── results/classifier_repaired_cv.json  separate repaired-row weak-label comparison
+├── results/training_repair_summary.json  numerical before/after training diagnostics
 ├── results/baseline_current_rag.json  five-example numerical smoke results
 └── tests/                        extraction, split, sampling and JS session tests
 ```
@@ -2272,10 +3131,15 @@ ml/
 - 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- `ml/`: 3,346 Python lines, 124 Python tests (68 extraction/layout, 16 split, eight sampling,
-  24 questions, eight baseline) and seven non-UI JavaScript tests.
+- `ml/`: 4,579 Python lines, 208 passing Python tests (68 extraction/layout, 16 split,
+  eight sampling, 24 questions, eight baseline, seven training preparation)
+  plus ten active classifier, eight grouped-CV, eight NB and 17 layout-classifier tests;
+  nine error-audit, nine fixed-candidate and 16 training-repair tests;
+  seven non-UI JavaScript tests.
 - ML corpus: 58 PDFs / 38 groups; 52 eligible PDFs yield 14,237 blocks and
-  1,345 weak labels. Frozen split: 23 train/dev, 10 test, 5 excluded groups.
+  1,345 weak labels in the preserved ML1 extraction snapshot. Frozen split:
+  23 train/dev, 10 test, 5 excluded groups. ML2.7 regenerated training-only snapshot:
+  40 PDFs, 9,360 blocks / 938 weak labels; 549 capped training rows across 27 PDFs.
 - 17 commits after the safety checkpoint `ab63d6f`.
 
 ### Build and test status
@@ -2284,13 +3148,13 @@ ml/
 |---|---|---|
 | `npx tsc -b` | Green | TypeScript project references |
 | `npm test -- --run` | Green | 185 tests in 31 files |
-| `python -m pytest ml/tests -p no:cacheprovider` | Green, October 6 | 124 tests including retrieval metrics/bootstrap |
+| `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider` | Green, October 7 | 208 passed, no skips; extraction repair and data diagnostics checked |
 | `node --test ml/tests/label_session.test.cjs` | Green, October 6 | 7 non-UI offline labelling-session tests |
 | `npx eslint src/core --max-warnings 0` | Green | pure-core boundary and core lint |
 | `npm run build` | Green | typecheck plus Vite production build |
 | `npm run build:demo` + `npm run demo:check` | Green | static demo and bundle exclusions |
 
-The Vite build still reports non-fatal warnings about PDF.js image URLs,
+The Vite build still reports non-fatal warnings about outdated Browserslist data, PDF.js image URLs,
 mixed static/dynamic imports, and a large output chunk. Full-repository ESLint
 is not a green gate because the inherited shell still has a known lint backlog;
 CI gates `src/core` at zero warnings.
@@ -2307,6 +3171,9 @@ CI gates `src/core` at zero warnings.
   by those code checkpoints.
 - Uncommitted: this log, `docs/frontend_implementation_log.md` and
   `docs/IMPLEMENTATION_PHASES.md` (documentation updates for the ML track).
+- ML2.1–ML2.7 code, tests, aggregate comparison reports, model documentation
+  and `.venv-ml` ignore rule also remain uncommitted. Existing frontend-plan
+  edits were preserved; they are not part of the layout comparison.
 - `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` remain untracked local
   documentation; `PROJECT_SUMMARY.md` is out of date and is rewritten in ML7.
 - Full-repository ESLint still reports the inherited shell backlog (mostly
@@ -2315,7 +3182,7 @@ CI gates `src/core` at zero warnings.
 
 ---
 
-## Next Up: Finish ML1, then ML2 Block Classifier
+## Next Up: ML2.8 Training-Data Acceptance, with ML1 Human-Data Acceptance Still Pending
 
 The full plan is in `docs/IMPLEMENTATION_PHASES.md`. Remaining ML1 work:
 
@@ -2328,8 +3195,22 @@ The full plan is in `docs/IMPLEMENTATION_PHASES.md`. Remaining ML1 work:
 4. ML1.4.4 baseline implemented; five-example vector/reranking table measured.
    Full-collection baseline and data acceptance remain before ML2.
 
-ML2 (October 13–19) then trains the block classifier on heading-free text
-against regex and majority baselines, with grouped cross-validation.
+ML1 tooling is checkpointed in `13d5106`. At the user's request ML2 started
+October 6 with ML2.1 data plumbing: 548 heading-free weak training rows and five
+source folds. The user then explicitly requested model implementation: ML2.2
+baselines and the first TF-IDF/logistic classifier now pass ten active tests.
+ML2.3–ML2.4 grouped development is measured: logistic accuracy 0.4033 / macro
+F1 0.2362, NB 0.4215 / 0.2373, majority 0.2153 / 0.0702. ML2.5 layout comparison
+is complete: accuracy 0.2974 / macro F1 0.1646, definition recall zero. Next goal
+was ML2.6, now complete with a provisional 50-text audit and two fixed candidates.
+Balanced logistic reaches accuracy 0.4124 / macro F1 0.2700 / definition recall
+0.3913, with lower definition precision and no gain over NB accuracy.
+ML2.7 is now implemented: source-page-verified extraction fixes, 549 regenerated
+rows with unchanged source folds, and separate evaluation (balanced accuracy
+0.4080 / macro F1 0.2638 / definition recall 0.4022). This changed-data result
+is not an identical-row improvement over ML2.6. Next is ML2.8 training-snapshot
+acceptance and rare-class label enrichment; final independent-label acceptance remains pending.
+Final held-out evaluation still requires the pending independent human labels.
 
 Manual acceptance of Phase 8R and F8R.2 and publishing the static demo stay
 open in parallel; they do not block the ML track.

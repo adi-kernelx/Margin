@@ -101,6 +101,7 @@ __pycache__/
 *.egg
 venv/
 .venv/
+.venv-ml/
 env/
 .env/
 pip-wheel-metadata/

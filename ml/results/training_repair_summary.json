@@ -1,0 +1,34 @@
+{
+  "before": {
+    "rows": 548,
+    "documents": 27,
+    "labels": {
+      "algorithm": 26,
+      "definition": 92,
+      "example": 131,
+      "notation": 4,
+      "other": 42,
+      "proof": 123,
+      "theorem": 130
+    },
+    "unfinished_intro_rows": 5
+  },
+  "after": {
+    "rows": 549,
+    "documents": 27,
+    "labels": {
+      "algorithm": 24,
+      "definition": 92,
+      "example": 135,
+      "notation": 4,
+      "other": 41,
+      "proof": 123,
+      "theorem": 130
+    },
+    "unfinished_intro_rows": 0
+  },
+  "exact_content_overlap": 385,
+  "source_folds_preserved": true,
+  "test_evaluated": false,
+  "warning": "Intro-ending counts are a diagnostic heuristic, not completeness or gold-label acceptance. Changed rows invalidate direct accuracy-gain claims."
+}
