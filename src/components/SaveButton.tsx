@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent } from 'react';
+import { useRef, type ButtonHTMLAttributes, type MouseEvent } from 'react';
 import { Save } from 'lucide-react';
 import { useSaveStore } from '@/lib/saving/save-manager';
 import { cn } from '@/lib/utils';
@@ -11,21 +11,22 @@ export const useGlobalModified = () => {
     return useSaveStore(state => Object.values(state.isDirtyByPdf).some(Boolean));
 };
 
-interface SaveButtonProps {
+interface SaveButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'onDoubleClick'> {
     onSingleClick: () => void;
     onDoubleClick: () => void;
     /** Optional override for the store's dirty state, e.g. for a per-doc button. */
     isModified?: boolean;
-    className?: string;
-    disabled?: boolean;
+    compact?: boolean;
 }
 
 export function SaveButton({
     onSingleClick,
     onDoubleClick,
     isModified,
+    compact = false,
     className,
     disabled,
+    ...props
 }: SaveButtonProps) {
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,24 +53,28 @@ export function SaveButton({
     return (
         <button
             type="button"
+            {...props}
             onClick={handleClick}
             disabled={disabled}
-            title="Save (Ctrl+S) — double-click for options"
-            aria-label="Save"
+            aria-label={isModified ? 'Save (unsaved changes)' : 'Save'}
             className={cn(
-                'depth-pressable relative flex h-11 w-11 items-center justify-center rounded-lg text-text-soft',
-                'transition-colors duration-state hover:text-accent',
-                disabled && 'cursor-not-allowed opacity-50',
+                'relative grid shrink-0 place-items-center rounded-lg transition-[background-color,color] duration-state',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                compact ? 'size-8' : 'size-9 [@media(max-height:860px)]:size-8',
+                isModified
+                    ? 'bg-warning-soft text-warning hover:bg-warning-soft/80'
+                    : 'text-text-soft hover:bg-sunken hover:text-text',
+                disabled && 'cursor-not-allowed opacity-35',
                 className,
             )}
         >
-            <Save size={20} />
+            <Save size={compact ? 16 : 18} />
             {isModified && (
-                // Colour + motion together — meaning does not ride on the
-                // colour alone, and the pulse dies out under reduced motion.
-                <span className="absolute right-2 top-2 flex h-2 w-2" aria-hidden>
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-warning" />
+                // Tint + dot + label: meaning never rides on colour alone,
+                // and the pulse stops under reduced motion.
+                <span className="absolute right-1 top-1 flex size-2" aria-hidden>
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-warning opacity-60 motion-reduce:animate-none" />
+                    <span className="relative inline-flex size-2 rounded-full bg-warning ring-2 ring-surface-2" />
                 </span>
             )}
         </button>

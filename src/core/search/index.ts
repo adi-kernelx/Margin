@@ -4,6 +4,7 @@ export interface IndexedTextSpan {
     end: number;
     bbox: { x0: number; y0: number; x1: number; y1: number };
 }
+
 export interface IndexedSearchPage {
     docId: string;
     pdfFingerprint: string;
@@ -12,19 +13,10 @@ export interface IndexedSearchPage {
     spans: IndexedTextSpan[];
 }
 
-interface Posting {
-    pageIndex: number;
-    frequency: number;
-}
-
-export interface FullTextIndex {
-    pages: IndexedSearchPage[];
-    postings: Map<string, Posting[]>;
-}
-
-export interface IndexedMatch {
+export interface KeywordMatch {
     page: IndexedSearchPage;
-    score: number;
+    start: number;
+    end: number;
     snippet: string;
     spans: IndexedTextSpan[];
 }
@@ -35,65 +27,89 @@ export function resolveSearchScopeIds(scope: 'current' | 'all' | string, current
     return [scope];
 }
 
-export function tokenize(text: string): string[] {
-    return text.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+export function normalizeKeywordQuery(value: string): string {
+    return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
 }
 
-export function buildFullTextIndex(pages: IndexedSearchPage[]): FullTextIndex {
-    const postings = new Map<string, Posting[]>();
-    pages.forEach((page, pageIndex) => {
-        const counts = new Map<string, number>();
-        for (const token of tokenize(page.text)) counts.set(token, (counts.get(token) ?? 0) + 1);
-        for (const [token, frequency] of counts) {
-            const tokenPostings = postings.get(token) ?? [];
-            tokenPostings.push({ pageIndex, frequency });
-            postings.set(token, tokenPostings);
+function snippetFor(text: string, start: number, end: number, radius = 80): string {
+    let snippetStart = Math.max(0, start - radius);
+    let snippetEnd = Math.min(text.length, end + radius);
+
+    if (snippetStart > 0) {
+        const nextSpace = text.indexOf(' ', snippetStart);
+        if (nextSpace >= 0 && nextSpace < start) snippetStart = nextSpace + 1;
+    }
+    if (snippetEnd < text.length) {
+        const previousSpace = text.lastIndexOf(' ', snippetEnd);
+        if (previousSpace > end) snippetEnd = previousSpace;
+    }
+
+    return `${snippetStart > 0 ? '…' : ''}${text.slice(snippetStart, snippetEnd)}${snippetEnd < text.length ? '…' : ''}`;
+}
+
+/**
+ * Literal, case-insensitive keyword search over native PDF text.
+ *
+ * Every occurrence is returned in page order. There is deliberately no
+ * stemming, fuzzy matching, ranking, embeddings, or OCR fallback here.
+ */
+export function searchKeywordPages(
+    pages: readonly IndexedSearchPage[],
+    rawQuery: string,
+    limit = 1000,
+): KeywordMatch[] {
+    const query = normalizeKeywordQuery(rawQuery);
+    if (!query || limit <= 0) return [];
+
+    const matches: KeywordMatch[] = [];
+    for (const page of pages) {
+        const searchableText = page.text.toLocaleLowerCase();
+        let from = 0;
+        while (from <= searchableText.length - query.length) {
+            const start = searchableText.indexOf(query, from);
+            if (start < 0) break;
+            const end = start + query.length;
+            const spans = page.spans
+                .filter(span => span.end > start && span.start < end)
+                .map(span => {
+                    const overlapStart = Math.max(start, span.start);
+                    const overlapEnd = Math.min(end, span.end);
+                    const spanLength = Math.max(1, span.end - span.start);
+                    const startRatio = (overlapStart - span.start) / spanLength;
+                    const endRatio = (overlapEnd - span.start) / spanLength;
+                    const width = span.bbox.x1 - span.bbox.x0;
+                    return {
+                        ...span,
+                        text: page.text.slice(overlapStart, overlapEnd),
+                        start: overlapStart,
+                        end: overlapEnd,
+                        bbox: {
+                            ...span.bbox,
+                            x0: span.bbox.x0 + width * startRatio,
+                            x1: span.bbox.x0 + width * endRatio,
+                        },
+                    };
+                });
+            matches.push({
+                page,
+                start,
+                end,
+                snippet: snippetFor(page.text, start, end),
+                spans: spans.length ? spans : page.spans.slice(0, 1),
+            });
+            if (matches.length >= limit) return matches;
+            from = end;
         }
-    });
-    return { pages, postings };
+    }
+    return matches;
 }
 
-const unionBounds = (spans: IndexedTextSpan[]) => ({
-    x0: Math.min(...spans.map(span => span.bbox.x0)),
-    y0: Math.min(...spans.map(span => span.bbox.y0)),
-    x1: Math.max(...spans.map(span => span.bbox.x1)),
-    y1: Math.max(...spans.map(span => span.bbox.y1)),
-});
-
-export function searchFullTextIndex(index: FullTextIndex, rawQuery: string, limit = 50): IndexedMatch[] {
-    const terms = [...new Set(tokenize(rawQuery))];
-    if (!terms.length) return [];
-    const candidateSets = terms.map(term => new Set((index.postings.get(term) ?? []).map(item => item.pageIndex)));
-    const candidates = [...candidateSets[0]].filter(pageIndex => candidateSets.every(set => set.has(pageIndex)));
-    const normalizedQuery = terms.join(' ');
-
-    return candidates.map(pageIndex => {
-        const page = index.pages[pageIndex];
-        const lowerText = page.text.toLocaleLowerCase();
-        const phraseIndex = lowerText.indexOf(normalizedQuery);
-        const firstIndex = phraseIndex >= 0
-            ? phraseIndex
-            : Math.min(...terms.map(term => lowerText.indexOf(term)).filter(index => index >= 0));
-        const start = Math.max(0, firstIndex - 60);
-        const end = Math.min(page.text.length, firstIndex + normalizedQuery.length + 90);
-        const matchingSpans = page.spans.filter(span =>
-            span.end >= firstIndex && span.start <= firstIndex + normalizedQuery.length
-            || terms.some(term => span.text.toLocaleLowerCase().includes(term)),
-        );
-        const termScore = terms.reduce((score, term) => {
-            const posting = index.postings.get(term)?.find(item => item.pageIndex === pageIndex);
-            const documentFrequency = index.postings.get(term)?.length ?? 1;
-            return score + (posting?.frequency ?? 0) * Math.log(1 + index.pages.length / documentFrequency);
-        }, 0);
-        return {
-            page,
-            score: termScore + (phraseIndex >= 0 ? 5 : 0),
-            snippet: `${start > 0 ? '…' : ''}${page.text.slice(start, end)}${end < page.text.length ? '…' : ''}`,
-            spans: matchingSpans.length ? matchingSpans : page.spans.slice(0, 1),
-        };
-    }).sort((a, b) => b.score - a.score || a.page.page - b.page.page).slice(0, limit);
-}
-
-export function matchBounds(match: IndexedMatch) {
-    return match.spans.length ? unionBounds(match.spans) : { x0: 0, y0: 0, x1: 1, y1: 1 };
+export function matchBounds(match: Pick<KeywordMatch, 'spans'>) {
+    if (!match.spans.length) return { x0: 0, y0: 0, x1: 1, y1: 1 };
+    return {
+        x0: Math.min(...match.spans.map(span => span.bbox.x0)),
+        y0: Math.min(...match.spans.map(span => span.bbox.y0)),
+        x1: Math.max(...match.spans.map(span => span.bbox.x1)),
+        y1: Math.max(...match.spans.map(span => span.bbox.y1)),
+    };
 }

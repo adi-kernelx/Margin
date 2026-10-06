@@ -34,7 +34,7 @@ export function PaneHeader({ filename, onClose, className }: PaneHeaderProps) {
                 </IconButton>
             </div>
 
-            <ToolbarGroup label="Zoom">
+            <ToolbarGroup label="Zoom" orientation="horizontal">
                 <IconButton
                     size="sm"
                     onClick={() => setScale(Math.max(0.5, scale - 0.1))}

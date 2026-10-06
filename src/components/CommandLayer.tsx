@@ -2,21 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Command as CommandIcon, CornerDownLeft, Search } from 'lucide-react';
 import { fuzzyMatch, fuzzyRank } from '@/core/ui/fuzzy';
-import { isEditableTarget, matchesShortcut, shortcutLabel } from '@/core/ui/shortcuts';
+import { isEditableTarget, matchesShortcut } from '@/core/ui/shortcuts';
 import { groupBy } from '@/core/search/snippet';
 import { IS_MAC, selectCommands, useCommandStore, useRegisterCommands, type Command } from '@/lib/commands/registry';
 import { useUiStore } from '@/lib/ui/ui-store';
 import { cn } from '@/lib/utils';
 import { Dialog } from './ui/Dialog';
+import { KeyCaps } from './KeyCaps';
 import { EmptyState } from './ui/States';
-
-export function KeyCaps({ shortcut, className }: { shortcut: string; className?: string }) {
-    return (
-        <span className={cn('inline-flex items-center gap-0.5', className)} aria-label={shortcutLabel(shortcut, IS_MAC).join(' ')}>
-            {shortcutLabel(shortcut, IS_MAC).map((cap, index) => <kbd key={index} className="keycap">{cap}</kbd>)}
-        </span>
-    );
-}
 
 function Highlighted({ text, positions }: { text: string; positions: number[] }) {
     if (!positions.length) return <>{text}</>;

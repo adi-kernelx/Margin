@@ -1,24 +1,23 @@
-import { Plus, X, Settings as SettingsIcon, Sparkles, RotateCw } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { SettingsModal } from './SettingsModal';
-
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { FileJson, Plus, RotateCw, Settings as SettingsIcon, Sparkles, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { DocumentEntry } from '@/types';
-import { cn } from '@/lib/utils';
-import { SearchBar, type SearchResult } from './SearchBar';
-import { WORKSPACE_TAB_MIME } from '@/core/workspace/layout';
-import { Button } from './ui/Button';
-import { IconButton } from './ui/IconButton';
-import { useUiStore } from '@/lib/ui/ui-store';
-import { revealInDocument } from '@/lib/ui/navigate';
 import { ASSISTANT_ENABLED } from '@/lib/features';
+import { revealInDocument } from '@/lib/ui/navigate';
+import { useUiStore } from '@/lib/ui/ui-store';
+import { useAppStore } from '@/lib/store';
+import { cn } from '@/lib/utils';
+import { Button } from './ui/Button';
+import { Tooltip } from './ui/Tooltip';
+import { DocumentTabs } from './DocumentTabs';
+import { SearchBar, type SearchResult } from './SearchBar';
+import { SettingsModal } from './SettingsModal';
 
 interface HeaderProps {
     onOpenPDF: () => void;
     documents: DocumentEntry[];
     onRemoveDocument: (id: string) => void;
     onRefreshDocument: (id: string) => void;
-
     onLoadJSON: (docId: string) => void;
     showAIChat: boolean;
     onToggleAIChat: () => void;
@@ -26,194 +25,165 @@ interface HeaderProps {
     onShowLibrary: () => void;
 }
 
-export function Header({ onOpenPDF, documents, onRemoveDocument, onRefreshDocument, onLoadJSON, showAIChat, onToggleAIChat, onFocusDocument, onShowLibrary }: HeaderProps) {
-    const { focusedDocId } = useAppStore();
+/** Brand mark: a page with a ruled margin — the product's name, drawn. */
+function MarginMark() {
+    return (
+        <span
+            aria-hidden
+            className="relative grid size-8 shrink-0 place-items-center rounded-lg bg-[linear-gradient(145deg,var(--accent),var(--accent-hover))] text-text-onaccent shadow-[var(--elev-1),inset_0_1px_0_rgb(255_255_255/.25)]"
+        >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="3.5" y="2" width="11" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M6.5 2v14" stroke="currentColor" strokeWidth="1.6" opacity=".55" />
+                <path d="M9 6h3.5M9 9h3.5M9 12h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+        </span>
+    );
+}
+
+function HeaderIconButton({ label, shortcut, active, onClick, children }: {
+    label: string;
+    shortcut?: string;
+    active?: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <Tooltip side="bottom" content={label} shortcut={shortcut}>
+            <button
+                type="button"
+                onClick={onClick}
+                aria-label={label}
+                aria-pressed={active}
+                className={cn(
+                    'grid size-8 place-items-center rounded-lg transition-colors duration-state',
+                    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                    active ? 'bg-accent-soft text-accent' : 'text-text-soft hover:bg-surface-3 hover:text-text',
+                )}
+            >
+                {children}
+            </button>
+        </Tooltip>
+    );
+}
+
+export function Header({
+    onOpenPDF,
+    documents,
+    onRemoveDocument,
+    onRefreshDocument,
+    onLoadJSON,
+    showAIChat,
+    onToggleAIChat,
+    onFocusDocument,
+    onShowLibrary,
+}: HeaderProps) {
+    const focusedDocId = useAppStore(state => state.focusedDocId);
     const showSettings = useUiStore(state => state.settingsOpen);
     const openSettings = useUiStore(state => state.openSettings);
     const closeSettings = useUiStore(state => state.closeSettings);
-
-
-    // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; docId: string } | null>(null);
 
-    const handleContextMenu = (e: React.MouseEvent, docId: string) => {
-        e.preventDefault();
-        setContextMenu({ x: e.clientX, y: e.clientY, docId });
-    };
+    const handleSearchSelect = useCallback((result: SearchResult) => {
+        revealInDocument(result, documents, onFocusDocument, { persistHighlight: true });
+    }, [documents, onFocusDocument]);
 
     const closeContextMenu = () => setContextMenu(null);
 
-    const handleSearchSelect = useCallback((result: SearchResult) => {
-        revealInDocument(result, documents, onFocusDocument);
-    }, [documents, onFocusDocument]);
-
-    // Handle focusing a different document from search
-    const handleFocusDocument = useCallback((docId: string) => {
-        onFocusDocument(docId);
-    }, [onFocusDocument]);
+    const menuItem = (label: string, icon: ReactNode, action: () => void, danger = false) => (
+        <button
+            role="menuitem"
+            className={cn(
+                'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors duration-state',
+                danger ? 'text-danger hover:bg-danger-soft' : 'text-text-soft hover:bg-sunken hover:text-text',
+            )}
+            onClick={() => {
+                action();
+                closeContextMenu();
+            }}
+        >
+            {icon}
+            {label}
+        </button>
+    );
 
     return (
-        <header className={cn(
-            "h-12 flex items-center justify-between px-4 border-b border-line bg-surface-2 text-text shadow-elev-1 flex-shrink-0 z-40 gap-4"
-        )} onClick={closeContextMenu}>
-            <div className="flex items-center gap-4 flex-shrink-0">
-
-                <button type="button" className="font-bold text-lg text-accent" onClick={onShowLibrary} title="Open library">Margin</button>
-            </div>
-
-            {/* Document Tabs */}
-            <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-hide px-2">
-                {documents.map((doc) => (
-                    <div
-                        key={doc.id}
-                        draggable
-                        role="tab"
-                        tabIndex={0}
-                        aria-selected={doc.id === focusedDocId}
-                        className={cn(
-                            // Physical tabs: the active tab is raised and
-                            // reads as continuous with the pane below it —
-                            // shared fill, lit top edge, no bottom border —
-                            // and inactive tabs sit slightly sunken.
-                            "group relative flex max-w-[200px] flex-shrink-0 cursor-pointer select-none items-center gap-2",
-                            "rounded-t-md border border-b-0 px-3 py-1.5 text-sm transition-all duration-state",
-                            "-mb-px",
-                            doc.id === focusedDocId
-                                ? "z-10 border-line bg-surface-1 text-text shadow-[var(--edge-highlight)]"
-                                : "border-transparent bg-sunken text-text-muted hover:bg-surface-2 hover:text-text"
-                        )}
-                        onClick={() => onFocusDocument(doc.id)}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') onFocusDocument(doc.id);
-                        }}
-                        onDragStart={(event) => {
-                            event.dataTransfer.effectAllowed = 'move';
-                            event.dataTransfer.setData(WORKSPACE_TAB_MIME, doc.id);
-                        }}
-                        onContextMenu={(e) => handleContextMenu(e, doc.id)}
-                        title={`${doc.name}\nRight-click for options`}
+        <header className="relative z-40 flex-shrink-0 bg-surface-2 text-text">
+            <div className="flex h-12 items-center gap-3 px-3">
+                <Tooltip side="bottom" content="Library">
+                    <button
+                        type="button"
+                        onClick={onShowLibrary}
+                        aria-label="Margin — open library"
+                        className="group flex shrink-0 items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 transition-colors duration-state hover:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     >
-                        <span className="truncate flex-1">{doc.name}</span>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRefreshDocument(doc.id);
-                            }}
-                            className={cn(
-                                "p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                                "text-text-muted hover:bg-surface-3 hover:text-accent"
-                            )}
-                            title="Refresh from disk"
-                        >
-                            <RotateCw size={12} />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRemoveDocument(doc.id);
-                            }}
-                            className={cn(
-                                "p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                                "text-text-muted hover:bg-danger-soft hover:text-danger"
-                            )}
-                        >
-                            <X size={12} />
-                        </button>
-                    </div>
-                ))}
-            </div>
+                        <MarginMark />
+                        <span className="hidden text-[15px] font-bold tracking-tight sm:block">Margin</span>
+                    </button>
+                </Tooltip>
 
+                <div className="mx-auto w-full min-w-0 max-w-[640px]">
+                    <SearchBar
+                        currentDocId={focusedDocId}
+                        onSelect={handleSearchSelect}
+                    />
+                </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Expandable Search Bar - Left of Open */}
-                <SearchBar
-                    currentDocId={focusedDocId}
-                    currentDocName={documents.find(d => d.id === focusedDocId)?.name}
-                    currentFingerprint={documents.find(d => d.id === focusedDocId)?.pdfFingerprint}
-                    openDocIds={documents.map(d => d.id)}
-                    documentNames={Object.fromEntries(documents.map(d => [d.id, d.name]))}
-                    documentFingerprints={Object.fromEntries(
-                        documents.filter(d => d.pdfFingerprint).map(d => [d.id, d.pdfFingerprint!])
+                <div className="flex shrink-0 items-center gap-1">
+                    {ASSISTANT_ENABLED && (
+                        <HeaderIconButton label="Assistant" shortcut="Mod+J" active={showAIChat} onClick={onToggleAIChat}>
+                            <Sparkles size={17} />
+                        </HeaderIconButton>
                     )}
-                    documents={documents.map(d => ({ id: d.id, name: d.name, fingerprint: d.pdfFingerprint }))}
-                    onSelect={handleSearchSelect}
-                    onFocusDocument={handleFocusDocument}
-                    compact={true}
-                />
-
-                {/* AI Assistant Button */}
-                {ASSISTANT_ENABLED && <IconButton
-                    onClick={onToggleAIChat}
-                    pressed={showAIChat}
-                    aria-label="Toggle AI assistant"
-                    title="Assistant (Ctrl+J)"
-                >
-                    <Sparkles size={18} />
-                </IconButton>}
-
-
-                <Button
-                    onClick={onOpenPDF}
-                    variant="primary"
-                    size="sm"
-                    leadingIcon={<Plus size={16} />}
-                >
-                    <span className="hidden sm:inline">Open &amp; add</span>
-                </Button>
-
-                <div className="h-4 w-px bg-line mx-1" />
-
-                <IconButton
-                    onClick={() => openSettings()}
-                    aria-label="Open settings"
-                    title="Settings (Ctrl+,)"
-                >
-                    <SettingsIcon size={18} />
-                </IconButton>
+                    <HeaderIconButton label="Settings" shortcut="Mod+," onClick={() => openSettings()}>
+                        <SettingsIcon size={17} />
+                    </HeaderIconButton>
+                    <span aria-hidden className="mx-1.5 h-5 w-px bg-line" />
+                    <Tooltip side="bottom" content="Open PDF" shortcut="Mod+O">
+                        <Button
+                            onClick={onOpenPDF}
+                            variant="primary"
+                            size="sm"
+                            leadingIcon={<Plus size={15} strokeWidth={2.5} />}
+                            className="h-8 rounded-lg px-3 shadow-[var(--elev-1),inset_0_1px_0_rgb(255_255_255/.18)]"
+                            aria-label="Open PDF"
+                        >
+                            <span className="hidden md:inline">Open PDF</span>
+                        </Button>
+                    </Tooltip>
+                </div>
             </div>
+
+            <DocumentTabs
+                documents={documents}
+                focusedDocId={focusedDocId}
+                onFocus={onFocusDocument}
+                onClose={onRemoveDocument}
+                onOpen={onOpenPDF}
+                onContextMenu={(docId, x, y) => setContextMenu({ docId, x, y })}
+            />
 
             <SettingsModal isOpen={showSettings} onClose={closeSettings} />
 
-            {/* Context Menu */}
             {contextMenu && (
-                <div
-                    role="menu"
-                    className={cn(
-                        'fixed z-popover w-48 rounded-lg border border-line bg-surface-3 py-1',
-                        'shadow-elev-3 text-sm',
-                    )}
-                    style={{ top: contextMenu.y, left: contextMenu.x }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <button
-                        role="menuitem"
-                        className="w-full px-4 py-2 text-left text-text-soft hover:bg-sunken hover:text-text"
-                        onClick={() => {
-                            onRefreshDocument(contextMenu.docId);
-                            closeContextMenu();
-                        }}
+                <>
+                    <div className="fixed inset-0 z-40" onClick={closeContextMenu} onContextMenu={event => { event.preventDefault(); closeContextMenu(); }} />
+                    <div
+                        role="menu"
+                        className="fixed z-popover w-56 rounded-lg border border-line bg-surface-3 py-1 shadow-elev-3 animate-[dialog-in_var(--dur-state)_var(--ease)]"
+                        style={{ top: contextMenu.y, left: Math.min(contextMenu.x, window.innerWidth - 232) }}
+                        onKeyDown={event => { if (event.key === 'Escape') closeContextMenu(); }}
                     >
-                        Refresh from disk
-                    </button>
-                    <button
-                        role="menuitem"
-                        className="w-full px-4 py-2 text-left text-text-soft hover:bg-sunken hover:text-text"
-                        onClick={() => {
-                            onLoadJSON(contextMenu.docId);
-                            closeContextMenu();
-                        }}
-                    >
-                        Load annotations (JSON)
-                    </button>
-                </div>
+                        {menuItem('Refresh from disk', <RotateCw size={14} />, () => onRefreshDocument(contextMenu.docId))}
+                        {menuItem('Load annotations (JSON)…', <FileJson size={14} />, () => onLoadJSON(contextMenu.docId))}
+                        <div className="my-1 h-px bg-line-soft" />
+                        {menuItem('Close', <X size={14} />, () => onRemoveDocument(contextMenu.docId))}
+                        {documents.length > 1 && menuItem('Close others', <X size={14} />, () => {
+                            documents.filter(document => document.id !== contextMenu.docId).forEach(document => onRemoveDocument(document.id));
+                        })}
+                    </div>
+                </>
             )}
-
-            {/* Context Menu Backdrop */}
-            {contextMenu && (
-                <div className="fixed inset-0 z-40" onClick={closeContextMenu} />
-            )}
-
-
         </header>
     );
 }

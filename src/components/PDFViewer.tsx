@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
 import { useDocumentStore } from '@/hooks/useDocumentStore';
-import { useAppStore } from '@/lib/store';
+import { useAppStore, type SearchMatchHighlight } from '@/lib/store';
 import { saveManager } from '@/lib/saving/save-manager';
 import type { EditorFile, AnnotationData } from '@/types/editor-types';
 import { annotationStorage } from '@/lib/annotations/storage';
@@ -50,8 +50,6 @@ import {
 } from '@/lib/pages/pdf-pages';
 import { pageWorkspaceStorage } from '@/lib/pages/storage';
 import { PageOrganizer } from './PageOrganizer';
-import { Button } from './ui/Button';
-import { LayoutGrid, ListTree, StickyNote } from 'lucide-react';
 import { rotateAnnotation } from '@/core/pages/annotations';
 import {
     addAnchorToNote,
@@ -66,10 +64,9 @@ import {
 import type { DocumentNote, NoteAnchor } from '@/core/notes/models';
 import { NotesPanel } from './NotesPanel';
 import { DocumentDock } from './DocumentDock';
+import { DocumentPanelBar } from './DocumentPanelBar';
 import { readDockTab, type DockTab } from '@/lib/ui/dock';
 import { OutlinePanel } from './OutlinePanel';
-import { ToolbarGroup } from './ui/ToolbarGroup';
-import { IconButton } from './ui/IconButton';
 import { useRegisterCommands } from '@/lib/commands/registry';
 import { libraryDB } from '@/lib/storage/library-db';
 
@@ -89,7 +86,7 @@ interface PDFViewerProps {
     linkToken?: string;
 }
 
-export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, role = 'owner', displayName, annotationsUrl, shareId, linkToken }: PDFViewerProps) {
+export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, role = 'owner', displayName, annotationsUrl }: PDFViewerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
     const [renderedDocumentRevision, setRenderedDocumentRevision] = useState('');
@@ -121,10 +118,6 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         void annotationStorage.saveSidecar(stableId, migrated.annotations, nextNotes);
     }, [stableId]);
     const [showMathModal, setShowMathModal] = useState(false);
-    
-    // To prevent "unused variable" warnings
-    console.log(shareId, linkToken);
-
     // Throttled save ref
     const saveTimeoutRef = useRef<number | undefined>(undefined);
     const readingProgressTimeoutRef = useRef<number | undefined>(undefined);
@@ -154,23 +147,18 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useOcr(fileId, pdfDoc);
-    const ocrPagesRef = useRef(ocrPages);
-    useEffect(() => { ocrPagesRef.current = ocrPages; }, [ocrPages]);
-    useEffect(() => {
-        if (Object.keys(ocrPages).length) localSearchRegistry.refresh(fileId);
-    }, [fileId, ocrPages]);
 
     // Auto-start Client OCR / Global Store Sync
     useEffect(() => {
         if (!parentFolderId && fileId && pdfDoc) {
-            // Register for local search
+            // Keyword search reads only PDF.js native text. OCR remains a
+            // separate viewing/assistant capability and never enters search.
             const fingerprint = pdfDoc.fingerprints?.[0] || fileId;
             const disposeSearchRegistration = localSearchRegistry.register(
                 fileId,
                 fingerprint,
                 renderedDocumentRevision || `pdf:${pdfDoc.numPages}`,
                 pdfDoc,
-                () => ocrPagesRef.current,
             );
             window.dispatchEvent(new CustomEvent('pdf-loaded', {
                 detail: { fileId, fingerprint },
@@ -955,6 +943,12 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Document commands exist only while this document is the focused one.
     const isFocusedDocument = useAppStore(state => state.focusedDocId === fileId);
+    const searchMatches = useAppStore(state => state.searchMatches);
+    const searchHighlight = useAppStore(state => state.searchHighlight);
+    const documentSearchMatches = isFocusedDocument
+        ? searchMatches.filter(match => match.docId === fileId)
+        : [];
+
     useRegisterCommands(`document:${fileId}`, [
         { id: 'document.panel', title: dockTab ? 'Hide side panel' : 'Show side panel', group: 'Document', shortcut: 'Mod+\\', allowInInput: true, keywords: ['dock', 'sidebar'], run: () => setDockTab(current => current ? null : readDockTab(stableId)) },
         { id: 'document.notes', title: dockTab === 'notes' ? 'Hide notes' : 'Show notes', group: 'Document', shortcut: 'Mod+Shift+N', allowInInput: true, keywords: ['annotations', 'panel'], run: () => toggleDock('notes') },
@@ -1000,26 +994,27 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     return (
         <div className="relative flex h-full flex-1 flex-col bg-ground">
             <div className="flex min-h-0 flex-1 overflow-hidden">
-            <div className="relative flex min-w-0 flex-1">
-            <div className="depth-float absolute right-5 top-4 z-20 flex items-center gap-1 border border-line-soft p-1">
-                <ToolbarGroup label="Document panels">
-                    <IconButton size="md" aria-label="Notes" title="Notes (Ctrl+Shift+N)" pressed={dockTab === 'notes'} onClick={() => toggleDock('notes')}>
-                        <StickyNote size={16} />
-                    </IconButton>
-                    <IconButton size="md" aria-label="Outline" title="Outline (Ctrl+Shift+O)" pressed={dockTab === 'outline'} onClick={() => toggleDock('outline')}>
-                        <ListTree size={16} />
-                    </IconButton>
-                </ToolbarGroup>
-                <Button size="sm" variant="ghost" leadingIcon={<LayoutGrid size={15} />} disabled={role === 'viewer'} onClick={() => setShowPageOrganizer(true)} title="Organise pages (Ctrl+Shift+P)">
-                    Pages
-                </Button>
-            </div>
-            <div ref={containerRef} className="flex-1 overflow-y-auto flex flex-col items-center gap-4 p-4" onScroll={handlePagesScroll}>
+            <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            <DocumentPanelBar
+                dockTab={dockTab}
+                onToggle={toggleDock}
+                noteCount={notes.length}
+                pageCount={pageDocument?.pages.length ?? 0}
+                onOrganisePages={() => setShowPageOrganizer(true)}
+                canOrganise={role !== 'viewer'}
+            />
+            <div
+                ref={containerRef}
+                data-pdf-scroll-container={fileId}
+                className="flex h-full min-h-0 flex-1 flex-col items-center gap-4 overflow-y-auto p-4"
+                onScroll={handlePagesScroll}
+            >
                 {(pageDocument?.pages ?? []).map((page, index) => {
                     const pageNum = index + 1;
                     return (
                     <PDFPage
                         key={`${fileId}-page-${page.id}`}
+                        documentId={fileId}
                         pageId={page.id}
                         pageNum={pageNum}
                         pdfDoc={pdfDoc}
@@ -1041,6 +1036,22 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     );
                 })}
             </div>
+            {documentSearchMatches.length > 0 && (
+                <div className="pointer-events-none absolute bottom-3 right-3 top-3 z-30 w-1.5" aria-hidden="true">
+                    {documentSearchMatches.map((match, index) => {
+                        const pageCount = Math.max(1, pageDocument?.pages.length ?? 1);
+                        const position = ((match.page - 1 + match.bbox.y0) / pageCount) * 100;
+                        const active = sameSearchMatch(searchHighlight, match);
+                        return (
+                            <span
+                                key={`${match.page}-${match.bbox.x0}-${match.bbox.y0}-${index}`}
+                                className={cn('absolute right-0 h-0.5 rounded-full shadow-sm', active ? 'w-2.5 bg-accent' : 'w-1.5 bg-hl-yellow')}
+                                style={{ top: `${Math.max(0, Math.min(100, position))}%` }}
+                            />
+                        );
+                    })}
+                </div>
+            )}
             </div>
             {dockTab && (
                 <DocumentDock
@@ -1120,7 +1131,16 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
     );
 }
 
+function sameSearchMatch(left: SearchMatchHighlight | null, right: SearchMatchHighlight): boolean {
+    return Boolean(left
+        && left.docId === right.docId
+        && left.page === right.page
+        && left.bbox.x0 === right.bbox.x0
+        && left.bbox.y0 === right.bbox.y0);
+}
+
 interface PDFPageProps {
+    documentId: string;
     pageNum: number;
     pageId: string;
     pdfDoc: pdfjsLib.PDFDocumentProxy | null;
@@ -1135,7 +1155,8 @@ interface PDFPageProps {
     onHighlightFocus?: (id: string) => void;
 }
 
-function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, onAnnotationErase, dimensions, ocrData, focusedHighlightId, onHighlightFocus }: PDFPageProps) {
+function PDFPage({ documentId, pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave, onAnnotationDelete, onAnnotationErase, dimensions, ocrData, focusedHighlightId, onHighlightFocus }: PDFPageProps) {
+    const pageFrameRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const textLayerRef = useRef<HTMLDivElement>(null);
     const linkLayerRef = useRef<HTMLDivElement>(null);
@@ -1143,10 +1164,25 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
     const { selectionMode, annotationMode } = useDocumentStore(state => state);
     // Read searchHighlight from global AppStore (set by Header)
     const searchHighlight = useAppStore(state => state.searchHighlight);
+    const pageSearchMatches = useAppStore(state => state.searchMatches)
+        .filter(match => match.docId === documentId && match.page === pageNum);
     const readingFilter = useAppStore(state => state.readingFilter);
     const [viewport, setViewport] = useState<any>(null);
     const [isRendered, setIsRendered] = useState(false);
     const [nativeTextContent, setNativeTextContent] = useState<any>(null);
+
+    // Scroll the actual highlighted rectangle into view. This runs after React
+    // commits the overlay, so it also works when the destination page finishes
+    // rendering after the search result was selected.
+    useEffect(() => {
+        if (!viewport || searchHighlight?.docId !== documentId || searchHighlight.page !== pageNum) return;
+        const animationFrame = window.requestAnimationFrame(() => {
+            pageFrameRef.current
+                ?.querySelector<HTMLElement>('[data-active-search-match="true"]')
+                ?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+        });
+        return () => window.cancelAnimationFrame(animationFrame);
+    }, [documentId, pageNum, searchHighlight, viewport]);
 
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
@@ -1232,12 +1268,14 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
 
     return (
         <div
+            ref={pageFrameRef}
             data-page-id={pageId}
+            data-page-num={pageNum}
             className={cn(
                 // The page is elevation 0 — it is the user's document, not
                 // chrome. One hairline edge and one seating shadow via
                 // --page-shadow are the only depth signals allowed here.
-                'relative bg-white border border-line',
+                'relative shrink-0 bg-white border border-line',
             )}
             style={{
                 width: width ? `${width}px` : undefined,
@@ -1296,86 +1334,40 @@ function PDFPage({ pageNum, pageId, pdfDoc, scale, annotations, onAnnotationSave
             )}
             <div ref={linkLayerRef} className="absolute inset-0 z-10" style={{ pointerEvents: 'none' }} />
 
-            {/* Search Highlight Overlay - Robust Implementation */}
-            {searchHighlight && searchHighlight.page === pageNum && canvasRef.current && (() => {
-                // Get actual displayed canvas size (handles zoom/DPR)
-                const displayedWidth = canvasRef.current.clientWidth;
-                const displayedHeight = canvasRef.current.clientHeight;
-
-                if (!displayedWidth || !displayedHeight) return null;
-
-                // Helper: clamp normalized bbox to 0-1
+            {/* Find-in-PDF highlights: every match is visible; active is stronger. */}
+            {pageSearchMatches.length > 0 && viewport && (() => {
+                const displayedWidth = viewport.width;
+                const displayedHeight = viewport.height;
                 const clampNorm = (b: { x0: number; y0: number; x1: number; y1: number }) => ({
                     x0: Math.max(0, Math.min(1, b.x0)),
                     y0: Math.max(0, Math.min(1, b.y0)),
                     x1: Math.max(0, Math.min(1, b.x1)),
                     y1: Math.max(0, Math.min(1, b.y1)),
                 });
-
-                // Use spans if available (more precise), otherwise use single bbox
-                const bboxes = (searchHighlight.spans && searchHighlight.spans.length > 0)
-                    ? searchHighlight.spans.map(s => clampNorm(s.bbox))
-                    : [clampNorm(searchHighlight.bbox)];
-
-                // Check if this looks like a full-page bbox (area > 80% of page)
-                const mainBbox = clampNorm(searchHighlight.bbox);
-                const areaFraction = (mainBbox.x1 - mainBbox.x0) * (mainBbox.y1 - mainBbox.y0);
-
-                // Skip rendering if bbox covers too much of the page (likely a whole-chunk match)
-                // Still show a subtle border indicator instead
-                if (areaFraction > 0.8 && !searchHighlight.spans?.length) {
-                    console.log(`[PDFPage ${pageNum}] Skipping full-page highlight (area: ${(areaFraction * 100).toFixed(1)}%)`);
-                    return (
+                return pageSearchMatches.flatMap((match, matchIndex) => {
+                    const active = sameSearchMatch(searchHighlight, match);
+                    const bboxes = match.spans?.length
+                        ? match.spans.map(span => clampNorm(span.bbox))
+                        : [clampNorm(match.bbox)];
+                    return bboxes.map((bbox, spanIndex) => (
                         <div
+                            key={`${matchIndex}-${spanIndex}`}
+                            data-active-search-match={active ? 'true' : undefined}
                             style={{
                                 position: 'absolute',
-                                inset: 0,
-                                border: '3px solid rgba(245, 158, 11, 0.6)',
-                                borderRadius: '4px',
+                                left: `${bbox.x0 * displayedWidth}px`,
+                                top: `${bbox.y0 * displayedHeight}px`,
+                                width: `${Math.max(3, (bbox.x1 - bbox.x0) * displayedWidth)}px`,
+                                height: `${Math.max(3, (bbox.y1 - bbox.y0) * displayedHeight)}px`,
+                                background: active ? 'rgba(245, 158, 11, 0.62)' : 'rgba(250, 204, 21, 0.34)',
+                                outline: active ? '2px solid rgba(217, 119, 6, 0.95)' : '1px solid rgba(202, 138, 4, 0.45)',
+                                borderRadius: '2px',
                                 pointerEvents: 'none',
-                                zIndex: 30,
-                                animation: 'pulse 1.5s ease-in-out infinite',
+                                zIndex: active ? 41 : 40,
                             }}
                         />
-                    );
-                }
-
-                // Convert normalized bbox to CSS pixels
-                // NOTE: Check if your OCR bboxes use top-left origin (y0 < y1) or bottom-left origin (y0 > y1)
-                // PaddleOCR typically uses top-left origin, so no Y-flip needed
-                const rects = bboxes.map(b => {
-                    const left = b.x0 * displayedWidth;
-                    const width = Math.max(4, (b.x1 - b.x0) * displayedWidth);
-                    const height = Math.max(4, (b.y1 - b.y0) * displayedHeight);
-                    // Top-left origin (no Y-flip) - adjust if your coords are bottom-left
-                    const top = b.y0 * displayedHeight;
-                    // Uncomment below if you need Y-flip (bottom-left origin):
-                    // const top = (1 - b.y1) * displayedHeight;
-                    return { left, top, width, height };
+                    ));
                 });
-
-                console.log(`[PDFPage ${pageNum}] Rendering ${rects.length} highlight(s):`, rects[0]);
-
-                return rects.map((r, i) => (
-                    <div
-                        key={i}
-                        style={{
-                            position: 'absolute',
-                            left: `${r.left}px`,
-                            top: `${r.top}px`,
-                            width: `${r.width}px`,
-                            height: `${r.height}px`,
-                            background: 'rgba(255, 230, 120, 0.4)',
-                            border: '2px solid rgba(245, 158, 11, 0.9)',
-                            borderRadius: '3px',
-                            pointerEvents: 'none',
-                            zIndex: 40,
-                            boxShadow: '0 0 8px rgba(245, 158, 11, 0.4)',
-                            animation: 'pulse 1.5s ease-in-out infinite',
-                            transition: 'all 120ms ease-out',
-                        }}
-                    />
-                ));
             })()}
 
             {!isRendered && (

@@ -1,5 +1,5 @@
 /**
- * Ingest Service - Automatically sends OCR data to Qdrant for semantic search
+ * Ingest Service - Sends OCR data to Qdrant for assistant retrieval
  * 
  * This module handles:
  * - Checking if a document is already ingested

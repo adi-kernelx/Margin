@@ -35,7 +35,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
         key: 'rag',
         label: 'Assistant',
         healthUrl: 'http://localhost:9101/health',
-        provides: 'the AI assistant and semantic search',
+        provides: 'the AI assistant retrieval index',
     },
 ];
 

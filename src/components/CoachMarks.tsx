@@ -3,7 +3,7 @@ import { FolderPlus, Highlighter, LayoutGrid, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
-import { KeyCaps } from './CommandLayer';
+import { KeyCaps } from './KeyCaps';
 
 const STORAGE_KEY = 'margin:coach-marks:v1';
 

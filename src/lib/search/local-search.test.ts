@@ -3,20 +3,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { getDocument, type PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createPageDocument, pageDocumentRevision } from '@/core/pages/document';
 import { createInitialPageDocument, describePdfSource, materializePageDocument } from '@/lib/pages/pdf-pages';
-import type { IndexedSearchPage } from '@/core/search/index';
-import { LocalSearchRegistry, type SearchIndexStore } from './local-search';
-
-class MemorySearchStore implements SearchIndexStore {
-    private pages = new Map<string, IndexedSearchPage[]>();
-
-    async load(pdfFingerprint: string, docId: string, revision: string) {
-        return (this.pages.get(`${pdfFingerprint}:${revision}`) ?? []).map(page => ({ ...page, docId }));
-    }
-
-    async replace(pdfFingerprint: string, revision: string, pages: IndexedSearchPage[]) {
-        this.pages.set(`${pdfFingerprint}:${revision}`, pages);
-    }
-}
+import { LocalSearchRegistry } from './local-search';
 
 async function createTextPdf(text: string): Promise<Uint8Array> {
     const pdf = await PDFDocument.create();
@@ -30,8 +17,8 @@ async function openPdf(bytes: Uint8Array): Promise<PDFDocumentProxy> {
     return getDocument({ data: bytes.slice(), useSystemFonts: true }).promise;
 }
 
-describe('local search document lifecycle', () => {
-    it('indexes text from a newly materialized merged PDF', async () => {
+describe('native PDF keyword-search lifecycle', () => {
+    it('finds literal text from a newly materialized merged PDF', async () => {
         const firstBytes = await createTextPdf('original eigenvalue theorem');
         const secondBytes = await createTextPdf('merged orthogonality lemma');
         const initialDocument = await createInitialPageDocument(firstBytes, 'original');
@@ -40,21 +27,21 @@ describe('local search document lifecycle', () => {
         const loadSource = async (sourceId: string) => sourceId === 'original' ? firstBytes : sourceId === 'merged' ? secondBytes : null;
         const initialPdf = await openPdf(await materializePageDocument(initialDocument, loadSource));
         const mergedPdf = await openPdf(await materializePageDocument(mergedDocument, loadSource));
-        const registry = new LocalSearchRegistry(new MemorySearchStore());
+        const registry = new LocalSearchRegistry();
 
         const disposeInitial = registry.register(
-            'doc', initialPdf.fingerprints[0] ?? 'initial', pageDocumentRevision(initialDocument), initialPdf, () => ({}),
+            'doc', initialPdf.fingerprints[0] ?? 'initial', pageDocumentRevision(initialDocument), initialPdf,
         );
         await registry.waitUntilReady('doc');
         expect(await registry.search('eigenvalue', ['doc'])).toHaveLength(1);
 
         registry.register(
-            'doc', mergedPdf.fingerprints[0] ?? 'merged', pageDocumentRevision(mergedDocument), mergedPdf, () => ({}),
+            'doc', mergedPdf.fingerprints[0] ?? 'merged', pageDocumentRevision(mergedDocument), mergedPdf,
         );
         disposeInitial();
         await registry.waitUntilReady('doc');
 
-        const results = await registry.search('orthogonality', [mergedPdf.fingerprints[0] ?? 'merged']);
+        const results = await registry.search('orthogonality', ['doc']);
         expect(results).toMatchObject([{ docId: 'doc', page: 2 }]);
         expect(registry.getRegistrationState('doc')).toMatchObject({ pageCount: 2, indexedPageCount: 2 });
 
@@ -62,7 +49,7 @@ describe('local search document lifecycle', () => {
         await mergedPdf.destroy();
     });
 
-    it('does not let a late old generation replace or unregister the new index', async () => {
+    it('does not let a late old generation replace or unregister native text', async () => {
         let releaseOld!: () => void;
         const oldGate = new Promise<void>(resolve => { releaseOld = resolve; });
         const fakePdf = (text: string, gate?: Promise<void>) => ({
@@ -75,9 +62,9 @@ describe('local search document lifecycle', () => {
                 };
             },
         }) as unknown as PDFDocumentProxy;
-        const registry = new LocalSearchRegistry(new MemorySearchStore());
-        const disposeOld = registry.register('doc', 'fingerprint', 'old', fakePdf('stale phrase', oldGate), () => ({}));
-        registry.register('doc', 'fingerprint', 'new', fakePdf('current phrase'), () => ({}));
+        const registry = new LocalSearchRegistry();
+        const disposeOld = registry.register('doc', 'fingerprint', 'old', fakePdf('stale phrase', oldGate));
+        registry.register('doc', 'fingerprint', 'new', fakePdf('current phrase'));
         disposeOld();
         await registry.waitUntilReady('doc');
         releaseOld();
@@ -86,5 +73,11 @@ describe('local search document lifecycle', () => {
         expect(await registry.search('current', ['doc'])).toHaveLength(1);
         expect(await registry.search('stale', ['doc'])).toHaveLength(0);
         expect(registry.getRegistrationState('doc')?.documentRevision).toBe('new');
+    });
+
+    it('has no OCR refresh or OCR-data input surface', () => {
+        const registry = new LocalSearchRegistry();
+        expect('refresh' in registry).toBe(false);
+        expect(registry.register.length).toBe(4);
     });
 });

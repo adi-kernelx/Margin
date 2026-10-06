@@ -276,7 +276,7 @@ export function useClientOcr(fileId: string, pdfDoc: pdfjsLib.PDFDocumentProxy |
 
             setState(prev => ({ ...prev, status: 'complete', progress: 1 }));
 
-            // 4. Auto-ingest to Qdrant for semantic search
+            // 4. Auto-ingest to Qdrant for assistant retrieval
             if (fingerprint) {
                 const finalFile = await localFileDB.getLocalFile(fileId);
                 const finalOcrData = finalFile?.ocrData as Record<number, OcrPageResult> | undefined;

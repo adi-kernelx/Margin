@@ -85,16 +85,10 @@ export default {
         xl: "var(--text-xl)",
         '2xl': "var(--text-2xl)",
       },
-      spacing: {
-        1: "var(--space-1)",
-        2: "var(--space-2)",
-        3: "var(--space-3)",
-        4: "var(--space-4)",
-        5: "var(--space-5)",
-        6: "var(--space-6)",
-        7: "var(--space-7)",
-        8: "var(--space-8)",
-      },
+      // No `spacing` override: Tailwind's numeric scale (h-8 = 32px, p-6 =
+      // 24px) is what every component is written against. Mapping 5–8 to the
+      // --space-* tokens (24/32/48/64px) silently doubled sizes like
+      // size-8 and h-8. The tokens stay available for plain CSS.
       borderRadius: {
         sm: "var(--radius-sm)",
         DEFAULT: "var(--radius)",

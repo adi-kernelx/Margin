@@ -3,7 +3,7 @@ import type { CSSProperties, PointerEvent } from 'react';
 import { BookOpen, FileUp, Highlighter, LayoutGrid, Library, Loader2, Search } from 'lucide-react';
 import { parallaxOffset } from '@/core/ui/parallax';
 import { Button } from '@/components/ui/Button';
-import { KeyCaps } from '@/components/CommandLayer';
+import { KeyCaps } from '@/components/KeyCaps';
 import { GradientField } from './GradientField';
 import sampleUrl from './assets/eigenvalues-primer.pdf?url';
 

@@ -17,6 +17,13 @@ export type HighlighterMode = 'freeform' | 'text-aware';
 export type EraserMode = 'stroke' | 'point';
 export type SelectionMode = 'auto' | 'text' | 'annotations' | 'text-annotation';
 
+export interface SearchMatchHighlight {
+    docId: string;
+    page: number;
+    bbox: { x0: number; y0: number; x1: number; y1: number };
+    spans?: Array<{ text: string; bbox: { x0: number; y0: number; x1: number; y1: number }; char_start?: number; char_end?: number }>;
+}
+
 export interface AppState {
     currentWorkspace: any | null;
     setCurrentWorkspace: (workspace: any | null) => void;
@@ -108,18 +115,10 @@ export interface AppState {
     focusedDocId: string | null;
     setFocusedDocId: (id: string | null) => void;
     // Search highlight
-    searchHighlight: {
-        docId: string;
-        page: number;
-        bbox: { x0: number; y0: number; x1: number; y1: number };
-        spans?: Array<{ text: string; bbox: { x0: number; y0: number; x1: number; y1: number }; char_start?: number; char_end?: number }>;
-    } | null;
-    setSearchHighlight: (highlight: {
-        docId: string;
-        page: number;
-        bbox: { x0: number; y0: number; x1: number; y1: number };
-        spans?: Array<{ text: string; bbox: { x0: number; y0: number; x1: number; y1: number }; char_start?: number; char_end?: number }>;
-    } | null) => void;
+    searchHighlight: SearchMatchHighlight | null;
+    searchMatches: SearchMatchHighlight[];
+    setSearchHighlight: (highlight: SearchMatchHighlight | null) => void;
+    setSearchMatches: (matches: SearchMatchHighlight[]) => void;
     clearSearchHighlight: () => void;
 }
 
@@ -218,8 +217,10 @@ export const createAppStoreSlice = (set: any, _get: any): AppState => ({
     setFocusedDocId: (id) => set({ focusedDocId: id }),
     // Search highlight
     searchHighlight: null,
+    searchMatches: [],
     setSearchHighlight: (highlight) => set({ searchHighlight: highlight }),
-    clearSearchHighlight: () => set({ searchHighlight: null }),
+    setSearchMatches: (matches) => set({ searchMatches: matches }),
+    clearSearchHighlight: () => set({ searchHighlight: null, searchMatches: [] }),
 });
 
 export const useAppStore = create<AppState>((set, get) => createAppStoreSlice(set, get));

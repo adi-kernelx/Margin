@@ -32,7 +32,12 @@ export function resolveOpenDocumentId(target: Pick<RevealTarget, 'docId' | 'pdfF
     return direct?.id ?? target.docId;
 }
 
-export function revealInDocument(target: RevealTarget, documents: readonly OpenDocument[], focusDocument: (docId: string) => void): void {
+export function revealInDocument(
+    target: RevealTarget,
+    documents: readonly OpenDocument[],
+    focusDocument: (docId: string) => void,
+    options: { persistHighlight?: boolean } = {},
+): void {
     const docId = resolveOpenDocumentId(target, documents);
     const { focusedDocId, setSearchHighlight, clearSearchHighlight } = useAppStore.getState();
     if (docId !== focusedDocId) focusDocument(docId);
@@ -40,14 +45,22 @@ export function revealInDocument(target: RevealTarget, documents: readonly OpenD
     if (target.bbox) {
         setSearchHighlight({ docId, page: target.page, bbox: target.bbox, spans: target.spans?.length ? target.spans : undefined });
         window.clearTimeout(clearTimer);
-        clearTimer = window.setTimeout(() => clearSearchHighlight(), HIGHLIGHT_MS);
+        if (!options.persistHighlight) clearTimer = window.setTimeout(() => clearSearchHighlight(), HIGHLIGHT_MS);
     }
 
-    // Wait a frame for a newly focused pane to mount its pages.
+    // Persistent find-in-PDF results are positioned by the owning PDFViewer.
+    // Running the page-level fallback afterwards would re-centre the whole page
+    // and undo precise navigation between matches on that same page.
+    if (options.persistHighlight) return;
+
+    // Wait a frame for a newly focused pane to mount its pages. PDFViewer also
+    // reacts to searchHighlight and performs precise within-page scrolling;
+    // this fallback remains useful for assistant sources and newly opened panes.
     window.setTimeout(() => {
         const pane = document.querySelector(`[data-doc-id="${docId}"]`);
-        const page = pane?.querySelector(`[data-page-num="${target.page}"]`) ?? document.querySelector(`[data-page-num="${target.page}"]`);
-        const frame = (page as HTMLElement | null)?.closest<HTMLElement>('[data-page-id]') ?? (page as HTMLElement | null);
+        const frame = pane?.querySelector<HTMLElement>(`[data-page-id][data-page-num="${target.page}"]`)
+            ?? pane?.querySelector<HTMLElement>(`[data-page-num="${target.page}"]`)?.closest<HTMLElement>('[data-page-id]')
+            ?? document.querySelector<HTMLElement>(`[data-page-id][data-page-num="${target.page}"]`);
         frame?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         if (frame) {
             frame.classList.remove('focus-pulse');
