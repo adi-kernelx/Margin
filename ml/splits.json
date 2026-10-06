@@ -1,0 +1,848 @@
+{
+  "seed": 20261006,
+  "status": "frozen",
+  "accepted_on": "2026-10-06",
+  "acceptance": "User: Accept and freeze the revised split.",
+  "test_groups": [
+    "arxiv-boussard-identifiability",
+    "arxiv-huang-resolving",
+    "arxiv-resende-recirc",
+    "arxiv-wang-tuza",
+    "bayes-sampling",
+    "boneh-franklin",
+    "design-brief",
+    "levin-discrete",
+    "nist-fips",
+    "rafiee-cbdc-pki"
+  ],
+  "train_groups": [
+    "arxiv-cao-svdd",
+    "arxiv-colbrook-crown",
+    "arxiv-hashimoto-tsfm",
+    "atangana-offline-cbdc",
+    "bahar-qrpl",
+    "crypto-course",
+    "data-licence",
+    "dav-course",
+    "design-days",
+    "finance-solutions",
+    "fte-guidelines",
+    "ijcds-pqc-review",
+    "lec-classification",
+    "ma3206-ai",
+    "networks-course",
+    "ng-regression",
+    "own-convex-assignments",
+    "primas-pessl-sca",
+    "qrca-iot-banking",
+    "sammo-npp-pqc",
+    "sipser",
+    "upadhyay-ma3204",
+    "yoon-kim-cbdc"
+  ],
+  "excluded_groups": [
+    "burton",
+    "chong-zak",
+    "ma401-exam",
+    "pqc-gateways",
+    "qr-banking-security"
+  ],
+  "warnings": [],
+  "stats": {
+    "train": {
+      "groups": 23,
+      "files": 40,
+      "blocks": 10010,
+      "weak_labelled": 885,
+      "unlabelled": 9125,
+      "labels": {
+        "definition": 109,
+        "theorem": 271,
+        "proof": 194,
+        "example": 239,
+        "notation": 4,
+        "algorithm": 26,
+        "other": 42
+      },
+      "categories": [
+        "assignment",
+        "non-math",
+        "notes",
+        "paper",
+        "slides",
+        "solutions",
+        "textbook",
+        "thesis"
+      ]
+    },
+    "test": {
+      "groups": 10,
+      "files": 12,
+      "blocks": 4227,
+      "weak_labelled": 460,
+      "unlabelled": 3767,
+      "labels": {
+        "definition": 5,
+        "theorem": 87,
+        "proof": 112,
+        "example": 150,
+        "notation": 2,
+        "algorithm": 96,
+        "other": 8
+      },
+      "categories": [
+        "non-math",
+        "paper",
+        "slides",
+        "standard",
+        "textbook"
+      ]
+    },
+    "excluded": {
+      "groups": 5,
+      "files": 6,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "exam",
+        "paper",
+        "textbook"
+      ]
+    }
+  },
+  "group_stats": {
+    "arxiv-boussard-identifiability": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 252,
+      "weak_labelled": 39,
+      "unlabelled": 213,
+      "labels": {
+        "definition": 2,
+        "theorem": 20,
+        "proof": 14,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 3
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-cao-svdd": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 297,
+      "weak_labelled": 13,
+      "unlabelled": 284,
+      "labels": {
+        "definition": 0,
+        "theorem": 5,
+        "proof": 4,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 1,
+        "other": 3
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-colbrook-crown": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 162,
+      "weak_labelled": 20,
+      "unlabelled": 142,
+      "labels": {
+        "definition": 0,
+        "theorem": 11,
+        "proof": 8,
+        "example": 1,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-hashimoto-tsfm": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 155,
+      "weak_labelled": 5,
+      "unlabelled": 150,
+      "labels": {
+        "definition": 0,
+        "theorem": 2,
+        "proof": 2,
+        "example": 0,
+        "notation": 1,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-huang-resolving": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 235,
+      "weak_labelled": 60,
+      "unlabelled": 175,
+      "labels": {
+        "definition": 1,
+        "theorem": 30,
+        "proof": 29,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-resende-recirc": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 395,
+      "weak_labelled": 13,
+      "unlabelled": 382,
+      "labels": {
+        "definition": 0,
+        "theorem": 9,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 3,
+        "other": 1
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "arxiv-wang-tuza": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 10,
+      "weak_labelled": 4,
+      "unlabelled": 6,
+      "labels": {
+        "definition": 0,
+        "theorem": 2,
+        "proof": 2,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "atangana-offline-cbdc": {
+      "groups": 1,
+      "files": 2,
+      "blocks": 1184,
+      "weak_labelled": 26,
+      "unlabelled": 1158,
+      "labels": {
+        "definition": 0,
+        "theorem": 3,
+        "proof": 0,
+        "example": 0,
+        "notation": 3,
+        "algorithm": 18,
+        "other": 2
+      },
+      "categories": [
+        "paper",
+        "thesis"
+      ]
+    },
+    "bahar-qrpl": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 156,
+      "weak_labelled": 0,
+      "unlabelled": 156,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "bayes-sampling": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 169,
+      "weak_labelled": 6,
+      "unlabelled": 163,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 6,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "boneh-franklin": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 205,
+      "weak_labelled": 31,
+      "unlabelled": 174,
+      "labels": {
+        "definition": 2,
+        "theorem": 15,
+        "proof": 13,
+        "example": 0,
+        "notation": 1,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "burton": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "textbook"
+      ]
+    },
+    "chong-zak": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "textbook"
+      ]
+    },
+    "crypto-course": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 77,
+      "weak_labelled": 0,
+      "unlabelled": 77,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "data-licence": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 25,
+      "weak_labelled": 0,
+      "unlabelled": 25,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "non-math"
+      ]
+    },
+    "dav-course": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 711,
+      "weak_labelled": 12,
+      "unlabelled": 699,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 12,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "notes"
+      ]
+    },
+    "design-brief": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 29,
+      "weak_labelled": 0,
+      "unlabelled": 29,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "non-math"
+      ]
+    },
+    "design-days": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 35,
+      "weak_labelled": 0,
+      "unlabelled": 35,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "non-math"
+      ]
+    },
+    "finance-solutions": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 26,
+      "weak_labelled": 0,
+      "unlabelled": 26,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "solutions"
+      ]
+    },
+    "fte-guidelines": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 37,
+      "weak_labelled": 0,
+      "unlabelled": 37,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "non-math"
+      ]
+    },
+    "ijcds-pqc-review": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 97,
+      "weak_labelled": 0,
+      "unlabelled": 97,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "lec-classification": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 347,
+      "weak_labelled": 1,
+      "unlabelled": 346,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 1,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "levin-discrete": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 1830,
+      "weak_labelled": 214,
+      "unlabelled": 1616,
+      "labels": {
+        "definition": 0,
+        "theorem": 11,
+        "proof": 54,
+        "example": 144,
+        "notation": 1,
+        "algorithm": 0,
+        "other": 4
+      },
+      "categories": [
+        "textbook"
+      ]
+    },
+    "ma3206-ai": {
+      "groups": 1,
+      "files": 2,
+      "blocks": 212,
+      "weak_labelled": 6,
+      "unlabelled": 206,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 6,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "ma401-exam": {
+      "groups": 1,
+      "files": 2,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "exam"
+      ]
+    },
+    "networks-course": {
+      "groups": 1,
+      "files": 2,
+      "blocks": 719,
+      "weak_labelled": 14,
+      "unlabelled": 705,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 10,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 4
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "ng-regression": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 112,
+      "weak_labelled": 2,
+      "unlabelled": 110,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 2,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "nist-fips": {
+      "groups": 1,
+      "files": 3,
+      "blocks": 897,
+      "weak_labelled": 93,
+      "unlabelled": 804,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 93,
+        "other": 0
+      },
+      "categories": [
+        "standard"
+      ]
+    },
+    "own-convex-assignments": {
+      "groups": 1,
+      "files": 4,
+      "blocks": 210,
+      "weak_labelled": 57,
+      "unlabelled": 153,
+      "labels": {
+        "definition": 13,
+        "theorem": 13,
+        "proof": 12,
+        "example": 18,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 1
+      },
+      "categories": [
+        "assignment"
+      ]
+    },
+    "pqc-gateways": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "primas-pessl-sca": {
+      "groups": 1,
+      "files": 2,
+      "blocks": 207,
+      "weak_labelled": 4,
+      "unlabelled": 203,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 4,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "qr-banking-security": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 0,
+      "weak_labelled": 0,
+      "unlabelled": 0,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "qrca-iot-banking": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 66,
+      "weak_labelled": 1,
+      "unlabelled": 65,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 1,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "rafiee-cbdc-pki": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 205,
+      "weak_labelled": 0,
+      "unlabelled": 205,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "sammo-npp-pqc": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 384,
+      "weak_labelled": 4,
+      "unlabelled": 380,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 2,
+        "other": 2
+      },
+      "categories": [
+        "paper"
+      ]
+    },
+    "sipser": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 2354,
+      "weak_labelled": 420,
+      "unlabelled": 1934,
+      "labels": {
+        "definition": 67,
+        "theorem": 163,
+        "proof": 102,
+        "example": 88,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "textbook"
+      ]
+    },
+    "upadhyay-ma3204": {
+      "groups": 1,
+      "files": 11,
+      "blocks": 2373,
+      "weak_labelled": 300,
+      "unlabelled": 2073,
+      "labels": {
+        "definition": 29,
+        "theorem": 74,
+        "proof": 66,
+        "example": 101,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 30
+      },
+      "categories": [
+        "slides"
+      ]
+    },
+    "yoon-kim-cbdc": {
+      "groups": 1,
+      "files": 1,
+      "blocks": 64,
+      "weak_labelled": 0,
+      "unlabelled": 64,
+      "labels": {
+        "definition": 0,
+        "theorem": 0,
+        "proof": 0,
+        "example": 0,
+        "notation": 0,
+        "algorithm": 0,
+        "other": 0
+      },
+      "categories": [
+        "paper"
+      ]
+    }
+  }
+}

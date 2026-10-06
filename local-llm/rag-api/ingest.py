@@ -5,7 +5,6 @@ import uuid
 import re
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
-from embedder import get_embeddings
 import os
 
 # CONFIG
@@ -17,7 +16,14 @@ QDRANT_COLLECTION = "pdf_chunks"
 QDRANT_URL = os.getenv("QDRANT_URL", "http://host.docker.internal:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+qdrant = None
+
+def get_qdrant():
+    """Create the service client on use, so offline chunking can be imported."""
+    global qdrant
+    if qdrant is None:
+        qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    return qdrant
 
 # --- Models ---
 class OcrToken(BaseModel):
@@ -198,6 +204,7 @@ def chunk_spans(spans: List[Dict]) -> List[Dict]:
     return chunks
 
 def ensure_collection():
+    qdrant = get_qdrant()
     try:
         qdrant.get_collection(QDRANT_COLLECTION)
     except:
@@ -208,6 +215,7 @@ def ensure_collection():
         )
 
 def process_ingest(req: IngestRequest) -> IngestResponse:
+    from embedder import get_embeddings
     print(f"[Ingest] Processing doc: {req.docId}, pages: {len(req.ocrData)}")
     ensure_collection()
     
@@ -241,7 +249,7 @@ def process_ingest(req: IngestRequest) -> IngestResponse:
         ))
         
     # Upsert
-    qdrant.upsert(collection_name=QDRANT_COLLECTION, points=points)
+    get_qdrant().upsert(collection_name=QDRANT_COLLECTION, points=points)
     print(f"[Ingest] Upserted {len(points)} chunks.")
     
     return IngestResponse(
@@ -251,6 +259,7 @@ def process_ingest(req: IngestRequest) -> IngestResponse:
     )
 
 def check_status(pdf_fingerprint: str) -> StatusResponse:
+    qdrant = get_qdrant()
     try:
         # Check if we have chunks for this fingerprint
         res = qdrant.count(

@@ -1,0 +1,6 @@
+# Existing RAG dependencies, reused by the in-process baseline.
+numpy
+PyMuPDF
+pydantic
+qdrant-client
+sentence-transformers

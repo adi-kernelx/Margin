@@ -7,12 +7,13 @@ why it has this shape, what each roadmap phase delivered, and what remains
 unreliable without reading the Git history first.
 
 **Rebuild started:** September 2, 2026  
-**Last updated:** September 22, 2026  
-**Roadmap position:** Weeks 1–7 accepted; Week 8 repair 8R.1 implemented,
-manual acceptance pending  
+**Last updated:** October 6, 2026  
+**Roadmap position:** Weeks 1–8 implemented (8R manual acceptance pending);
+Weeks 9–17 replaced by the ML track ML1–ML7, ML1 in progress  
 **Working branch:** `phase-0-demolition` (the name is historical; the branch now
-contains the rebuild through Week 8)  
-**Primary stack:** React 19, TypeScript, Vite, PDF.js, pdf-lib, IndexedDB, Vitest
+contains the rebuild through ML1)  
+**Primary stack:** React 19, TypeScript, Vite, PDF.js, pdf-lib, IndexedDB,
+Vitest; ML: Python, PyMuPDF, pytest
 
 ---
 
@@ -41,7 +42,9 @@ React components
             ├── workspace layout
             ├── stable page identities
             ├── note anchors and Markdown export
-            └── full-text indexing
+            └── literal native-text search
+
+ml/                Python: PDF block extraction and weak labels (ML track)
 ```
 
 `src/core/` cannot import React, browser globals, storage, network, PDF, or
@@ -60,13 +63,15 @@ depend on them.
 - The Margin library currently stores imported PDF blobs in a separate
   IndexedDB database. Ordinary filesystem-opened PDFs are not automatically
   added to that library.
-- Search pages are extracted from the materialised PDF.js document and cached
-  in IndexedDB by document fingerprint and page-document revision.
+- Search pages are extracted from the materialised PDF.js document in memory
+  for each accepted document revision (the IndexedDB search cache was removed
+  in Phase 8R.6).
 
 ### Source documents for the rebuild
 
-- `docs/MARGIN_BUILD_PLAN.html` defines the 17-week roadmap and the acceptance
-  intent for each week.
+- `docs/MARGIN_BUILD_PLAN.html` defined the original 17-week roadmap; Weeks
+  1–8 follow it. From October 2026, `docs/IMPLEMENTATION_PHASES.md` is the plan
+  (ML track ML1–ML7).
 - Git history records the actual implementation checkpoints.
 - `README.md` describes the intended current architecture, but the manual
   findings in this log take precedence where the README overstates reliability.
@@ -1279,9 +1284,936 @@ the manual browser acceptance status above remains pending.
 
 ---
 
+## Phase 8R.6: Native Keyword Search and Header Repair
+
+**Date:** September 26, 2026
+**Objective:** Remove the unfinished semantic-search surface and replace the
+existing ranked PDF/OCR index with predictable literal search over native PDF
+text only. Recompose the header so search has a stable home and no longer
+pushes document tabs and actions around when opened.
+
+### Native PDF keyword search rebuilt from scratch
+
+**Modified — core**
+
+- `src/core/search/index.ts` — replaces token postings, AND-term ranking, and
+  phrase boosting with case-insensitive literal matching. Results preserve
+  document/page order and carry only the PDF text spans overlapping each hit.
+- `src/core/search/index.test.ts` — covers whitespace/case normalization,
+  literal phrase behavior, repeated occurrences, span bounds, and stable scope
+  IDs.
+
+**Modified — library and integration**
+
+- `src/lib/search/local-search.ts` — extracts PDF.js native text once per
+  accepted document revision and searches the in-memory pages. It has no OCR
+  input, refresh hook, ranking, embedding call, or persistent search cache.
+- `src/lib/search/local-search.test.ts` — exercises a real merged PDF, stale
+  asynchronous generation protection, and the intentionally OCR-free API.
+- `src/components/PDFViewer.tsx` — registers only the accepted native PDF.js
+  document; OCR completion no longer rebuilds search.
+- `src/lib/search/storage.ts` — removed. Search no longer persists a second,
+  potentially stale IndexedDB copy of page text.
+
+> ⚡ **Plan Deviation / Design Decision — semantic search is removed for now**
+>
+> The roadmap left semantic search behind an undeployed service milestone. The
+> dedicated search API, ranking script, and compose file have been deleted.
+> Embedding and Qdrant code that still serves the separate assistant retrieval
+> path remains; it is no longer described or exposed as document search.
+>
+> **Reasoning:** A small, deterministic Ctrl+F-style search is useful now and
+> testable locally. An unavailable semantic mode and OCR-derived matches made
+> result behavior harder to explain and coupled a basic reader feature to
+> optional services. Scanned pages therefore return no keyword matches until a
+> later phase explicitly designs an OCR-search contract.
+
+### Header composition
+
+**Modified — components**
+
+- `src/components/Header.tsx` — separates the product/search/action row from a
+  dedicated document-tab row, gives the brand a compact local-workspace mark,
+  keeps the search field at a stable width, and adds clearer active-tab and
+  empty-workspace states.
+- `src/components/SearchBar.tsx` — remains visible instead of expanding into
+  the tab strip, adds an explicit Search action, labels results as literal PDF
+  text matches, and states that OCR text is excluded.
+
+### Semantic-search files removed
+
+- `ingest-pipeline/search.py` — removed hybrid vector/ranking implementation.
+- `ingest-pipeline/search_api.py` — removed undeployed semantic-search route.
+- `ingest-pipeline/docker-compose.search.yml` — removed standalone search
+  service definition.
+
+### Testing
+
+- Focused keyword/search presentation suite: 15/15 tests passed.
+- Full suite: 184/184 tests passed in 31 files.
+- Typecheck and focused/core lint passed with zero warnings.
+- Normal production build and static demo build passed.
+- Demo bundle audit passed: 90 normal assets and 92 demo assets.
+- Manual header appearance, result navigation, and scanned-PDF exclusion checks
+  are pending user review.
+
+**Git checkpoint:** `9e79ffa`, committed together with the F8R.2 chrome
+redesign. The header and search-bar layout described above were superseded by
+F8R.2 (see `docs/frontend_implementation_log.md`); the literal native-text
+search core is unchanged. Manual acceptance is still pending.
+
+---
+
+## Roadmap Revision: ML Track Replaces Weeks 9–17
+
+**Date:** October 1, 2026
+**Plan:** `docs/IMPLEMENTATION_PHASES.md` (rewritten)
+
+The remaining roadmap weeks (version history, cache policies, OCR escalation,
+layout and reading order, knowledge bundles) are replaced by an ML track,
+ML1–ML7. PDF question answering stays. Its context comes from an OKF knowledge
+bundle per PDF plus hybrid search, and three project-owned models decide what
+goes in: a block classifier, a learned ranker, and an optional answerability
+gate.
+
+> ⚡ **Design Decision: own the ML instead of wiring pretrained tools**
+>
+> Every ML part so far was an off-the-shelf component (PaddleOCR, llama.cpp,
+> a web-trained cross-encoder) with no modelling decisions, datasets or
+> evaluation in the repo.
+>
+> **Reasoning:** the new track has a defined problem, a dataset built here,
+> baselines, grouped splits and statistical evaluation, and the product depends
+> on it: without the classifier there is no knowledge bundle. A custom OCR
+> pipeline was considered first and postponed; it needed weeks of material not
+> yet studied and put the first demo too late in placement season.
+
+> ⚡ **Plan Deviation: custom OCR, reading order and math OCR postponed**
+>
+> Scanned PDFs stay out of the ML track. They are kept in the manifest as
+> `scan-slice` for a later OCR phase.
+
+---
+
+## Phase ML1: Dataset and Block Extraction
+
+**Date:** October 1–6, 2026
+**Objective:** Build the document dataset and turn every text PDF into blocks
+with layout features and weak labels taken from formal headings
+("Definition 2.1", "THEOREM 1.25", "Proof.", "Algorithm 7 …"), as training data
+for the block classifier.
+
+### ML1.1: Dataset manifest
+
+**Created**
+
+- `Test PDFs/manifest.csv` — 57 PDFs with `group` (independent source:
+  author, course or template), `category`, `text_layer`, `use` and notes. 47
+  are `main` (text layer), 6 `scan-slice` (no or scanner-only text), 4
+  `other` (non-maths). PDFs themselves are git-ignored.
+
+> ⚡ **Design Decision: the unit of splitting is the source group**
+>
+> The 11 MA3204 slide decks share an author and a Beamer template; two
+> side-channel papers share authors; a thesis and an SoK paper share an author.
+> Splitting by file would let the model pass a test by recognising a template.
+> 37 groups were defined; train/dev/test splits will be drawn by group.
+
+Curation removed four PDFs (two handwritten, one image-only report, an 88%
+duplicate) and a byte-identical duplicate paper; arXiv mathematics and
+statistics papers were added to supply theorem-dense, prose-style text.
+
+### ML1.2: Block extraction pipeline
+
+**Created**
+
+- `ml/data/extract_blocks.py` — PyMuPDF spans → visual rows → columns → lines
+  → blocks → features, JSONL output, per-file report and overlay images.
+- `ml/data/heading_rules.py` — pure heading detection, label mapping, heading
+  removal, table-of-contents detection.
+- `ml/tests/test_heading_rules.py`, `ml/tests/test_layout.py` — 68 tests.
+- `ml/README.md` — usage and output schema.
+- `.gitignore` — `ml/out/` (copyrighted extracted text) and `!ml/data/`.
+
+Each block records its text, the text without the heading, the visual lines,
+a normalised bounding box, font size relative to the page, bold/italic/mono and
+maths-character ratios, indent, gap above, the weak label and subtype, heading
+number and evidence, and flags.
+
+> ⚡ **Design Decision: unlabelled is not "other"**
+>
+> A block without a heading gets `weak_label = null`. Definitions written as
+> prose are exactly what the classifier must find, so absence of a heading
+> cannot be treated as a negative label.
+
+> ⚡ **Design Decision: train on heading-free text**
+>
+> `text_without_heading` removes the matched heading. A model trained on the
+> full text would learn the regex that produced its labels.
+
+### Bugs found while validating on five diverse PDFs
+
+Validation used one Beamer deck, one arXiv paper, an older Ghostscript paper,
+NIST FIPS 203 and 48 pages of Sipser, checked with overlay images, a full label
+audit, and a word-order metric (share of word pairs in a block that also occur
+consecutively in PyMuPDF's raw page text).
+
+> ⚡ **Bug: the reader's own annotations leaked in as paper text**
+>
+> `boneh franklin ibe.pdf` carries 30 typed notes; on one page they contributed
+> more characters than the paper. Spans covered ≥ 50% by FreeText, Text,
+> Stamp, Widget or Caret annotations are now dropped (391 spans).
+
+> ⚡ **Bug: single-column maths pages were read as two columns**
+>
+> Columns were decided by counting individual spans either side of the page
+> centre. Maths pages consist of hundreds of tiny spans, so lines were cut in
+> half and words interleaved. Rows are now built for the whole page first, and a
+> page is two-column only if a gap wider than a word space is free of text at
+> the same x in ≥ 75% of rows (`detect_gutter`).
+
+> ⚡ **Bug: tall glyphs merged neighbouring lines**
+>
+> A big bracket, an operator with limits, or the rotated arXiv stamp stretched
+> a row's height until it swallowed the lines above and below. Only
+> ordinary-height body-size spans may widen a row; rotated text is dropped;
+> rows of small text (subscripts, limits) are attached to the nearest full line.
+
+> ⚡ **Bug: wrapped references became headings**
+>
+> A line starting "Lemma 4.6 excludes …" after a line that did not end a
+> sentence split the block and was labelled as a lemma. Heading evidence now
+> comes from the keyword's own span (bold, or a font different from the page
+> body font) and from whether the previous line ended a sentence. A keyword and
+> number followed by a lowercase word without a terminator is a sentence, not a
+> heading. This also removed every theorem-and-proof merge.
+
+> ⚡ **Bug: double-spaced documents fell apart**
+>
+> In a double-spaced paper the ordinary line gap exceeded the fixed block
+> threshold, giving 17.9 blocks per page. The threshold now grows with the
+> page's median line gap, and paragraphs are split at a short last line ending
+> a sentence (5.7 blocks per page).
+
+Smaller fixes: "Algorithm B creates …" and section titles such as "DEFINITION
+OF A FINITE AUTOMATON" are not headings; appendix numbers ("Lemma B.1") and
+"Proof of Theorem 4.1." keep their full numbers; spaced function names from
+text extraction ("wots _ sign (") are accepted as algorithm names; contents
+pages without dot leaders are detected.
+
+> ⚡ **Bug: `.gitignore` silently ignored the pipeline source**
+>
+> A Docker-era `data/` rule matched `ml/data/`. `!ml/data/` was added before
+> the first ML commit.
+
+### Results of the full run
+
+51 PDFs (main + other) → 12,407 blocks, 1,131 weak labels:
+
+| Label | Count |
+|---|---|
+| theorem (theorem, lemma, corollary, proposition, claim) | 347 |
+| proof | 252 |
+| example (example, exercise, problem) | 245 |
+| algorithm | 122 |
+| definition | 114 |
+| other (remark, note) | 46 |
+| notation | 5 |
+
+- NIST algorithms found: FIPS 203 21/21, FIPS 204 49/49, FIPS 205 23/25.
+- Word order: 5.6% of blocks with 12+ words fall below 0.8 agreement with the
+  raw text, mostly diagram-heavy slides and a few two-column papers.
+- Label audit: 28 of 30 randomly sampled labels correct (one heading-only
+  block, one lemma merged with an inline "PROOF").
+- Sipser and the MA3204 slides hold 64% of the weak labels; 10 groups have
+  none.
+
+### Testing
+
+- `python -m pytest ml/tests`: 68 passed.
+- Frontend suite unchanged: 185 tests in 31 files.
+
+**Git checkpoint:** `a11f5a9`.
+
+### ML1.4.1: Grouped split proposal
+
+**Date:** October 6, 2026
+
+**Objective:** reserve independent sources for evaluation before sampling hand
+labels or training a model. This deliverable is implemented and tested; the
+split is still a proposal pending the user's decision.
+
+### Files created / modified
+
+**Data plumbing**
+
+- `ml/data/make_splits.py` — validates manifest/extraction agreement, reserves
+  seven coverage groups, then fills three places using a seeded shuffle of
+  sorted eligible sources. Writes group membership and aggregate counts.
+- `ml/splits.json` — seed `20261006`, status `proposed`, train/test/excluded
+  memberships, per-group and per-split counts, and an explicit coverage warning.
+  Contains filenames and numbers, no extracted PDF text.
+
+**Tests and documentation**
+
+- `ml/tests/test_make_splits.py` — 14 cases for disjoint and exhaustive source
+  membership, multiple files sharing a source, input-order-independent
+  reproducibility, coverage warnings, invalid extraction inputs and agreement
+  between the generated proposal and the local full extraction. The last case
+  skips on checkouts without the private extraction.
+- `ml/README.md` — command, selection policy, overwrite protection, review/freeze
+  procedure and evaluation limitations.
+- `docs/IMPLEMENTATION_PHASES.md` — records the split as implemented but awaiting
+  freeze; ML1 acceptance remains open.
+- `docs/implementation_log.md` — this entry and refreshed ML status.
+
+### Proposed membership and counts
+
+| Split | Groups | PDFs | Blocks | Weak-labelled |
+|---|---:|---:|---:|---:|
+| Train, including future development folds | 22 | 38 | 9,009 | 923 |
+| Test, proposed | 10 | 13 | 3,398 | 208 |
+| Excluded, scan-only | 5 | 6 | 0 | 0 |
+
+| Proposed test group | PDFs | Blocks | Weak-labelled |
+|---|---:|---:|---:|
+| arxiv-boussard-identifiability | 1 | 252 | 39 |
+| arxiv-resende-recirc | 1 | 395 | 13 |
+| atangana-offline-cbdc | 2 | 1,184 | 26 |
+| bayes-sampling | 1 | 169 | 6 |
+| boneh-franklin | 1 | 205 | 31 |
+| data-licence | 1 | 25 | 0 |
+| design-brief | 1 | 29 | 0 |
+| fte-guidelines | 1 | 37 | 0 |
+| nist-fips | 3 | 897 | 93 |
+| rafiee-cbdc-pki | 1 | 205 | 0 |
+
+Train retains all remaining eligible groups, including Sipser and all eleven
+MA3204 decks. Excluded groups: Burton, Chong-Zak, MA401 exam, PQC gateways and
+QR banking security. No source is split by file or block.
+
+> ⚡ **Plan conflict / pending decision: no eligible test textbook**
+>
+> The handoff asks for a test textbook while reserving Sipser for train.
+> Sipser is the only eligible textbook; Burton and Chong-Zak are scan-slice.
+> All other requested coverage is present: slides, two arXiv maths/statistics
+> sources, an older paper, NIST, payments/systems and non-maths sources.
+>
+> **Reasoning:** moving Sipser would violate the explicit train reservation;
+> using a scan-only book would change ML1's native-text scope. The proposal
+> records the gap rather than claiming full coverage. The user must accept
+> the limitation or add an eligible textbook before freezing the test set.
+
+> ⚡ **Design Decision: explicit coverage plus seeded spare places**
+>
+> Seven groups are selected for interpretable source coverage; three additional
+> groups come from a seeded shuffle, without optimising model results. This is
+> a constrained source holdout, not a representative random sample of all PDFs.
+>
+> **Reasoning:** the dataset is small and heterogeneous. A completely random
+> split can omit required document types. Source grouping prevents template
+> leakage; train includes later grouped development folds rather than a separate
+> development set chosen during ML1.
+
+Test label counts: definition 4, theorem 47, proof 27, example 6, notation 4,
+algorithm 114, other 6; 3,190 blocks remain unlabelled. Train counts: definition
+110, theorem 300, proof 225, example 239, notation 1, algorithm 8, other 40;
+8,086 blocks remain unlabelled. NIST contributes most test algorithms, leaving
+only eight heading-labelled algorithms in train. The split meets the 60-label
+minimum but does not guarantee strong per-class estimates; four weak definitions
+are especially sparse. Independent hand labels, including prose definitions,
+remain necessary. No classifier or retrieval score was used to choose groups.
+
+> ⚡ **Design Decision: refuse routine overwrite of the split**
+>
+> The CLI opens output in exclusive-create mode. A second run cannot silently
+> replace a reviewed or frozen test set. It also rejects incomplete extractions,
+> duplicate files/blocks, unknown labels, manifest disagreement and mixed
+> eligible/scan-only groups.
+>
+> **Reasoning:** a reproducible seed alone does not prevent later dataset edits
+> from changing membership. Review proposals can use a different output path;
+> the accepted artifact must remain fixed for subsequent evaluation.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **82 passed**, including
+  14 new split cases. Cache writing is disabled because the inherited local
+  `.pytest_cache` directory is inaccessible.
+- Full extraction reconciliation: all 51 eligible PDFs represented; 12,407
+  blocks and 1,131 weak labels conserved across train/test. Excluded PDFs
+  contribute zero blocks.
+- CLI rerun against the existing proposal: refused with `FileExistsError`;
+  output bytes unchanged. `git diff --check` reports only three pre-existing
+  trailing-whitespace lines in this log's header; those were preserved.
+- Frontend files were untouched; frontend checks were not rerun. Existing
+  frontend green results below are earlier checkpoints, not fresh verification.
+- No UI check is required for this script. User review of the coverage gap and
+  proposed membership is pending. No new bug was discovered by this test run.
+
+**Git checkpoint:** not committed (user has not requested a commit); base
+`a11f5a9` — `feat(ml): PDF block extraction with weak heading labels`.
+
+**Remaining in ML1:** accept/freeze the split, then hand-labelling tooling and
+300 independent test labels, evaluation-question format and 200 user questions,
+and the current retrieval baseline with document-bootstrap intervals.
+
+---
+
+### ML1.4.1 follow-up: independent textbook and revised proposal
+
+**Date:** October 6, 2026
+
+**Objective:** resolve the missing test textbook identified during split review,
+as requested by the user, and improve algorithm coverage in train before freeze.
+
+### Files created / modified
+
+**Dataset and extraction**
+
+- `Test PDFs/Levin_Discrete_Mathematics_3rd_ed.pdf` — downloaded from the author's
+  website; local, Git-ignored. Oscar Levin, *Discrete Mathematics: An Open
+  Introduction*, third edition, fifth printing (January 7, 2021), CC BY-SA 4.0.
+- `Test PDFs/manifest.csv` — adds source group `levin-discrete`, category
+  `textbook`, use `main`, 414 pages and 214 extracted weak-labelled blocks.
+  Records author, edition, licence and download URL.
+- `ml/out/levin/` — ignored extraction: 1,830 blocks, report and three overlay
+  images. Original `ml/out/full/` is preserved; the combined corpus is now
+  52 eligible PDFs, 14,237 blocks and 1,345 weak labels. Manifest totals:
+  58 PDFs, 38 source groups (48 main, 4 other, 6 scan-slice).
+
+**Split plumbing and verification**
+
+- `ml/data/make_splits.py` — reserves Levin for test and Atangana for train;
+  reads multiple extraction JSONLs and requires actual test textbook coverage.
+- `ml/splits.json` — replaces the unfrozen proposal with the revised membership,
+  per-source statistics and empty coverage warnings. Status stays `proposed`.
+- `ml/tests/test_make_splits.py` — updates textbook expectations and adds two
+  cases: missing textbook rejection and loading multiple extraction files.
+  There are now 16 split cases and 84 ML tests total.
+- `ml/README.md` — reproducible download/extraction provenance, PDF hash,
+  updated split policy and instructions for separate or combined extraction files.
+- `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md` — current corpus,
+  revised proposal, checks and limitations. Earlier proposal entries remain as history.
+
+Source: [author's third-edition page](https://discrete.openmathbooks.org/dmoi3.html).
+Download: https://discrete.openmathbooks.org/pdfs/dmoi3-tablet.pdf
+SHA-256: `9baf67f2ec90cf5020430bc502aa5aacad1cf482df47b1bb7495c02d3c9bf99e`.
+Licence confirmed both on the author page and PDF copyright page. The local PDF
+has extractable text on 410 of 414 pages; 398 pages contain over 100 characters.
+A rendered set-notation page was inspected for layout; this was document
+inspection, not browser/UI testing. Extraction removed 51 furniture lines and
+identified three contents pages; no user annotations were present.
+
+> ⚡ **Design Decision: independent openly licensed textbook**
+>
+> Levin covers sets, functions, counting, logic, proofs and graph theory, giving
+> the test corpus textbook-style prose and boxed concepts from an independent
+> author/template. The third edition's explicit CC BY-SA 4.0 licence and direct
+> author-hosted PDF make provenance reproducible. The PDF remains ignored by Git.
+>
+> **Reasoning:** the earlier source constraints were impossible with only Sipser
+> eligible. Adding this source closes the coverage gap without moving Sipser,
+> introducing OCR or splitting a book between train and test.
+
+> ⚡ **Design Decision: retain Atangana's source in train**
+>
+> The earlier random spare place put its thesis/paper group in test. Reserving
+> that entire source for train increases heading-labelled training algorithms
+> from eight to 26. All three NIST standards still stay together in test.
+>
+> **Reasoning:** this is pre-freeze dataset coverage, not a change selected from
+> model performance. Class balance remains imperfect. Adding the textbook and
+> train reservation also changes the seeded spare places; memberships are
+> explicitly re-presented for review rather than silently called frozen.
+
+### Revised proposal
+
+| Split | Groups | PDFs | Blocks | Weak-labelled |
+|---|---:|---:|---:|---:|
+| Train/dev | 23 | 40 | 10,010 | 885 |
+| Test, proposed | 10 | 12 | 4,227 | 460 |
+| Excluded scans | 5 | 6 | 0 | 0 |
+
+Test groups: `arxiv-boussard-identifiability`, `arxiv-huang-resolving`,
+`arxiv-resende-recirc`, `arxiv-wang-tuza`, `bayes-sampling`, `boneh-franklin`,
+`design-brief`, `levin-discrete`, `nist-fips`, `rafiee-cbdc-pki`.
+Compared with the earlier proposal, Atangana, data-licence and FTE guidelines
+move to train; Levin, Huang and Wang-Tuza enter test. Train retains Sipser and
+MA3204. Excluded sources are unchanged.
+
+| Weak label | Train | Test |
+|---|---:|---:|
+| definition | 109 | 5 |
+| theorem | 271 | 87 |
+| proof | 194 | 112 |
+| example | 239 | 150 |
+| notation | 4 | 2 |
+| algorithm | 26 | 96 |
+| other | 42 | 8 |
+
+Train has 9,125 unlabelled blocks; test has 3,767. Levin contributes 144 examples,
+54 proofs, 11 theorem-type blocks, four remarks/notes and one notation block;
+1,616 blocks remain unlabelled.
+
+> ⚡ **Observed limitation: textbook definitions use named boxes**
+>
+> The textbook supplies no detected literal Definition headings. A simple
+> phrase screen finds 111 unlabelled blocks containing `is called`, `we say`,
+> `define` or `denote`; these are candidates, not 111 verified definitions.
+>
+> **Reasoning:** the classifier's purpose includes definitions expressed as
+> prose. Changing weak-label rules on the held-out source would obscure that
+> evaluation. Keep labels unchanged and obtain independent human labels in
+> ML1.4.2; five weak test definitions alone are insufficient for a strong recall
+> estimate. No test labels or model metrics were used here.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **84 passed**.
+  The first attempt passed 83 but encountered a permission error setting up
+  pytest's temporary-directory fixture. The approved rerun outside the sandbox
+  passed all 84; this was an environment failure, not a product bug.
+- Proposal equals recomputation from manifest plus both extraction files;
+  duplicates and source disagreement are rejected. All eligible PDFs are
+  represented and counts conserve all 14,237 blocks / 1,345 labels.
+- Git ignore check confirms both the downloaded PDF and extraction are ignored.
+- Frontend untouched; no frontend checks rerun. No UI manual check required.
+- User review/freeze of the revised groups remains pending; ML1.4.2 has not begun.
+
+**Git checkpoint:** not committed (no commit requested); base `a11f5a9` —
+`feat(ml): PDF block extraction with weak heading labels`.
+
+---
+
+### ML1.4.1 acceptance: split frozen
+
+**Date:** October 6, 2026
+
+**Objective:** record the user's explicit acceptance: "Accept and freeze the
+revised split." ML1.4.1 is now complete; the rest of ML1 remains open.
+
+### Files created / modified
+
+- `ml/splits.json` — changes status to `frozen`, adds `accepted_on: 2026-10-06`
+  and the user's confirmation. All groups, counts and seed remain identical
+  to the revised proposal. Train/dev: 23 groups, 40 PDFs, 10,010 blocks and
+  885 weak labels; test: 10 groups, 12 PDFs, 4,227 blocks and 460 weak labels;
+  excluded: five groups, six scan PDFs.
+- `ml/tests/test_make_splits.py` — validates frozen acceptance metadata and
+  compares dataset content with recomputation separately from lifecycle metadata.
+- `ml/README.md` — records acceptance and the rule that model tuning uses only
+  train/development sources. The generator continues to create proposals and
+  refuse overwrite; later consumers must use the frozen artifact.
+- `docs/IMPLEMENTATION_PHASES.md` — marks grouped-split deliverable complete.
+- `docs/implementation_log.md` — acceptance entry and updated current-state tail.
+
+The user accepts the documented limitations: five heading-labelled test
+definitions and 26 training algorithms versus 96 test algorithms. These remain
+limitations, not reasons to change test membership after inspecting model scores.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **84 passed**.
+- Before/after comparison confirms that only lifecycle/acceptance metadata
+  changed in the split artifact; memberships and all counts are unchanged.
+- No frontend files changed; no frontend checks or UI manual checks required.
+
+**Git checkpoint:** not committed (no commit requested); base `a11f5a9` —
+`feat(ml): PDF block extraction with weak heading labels`.
+
+**Next:** ML1.4.2 hand-labelling sample and offline labelling page. Implementation
+of that deliverable has not started. ML1 is not yet complete.
+
+---
+
+### ML1.4.2: Independent sample and offline hand-labelling page
+
+**Date:** October 6, 2026
+
+**Objective:** prepare 300 held-out blocks for independent human labels and an
+offline interface to record them. Tooling is implemented and non-UI checks pass;
+manual page acceptance and the 300 human labels remain pending.
+
+### Files created / modified
+
+**Data plumbing**
+
+- `ml/data/sample_for_labelling.py` — deterministic selection from frozen test
+  groups only. Filters short blocks, furniture flags, TOC entries and inferred
+  TOC pages; stratifies weak-labelled, definition-like prose and other unlabelled
+  blocks; cycles source queues to reduce domination by a large PDF. Exports only
+  `block_id`, `file`, `page`, `text` and refuses to overwrite an existing sample.
+- `ml/labels/to_label.jsonl` — generated local sample, 300 unique blocks,
+  Git-ignored. No weak label, heading evidence or stratum fields.
+- `ml/out/labelling_sample_report.json` — ignored numeric sampling audit:
+  seed, eligibility, selected strata, group counts and weak-class counts.
+- `.gitignore` — ignores `ml/labels/*.jsonl`, including human exports.
+
+**Offline interface**
+
+- `ml/labels/label.html` — one vanilla HTML/CSS/JS file opened directly from
+  disk. File picker, one block at a time, physical PDF page, seven label buttons
+  and numeric shortcuts, skip/back/next, progress counts, label guide,
+  localStorage autosave, export and backup import. No server/build/runtime
+  dependencies, network requests or external fonts. Content Security Policy
+  blocks network connections; document text is inserted through `textContent`.
+
+**Tests and documentation**
+
+- `ml/tests/test_sampling.py` — eight cases for exact size, hidden labels,
+  deterministic order/seed, source/filter exclusions, TOC page context, shortage
+  backfill, unfrozen input, duplicate IDs and insufficient data.
+- `ml/tests/label_session.test.cjs` — seven Node cases execute the actual inline
+  script in a VM without a DOM. Cover sample parsing, weak-field removal,
+  malformed/empty/duplicate input, editing, skips, final-index bounds, save/restore,
+  changed-dataset separation, export schema, invalid imports and atomic restore.
+- `ml/README.md` — commands, enrichment caveat, label definitions/usage, browser
+  storage limitations, export placement and exact manual acceptance checks.
+- `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md` — tooling status
+  separate from pending user labelling and browser acceptance.
+
+### Actual sample
+
+Seed: `20261006`. Eligible after filters: 452 weak-labelled, 362 unlabelled
+prose candidates, 2,952 other unlabelled. Selected exactly 100 from each.
+All ten frozen test groups occur; no train or excluded source occurs.
+
+| Source group | Selected blocks |
+|---|---:|
+| arxiv-boussard-identifiability | 46 |
+| arxiv-huang-resolving | 42 |
+| arxiv-resende-recirc | 38 |
+| arxiv-wang-tuza | 9 |
+| bayes-sampling | 16 |
+| boneh-franklin | 43 |
+| design-brief | 10 |
+| levin-discrete | 51 |
+| nist-fips | 33 |
+| rafiee-cbdc-pki | 12 |
+
+The 100 weak-labelled inputs contain four weak definitions, 35 theorem-type
+blocks, 30 proofs, 11 examples, two notation blocks, ten algorithms and eight
+remarks/notes. These counts are a sampling audit, not gold labels. The labeller
+should not consult them while assigning independent labels.
+
+> ⚡ **Design Decision: remove automatic labels from the input itself**
+>
+> The page receives just text, file, physical page and block identity. Even the
+> JSONL omits weak labels and sampling strata; the UI discards extra input fields.
+>
+> **Reasoning:** hiding a visual field alone still exposes the label when opening
+> the input file. Independent hand labels must come from reading the block. The
+> original text retains its heading where present; no automatic prediction is
+> displayed. PDF provenance allows the user to consult context.
+
+> ⚡ **Design Decision: equal target strata, balanced source queues**
+>
+> Unlabelled prose candidates are deliberately enriched to one third of the
+> sample. Selection cycles sources; weak queues also distinguish class. Rare
+> stratum shortages backfill from unused eligible blocks without replacement.
+>
+> **Reasoning:** a uniform block sample would mostly contain background and
+> examples from dominant documents, yielding little evidence about prose
+> definitions. This sample supports a diagnostic evaluation; its metrics must
+> not be presented as population-wide accuracy. Phrase matches are candidates,
+> not asserted definitions. Furniture missed upstream can still require review.
+
+> ⚡ **Design Decision: dataset-specific progress plus export/import backups**
+>
+> Cache identity uses the complete ordered sample content. A compact hash is
+> verified with the full signature on restore; changed datasets cannot silently
+> inherit answers. Invalid cache/import data is validated before mutation.
+>
+> **Reasoning:** block IDs alone cannot distinguish changed text. Browser storage
+> for local files may be disabled or cleared. Save failures show a warning;
+> exported JSONL is a separate backup. Import is an addition to the handoff,
+> providing recovery if localStorage fails. Exports include labelled rows only;
+> skipped rows remain unresolved. Correcting a label replaces it without adding
+> a second answer. Skipping a labelled block removes that answer.
+
+> ⚡ **Design Decision: standalone accessible page**
+>
+> Local UI guidance informed visible focus, labelled inputs, 44-pixel controls,
+> high-contrast text and responsive layout. An initial design-system search
+> returned a commercial landing-page pattern, which was not used. A focused
+> keyboard/focus search supplied relevant interaction guidance.
+>
+> **Reasoning:** this is an offline annotation utility. System fonts and vanilla
+> code meet its purpose without adding a frontend build or dependency. The user
+> performs browser interaction and visual judgement, as required by the workflow.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **92 passed** (eight new).
+- `node --test ml/tests/label_session.test.cjs`: **7 passed**. Executes/imports
+  the actual inline script, not just syntax checking. Does not test DOM handlers,
+  file-picker wiring, browser storage, download behaviour or rendering.
+- First Node attempt was blocked by sandbox worker spawning (`EPERM`); the
+  approved rerun passed. No product bug was discovered by these tests.
+- Generated sample audit: exactly 300 unique IDs and four permitted fields;
+  all three target strata met. Both sample and hand-label paths are Git-ignored.
+- Frontend application files untouched; app build/typecheck/core-boundary checks
+  were not rerun. Their earlier green checkpoints are not new verification.
+- **Manual checks pending:** open offline/load, keyboard and button labelling,
+  back/edit, skip/revisit, reload/resume, export/import, malformed input and
+  narrow-window/keyboard focus. Exact steps and expected results: `ml/README.md`.
+- Human labels: **0 reported completed**. User should export after each session
+  and move the downloaded file to `ml/labels/hand_labels.jsonl`. The browser
+  cannot write that repository path directly without the user's file operation.
+
+**Git checkpoint:** not committed (no commit requested); base `a11f5a9` —
+`feat(ml): PDF block extraction with weak heading labels`.
+
+**Remaining:** user manual acceptance and hand labels. Next tooling deliverable
+is ML1.4.3 (evaluation-question schema and validator), on the user's go-ahead.
+ML1 as a whole remains in progress; ML2 has not started.
+
+---
+
+### ML1.4.3: Evaluation-question format and validator
+
+**Date:** October 6, 2026
+
+**Objective:** define the human-authored retrieval evaluation set and validate
+its evidence against native PDF text. Tooling complete; the real 200 questions
+remain user work. No retrieval measurement is claimed by this phase.
+
+### Files created / modified
+
+**Evaluation plumbing**
+
+- `ml/eval/__init__.py` — evaluation package, separate from extraction and models.
+- `ml/eval/questions.schema.md` — JSONL fields, physical page convention,
+  question types, answerability rules, own-word questions, supporting quote
+  instructions and train/test restrictions. Includes one format-only negative
+  example, explicitly not a verified gold item.
+- `ml/eval/validate_questions.py` — read-only validator with injectable page-text
+  lookup. Checks schema, unique IDs, manifest identity, frozen source partition,
+  eligible native-text sources, actual PDF page bounds and supporting quote
+  presence. Caches native text once per referenced PDF. Prints counts by type,
+  filename, split and answerability; errors carry physical JSONL line numbers.
+  An optional completeness flag checks the planned collection distribution.
+- `.gitignore` — ignores `ml/eval/questions.jsonl`, because supporting evidence
+  can quote private or copyrighted documents. No real question file created.
+
+**Tests and documentation**
+
+- `ml/tests/test_questions.py` — 24 cases: whitespace-sensitive versus
+  whitespace-insensitive evidence, derived test routing, malformed fields,
+  wrong group/split/file/page, duplicate pages/IDs, excluded sources,
+  answerability consistency, empty input, frozen partition, missing inputs and
+  a real two-page native-text PDF fixture exercising the CLI and collection gate.
+- `ml/README.md` — authoring and partial/complete validation commands, evidence
+  semantics, limits and pending human work.
+- `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md` — tooling status
+  and refreshed current-state counts. Earlier UI acceptance remains pending.
+
+> ⚡ **Design Decision: derive split and reject conflicting supplied values**
+>
+> The schema adds optional `split`, absent from the handoff's sample object.
+> The validator derives it from the frozen source group and rejects an incorrect
+> explicit value. It does not rewrite the question file.
+>
+> **Reasoning:** a held-out question must never silently become training data
+> because someone typed the wrong split. Reports explicitly count test items
+> even when the optional field is omitted; future consumers must use the same
+> frozen membership rather than trusting an arbitrary annotation.
+
+> ⚡ **Design Decision: match evidence after removing whitespace only**
+>
+> A quote must occur contiguously on at least one listed physical PDF page.
+> All listed pages are checked for valid bounds. Case, punctuation, hyphens and
+> maths symbols are preserved; quotes spanning pages are not accepted.
+>
+> **Reasoning:** whitespace changes from line wrapping are harmless, whereas
+> silently repairing symbols or punctuation can accept inaccurate evidence.
+> Quote presence cannot establish semantic relevance or that every listed
+> page answers the question. Unanswerability remains a human judgment.
+
+> ⚡ **Design Decision: partial validation plus explicit collection gate**
+>
+> Default validation permits incremental work. `--require-complete` additionally
+> requires 200 questions, 13–17 PDFs, 8–15 per PDF, 35–45 unanswerable and both
+> train/test sources. These numerical ranges implement the plan's approximate
+> “15 PDFs” and “40 unanswerable”; they are documented rather than implicit.
+>
+> **Reasoning:** blocking a partial collection would prevent early feedback.
+> No placeholder gold questions or invented supporting quotes were created.
+
+> ⚡ **Bug found by dependency inspection: missing PDFs bypassed OSError**
+>
+> PyMuPDF's `FileNotFoundError` inherits `RuntimeError`, not Python's built-in
+> file error. Catching `OSError` alone would crash rather than report a bad line.
+> The validator now catches the PyMuPDF-specific error; a regression case
+> asserts the missing PDF becomes a line error and no valid item is emitted.
+>
+> **Reasoning:** missing local PDFs are expected on incomplete checkouts. This
+> issue was identified during API inspection before the regression test was
+> added; the test did not discover it through a failing suite run.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **116 passed**, 24 new.
+- Real-corpus smoke validation used an actual native excerpt from physical
+  page 43 of Levin and an empty-evidence negative-schema item for design-brief:
+  two valid items, both test; one answerable, one unanswerable. These in-memory
+  items were plumbing checks, not saved or asserted as a gold question set.
+- CLI integration checks physical page bounds, native quote match, complete-set
+  rejection, safe reports without quote text and unchanged input bytes.
+- `ml/eval/questions.jsonl` does not yet exist. Therefore no user question
+  collection has been validated and the 200-question acceptance remains open.
+- Ignore check confirms the future real question file is excluded from Git.
+- No frontend changes; previous seven JS-session tests were not rerun. No new
+  UI check needed. User must manually judge question/evidence quality and
+  unanswerability; ML1.4.2 page checks and human labels are still pending.
+
+**Git checkpoint:** not committed (no commit requested); base `a11f5a9` —
+`feat(ml): PDF block extraction with weak heading labels`.
+
+**Next:** ML1.4.4, reproducing the existing retrieval baseline with document-level
+bootstrap intervals. It has not started; do not mark ML1 complete.
+
+---
+
+### ML1.4.4: Existing retrieval baseline and document-bootstrap intervals
+
+**Date:** October 6, 2026
+
+**Objective:** reproduce the current retrieval mechanism in process, without
+Docker or Qdrant service, and establish a measured starting point. The user
+also authorised creating a question file. Five starter questions were authored
+and evidence-validated; this is a smoke measurement, not the planned full set.
+
+### Files created / modified
+
+**Evaluation plumbing**
+
+- `ml/eval/baseline_current_rag.py` — loads the actual legacy `chunk_spans`
+  through importlib; native PyMuPDF words become page-provenanced spans. Embeds
+  full-document chunks with all-MiniLM-L6-v2 on CPU, exact cosine top eight in
+  the question's PDF, cross-encoder reranking, gold-page Recall@5/MRR@10 and
+  separate train/test aggregate intervals. Model functions are injectable for
+  deterministic tests; actual models were used in the smoke run.
+- `ml/eval/stats.py` — handwritten seeded document-cluster bootstrap, 2,000
+  resamples and interpolated 95% percentile bounds. Repeated files repeat all
+  their questions; estimates remain question-weighted.
+- `ml/eval/requirements.txt` — existing dependencies needed for offline evaluation;
+  no new package installation was performed.
+- `ml/eval/questions.example.jsonl` — five own-word starter questions with
+  checked native-text quotes: NIST, Levin, Boneh–Franklin (test), and the Cao
+  and Hashimoto papers (train). One question per file; all answerable. No claim
+  of balanced or complete evaluation. Small quotations only, no private profile.
+- `ml/eval/questions.jsonl` — the same five starter questions as the user-editable
+  real file, created at the user's request and Git-ignored. Expand/review this
+  file before using it as the 200-question gold collection.
+- `ml/results/baseline_current_rag.json` — committable aggregate numbers and
+  configuration only, including `example_only: true`; no question, quote,
+  document text or filenames. Results from the explicit example command.
+
+**Shared legacy mechanism**
+
+- `local-llm/rag-api/ingest.py` — replaces eager Qdrant construction with a
+  lazy reused client and moves embedder import to actual ingestion. No chunking
+  functions/constants were copied, replaced or modified.
+
+**Tests and documentation**
+
+- `ml/tests/test_baseline.py` — eight cases for whole-file bootstrap versus
+  independent-question sampling, degenerate intervals, metric cutoffs,
+  stable cosine ranking/zero vectors, reranking and unanswerable exclusion,
+  real native-text PDF chunking, empty candidates, invalid reranker output and
+  lazy reused Qdrant construction without connecting.
+- `ml/README.md` — execution/dependencies, smoke/full distinction, metrics,
+  confidence intervals and differences from the running service.
+- `docs/IMPLEMENTATION_PHASES.md`, `docs/implementation_log.md` — measured status
+  and pending full-data acceptance. No earlier user work was discarded.
+
+> ⚡ **Design Decision: import existing chunking without startup services**
+>
+> Importing the old ingestion module eagerly constructed a Qdrant client and
+> imported a service-local embedder. Client creation and embedding import now
+> happen only on service use; the baseline imports the original chunk function.
+>
+> **Reasoning:** AST extraction or copying the chunker would disconnect the
+> measurement from the implementation it measures. Lazy setup is a small
+> shared-module change, verified with native-PDF and singleton-factory tests.
+> Service request flow still obtains the same client; no live service test ran.
+
+> ⚡ **Design Decision: exact search with the existing eight-candidate budget**
+>
+> Exact cosine substitutes for Qdrant HNSW. Queries search the named PDF's full
+> chunk index, not only gold pages. Vector and reranked rankings contain at most
+> eight candidates; Recall@5 uses the first five, while MRR@10 uses the full
+> available ranking, so ranks nine and ten cannot score.
+>
+> **Reasoning:** searching ten candidates would change the current top-eight
+> mechanism. Reporting MRR using only five would conceal improvements in ranks
+> six through eight. The depth limitation is explicit in code, output and docs.
+
+> ⚡ **Inherited issues observed: chunk cap and page field mismatch**
+>
+> The chunker appends entire paragraphs, so 800 characters is not a hard cap.
+> NIST produced 93 chunks, 57 above 800 characters, maximum 3,465. Also, ingestion
+> stores `page` but the old retriever reads `pageNumber`.
+>
+> **Reasoning:** preserve chunking to measure existing behaviour; long chunks
+> may be truncated by pretrained model token limits. Offline evaluation uses
+> correct chunk `page`. The live retriever mismatch remains unfixed and this
+> run must not be described as validating live citations. Native word spans
+> also replace OCR tokens, so the run is a mechanism baseline, not an exact
+> end-to-end deployment reproduction. No model tuning followed test results.
+
+### Validation and measured smoke results
+
+- `python -m ml.eval.validate_questions`: **5 valid, 0 invalid**, two train,
+  three test; one definition, four explanation questions; five answerable.
+- The example file separately validates with the same counts.
+- `--require-complete`: **correctly rejects the starter as incomplete** (five
+  questions and no unanswerable items). This is an expected acceptance failure,
+  not a broken validator or completed 200-question dataset.
+- `python -m ml.eval.baseline_current_rag --questions ml/eval/questions.example.jsonl --local-only`:
+  actual CPU inference over **746 chunks / five PDFs**, existing cached models,
+  no downloads, Docker or running service needed.
+- Installed runtime versions: NumPy 2.2.4, sentence-transformers 5.2.0,
+  PyTorch 2.9.1, qdrant-client 1.16.2. No dependency version was changed.
+
+| Split | Method | Recall@5 [95% interval] | MRR@10 [95% interval], 8 candidates |
+|---|---|---|---|
+| Train, 2 files/questions | Vector | 1.000 [1.000, 1.000] | 0.375 [0.250, 0.500] |
+| Train, 2 files/questions | Vector + cross-encoder | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] |
+| Test, 3 files/questions | Vector | 0.667 [0.000, 1.000] | 0.400 [0.000, 1.000] |
+| Test, 3 files/questions | Vector + cross-encoder | 0.667 [0.000, 1.000] | 0.667 [0.000, 1.000] |
+
+These intervals resample entire files with seed `20261006`. A perfect interval
+on two successful questions does not imply population certainty. The test set
+is tiny, gold pages are starter evidence references, and questions were authored
+for a smoke run. Results establish execution and a reproducible initial table;
+they do not establish general retrieval quality or reranker superiority.
+
+### Testing
+
+- `python -m pytest ml/tests -p no:cacheprovider`: **124 passed**, eight new.
+- `node ml/tests/label_session.test.cjs`: **7 passed**; rerun of existing non-UI
+  session tests, no browser interaction.
+- Actual cached embedding/reranking inference completed; deterministic tests
+  are not a substitute for that run. No new product bug was discovered by a
+  failing test; the inherited limits above were found by code/data inspection.
+- Frontend unchanged; its build/typecheck/core-boundary checks not rerun.
+- Manual labelling-page acceptance and 300 human labels still pending.
+
+**Git checkpoint:** not committed (no commit requested); base `a11f5a9` —
+`feat(ml): PDF block extraction with weak heading labels`.
+
+**Remaining in ML1:** review/expand the starter to 200 questions (~40
+unanswerable), obtain 300 independent block labels, accept the offline UI and
+rerun the full baseline with intervals. ML1 is not complete; ML2 has not started.
+
+---
+
 ## Current Project State
 
-**As of:** September 22, 2026
+**As of:** October 6, 2026
 
 ### File tree (abridged by responsibility)
 
@@ -1293,7 +2225,7 @@ src/
 │   ├── library/                  reference identity and folder-path rules
 │   ├── notes/                    independent notes, multi-anchor migration/export
 │   ├── pages/                    stable page model and transforms
-│   ├── search/                   tokenizer, scope resolution, index, ranking
+│   ├── search/                   literal keyword matching and scope resolution
 │   ├── text-editor/              pure textbox session and geometry rules
 │   ├── ui/                       virtual range calculation
 │   └── workspace/                recursive pane/tab layout
@@ -1301,7 +2233,7 @@ src/
 │   ├── annotations/              history, autosave, storage, pointer handling
 │   ├── pages/                    PDF materialisation and page-workspace storage
 │   ├── saving/                   local save controller and adapters
-│   ├── search/                   generation-safe PDF/OCR index lifecycle
+│   ├── search/                   generation-safe native PDF text extraction
 │   ├── storage/                  handle/blob library and editor IndexedDB databases
 │   ├── tools/                    pencil, highlighter, eraser, text, shapes
 │   └── workers/                  ink rendering and stroke processing
@@ -1312,31 +2244,51 @@ src/
 │   ├── PageOrganizer.tsx         page-operation dialog and real previews
 │   ├── NotesPanel.tsx            virtualised multi-anchor note editor
 │   ├── LibraryGrid.tsx           folder-based PDF reference library
-│   ├── SearchBar.tsx             search scopes and results
+│   ├── SearchBar.tsx             find in the focused PDF with match stepping
+│   ├── DocumentTabs.tsx          document tab strip
 │   └── ui/                       shared token-based primitives
 └── pages/Dashboard.tsx           workspace and library composition root
+
+ml/
+├── data/extract_blocks.py        PDF → visual lines → blocks → features + weak labels
+├── data/heading_rules.py         pure heading detection and removal
+├── data/make_splits.py           validated deterministic source-group proposal
+├── data/sample_for_labelling.py  enriched independent held-out sample
+├── splits.json                  user-accepted frozen memberships and counts
+├── labels/label.html             offline labelling; local JSONLs ignored
+├── eval/validate_questions.py    schema, frozen split and native-PDF evidence checks
+├── eval/questions.schema.md      user question-authoring instructions
+├── eval/baseline_current_rag.py   offline exact-vector and reranking baseline
+├── eval/stats.py                 seeded document-cluster confidence intervals
+├── results/baseline_current_rag.json  five-example numerical smoke results
+└── tests/                        extraction, split, sampling and JS session tests
 ```
 
 ### Numbers
 
-- 140 TypeScript/TSX files under `src/`.
-- 17,642 TypeScript/TSX lines under `src/` (physical lines measured with
-  PowerShell; generated/build output excluded).
-- 34 TypeScript files and 2,928 lines under `src/core/`.
-- 19 test files and 83 test cases.
+- 191 tracked TypeScript/TSX files under `src/`, 24,406 lines (tests
+  included; counted with `git ls-files | wc -l`).
+- 56 TypeScript files and 4,745 lines under `src/core/`.
+- 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- 8 rebuild feature/refactor commits after the safety checkpoints, plus the
-  uncommitted implementation-log documentation.
+- `ml/`: 3,346 Python lines, 124 Python tests (68 extraction/layout, 16 split, eight sampling,
+  24 questions, eight baseline) and seven non-UI JavaScript tests.
+- ML corpus: 58 PDFs / 38 groups; 52 eligible PDFs yield 14,237 blocks and
+  1,345 weak labels. Frozen split: 23 train/dev, 10 test, 5 excluded groups.
+- 17 commits after the safety checkpoint `ab63d6f`.
 
 ### Build and test status
 
 | Check | Status | Scope |
 |---|---|---|
 | `npx tsc -b` | Green | TypeScript project references |
-| `npm test -- --run` | Green | 83 tests in 19 files |
+| `npm test -- --run` | Green | 185 tests in 31 files |
+| `python -m pytest ml/tests -p no:cacheprovider` | Green, October 6 | 124 tests including retrieval metrics/bootstrap |
+| `node --test ml/tests/label_session.test.cjs` | Green, October 6 | 7 non-UI offline labelling-session tests |
 | `npx eslint src/core --max-warnings 0` | Green | pure-core boundary and core lint |
 | `npm run build` | Green | typecheck plus Vite production build |
+| `npm run build:demo` + `npm run demo:check` | Green | static demo and bundle exclusions |
 
 The Vite build still reports non-fatal warnings about PDF.js image URLs,
 mixed static/dynamic imports, and a large output chunk. Full-repository ESLint
@@ -1347,37 +2299,48 @@ CI gates `src/core` at zero warnings.
 
 - `f390691` checkpoints the real page-preview follow-up and Phase 8R.1 through
   Phase 8R.5 implementation, tests, and the Text-tool render-loop repair.
-- Manual browser acceptance remains pending and is not implied by that code
-  checkpoint.
-- `docs/implementation_log.md` is tracked by the documentation checkpoint that
-  follows `f390691`.
+- Frontend phases F1 through F8 are checkpointed through `0e0847e`; their
+  detailed chronology lives in `docs/frontend_implementation_log.md`.
+- Phase 8R.6 (literal find) and F8R.2 (chrome redesign) are committed in
+  `9e79ffa`; the ML1 pipeline and manifest in `a11f5a9`.
+- Manual browser acceptance of 8R and F8R.2 remains pending and is not implied
+  by those code checkpoints.
+- Uncommitted: this log, `docs/frontend_implementation_log.md` and
+  `docs/IMPLEMENTATION_PHASES.md` (documentation updates for the ML track).
 - `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` remain untracked local
-  documentation at the time of this entry.
-- `docs/FRONTEND_PLAN.md` and `docs/frontend_implementation_log.md` are also
-  present as unrelated untracked planning documents; Phase 8R.1 did not modify
-  or incorporate them.
-- Those unrelated local files are intentionally not described as committed
-  work.
+  documentation; `PROJECT_SUMMARY.md` is out of date and is rewritten in ML7.
+- Full-repository ESLint still reports the inherited shell backlog (mostly
+  `any` in `PDFViewer.tsx` and `useClientOcr.ts`); none of it comes from the
+  two October commits.
 
 ---
 
-## Next Up: Remaining Phase 8 Repairs Before Phase 9
+## Next Up: Finish ML1, then ML2 Block Classifier
 
-The roadmap says Week 9 should containerise, deploy a demo, improve the README,
-and run broader user testing. Starting that milestone while core Week 8 flows
-are known to fail would produce a demo of unstable behavior. The next work
-should therefore remain inside Phase 8, one subphase at a time.
+The full plan is in `docs/IMPLEMENTATION_PHASES.md`. Remaining ML1 work:
 
-Phase 8R.1 through Phase 8R.4 are implemented, and the Phase 8R.5 automated
-acceptance pass is green. Manual acceptance is now the only Phase 8 gate. Phase
-9 must not begin until the user reports the textbox, grouped-note,
-library/folder, and merged-search results and any failures are repaired.
+1. Grouped split complete and frozen October 6 (`ml/splits.json`): 23 train/dev,
+   10 test, 5 excluded.
+2. ML1.4.2 sample/page implemented and non-UI tested; user page acceptance and
+   300 independent human labels pending.
+3. ML1.4.3 validator complete; five authored questions validate. Expand/review
+   to 200 questions with gold pages and ~40 unanswerable before full acceptance.
+4. ML1.4.4 baseline implemented; five-example vector/reranking table measured.
+   Full-collection baseline and data acceptance remain before ML2.
+
+ML2 (October 13–19) then trains the block classifier on heading-free text
+against regex and majority baselines, with grouped cross-validation.
+
+Manual acceptance of Phase 8R and F8R.2 and publishing the static demo stay
+open in parallel; they do not block the ML track.
 
 ---
 
 ## Working Conventions
 
 - Work one roadmap phase or repair subphase at a time.
+- ML: split by source group; keep the test set frozen; report intervals; never
+  commit `ml/out/`.
 - Keep pure decisions in `src/core/`; inject browser/PDF/storage dependencies
   through `src/lib/`.
 - Use the shared operation history for every user-visible reversible edit.

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'">
+<title>Margin — Block labelling</title>
+<style>
+:root { color-scheme: light; --ink:#172f35; --muted:#50636b; --accent:#006b65; --line:#cad9d8; --paper:#fff; --bg:#f0f5f4; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,sans-serif; }
+main { max-width:1000px; margin:auto; padding:28px 20px 60px; }
+h1 { font-size:28px; margin:0; } h2 { font-size:19px; margin:0 0 12px; }
+p { margin:8px 0 16px; } .muted { color:var(--muted); }
+.card { background:var(--paper); padding:24px; border:1px solid var(--line); border-radius:12px; margin:20px 0; }
+.row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+button,.picker { min-height:44px; border:1px solid var(--line); background:var(--paper); border-radius:7px; padding:10px 16px; font:inherit; color:var(--ink); cursor:pointer; }
+button:hover:not(:disabled),.picker:hover { border-color:var(--accent); }
+button:disabled { cursor:default; opacity:.55; }
+button[aria-pressed=true],.primary { background:var(--accent); color:white; }
+:focus-visible { outline:3px solid #087eae; outline-offset:3px; }
+input[type=file] { max-width:100%; font:inherit; }
+progress { width:100%; accent-color:var(--accent); height:12px; }
+#text { white-space:pre-wrap; overflow-wrap:anywhere; font:18px/1.75 Georgia,serif; min-height:180px; }
+#source { overflow-wrap:anywhere; font-weight:600; }
+#choices { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+#message { color:#9d2323; white-space:pre-wrap; } #save { color:var(--muted); }
+summary { cursor:pointer; font-weight:600; } dt { font-weight:600; } dd { margin:0 0 12px; }
+[hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+<h1>Block labelling</h1>
+<p class="muted">Read the block, then choose its role. Your labels are independent of automatic labels. Everything stays in this browser.</p>
+<section class="card" aria-label="Load dataset">
+<label for="sample"><strong>Open to_label.jsonl</strong></label>
+<p class="muted">Select the generated sample. After a reload, select the same file to resume.</p>
+<input id="sample" type="file" accept=".jsonl,application/json">
+<p id="message" role="alert"></p>
+<p id="save" role="status">No dataset loaded.</p>
+</section>
+<section id="workspace" hidden>
+<div class="row"><strong id="count" aria-live="polite"></strong><span id="totals" class="muted"></span></div>
+<progress id="progress" value="0" max="300" aria-label="Labelled blocks"></progress>
+<article class="card" aria-label="Current block">
+<p id="source"></p>
+<p class="muted">Page numbers refer to the PDF file's physical pages, starting at 1.</p>
+<div id="text"></div>
+<p id="current" aria-live="polite"></p>
+</article>
+<div id="choices" aria-label="Choose a label"></div>
+<p class="muted">Keys 1–7 choose a label and advance. S skips; left arrow goes back; right arrow goes forward. Skipped blocks are not labelled.</p>
+<div class="row">
+<button id="back">Back</button><button id="skip">Skip (S)</button><button id="next">Next</button>
+<button id="export" class="primary">Export hand_labels.jsonl</button>
+</div>
+<section class="card">
+<label for="restore"><strong>Restore exported labels</strong></label>
+<p class="muted">Only labels for this sample are accepted. Imported labels replace any existing label for the same block; other labels remain.</p>
+<input id="restore" type="file" accept=".jsonl,application/json">
+<details style="margin-top:20px"><summary>Label guide</summary>
+<dl>
+<dt>1 · Definition</dt><dd>Introduces the meaning of a concept, including prose such as “is called” or “we say”.</dd>
+<dt>2 · Theorem</dt><dd>A mathematical result: theorem, lemma, proposition, corollary or claim.</dd>
+<dt>3 · Proof</dt><dd>An argument establishing a result.</dd>
+<dt>4 · Example</dt><dd>A worked example, exercise or problem statement.</dd>
+<dt>5 · Notation</dt><dd>Introduces symbols or conventions without primarily defining a mathematical concept.</dd>
+<dt>6 · Algorithm</dt><dd>A procedure or sequence of computational steps.</dd>
+<dt>7 · Other</dt><dd>Background, discussion, references or other text outside the six roles.</dd>
+</dl>
+<p>If the block mixes roles or extraction makes it unreadable, skip it for review rather than guessing. Use the PDF's physical page for context. Export a backup after each session.</p>
+</details>
+</section>
+</section>
+</main>
+<script>
+'use strict';
+// Pure session logic is exercised in Node, without browser/UI automation.
+const LabelSession = (() => {
+  const labels = ['definition','theorem','proof','example','notation','algorithm','other'];
+  function jsonl(text) {
+    return text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim()).map((line, i) => {
+      try { return JSON.parse(line); } catch { throw new Error(`Invalid JSON on nonempty line ${i + 1}.`); }
+    });
+  }
+  function sample(text) {
+    const seen = new Set();
+    const rows = jsonl(text).map(row => {
+      if (!row || typeof row.block_id !== 'string' || !row.block_id || typeof row.file !== 'string' || !row.file ||
+          !Number.isInteger(row.page) || row.page < 1 || typeof row.text !== 'string' || !row.text.trim()) {
+        throw new Error('Each block needs block_id, file, a positive page number and text.');
+      }
+      if (seen.has(row.block_id)) throw new Error('Duplicate block_id in sample.');
+      seen.add(row.block_id);
+      // Deliberately discard extra fields, including weak labels and strata.
+      return {block_id:row.block_id, file:row.file, page:row.page, text:row.text};
+    });
+    if (!rows.length) throw new Error('The sample is empty.');
+    return rows;
+  }
+  function imported(text, rows) {
+    const ids = new Set(rows.map(row => row.block_id)), seen = new Set();
+    return jsonl(text).map(row => {
+      if (!row || !ids.has(row.block_id) || !labels.includes(row.label) || typeof row.labelled_at !== 'string' ||
+          !Number.isFinite(Date.parse(row.labelled_at)) || seen.has(row.block_id)) {
+        throw new Error('Invalid, duplicate or foreign label. Select an export from this sample.');
+      }
+      seen.add(row.block_id);
+      return {block_id:row.block_id, label:row.label, labelled_at:row.labelled_at};
+    });
+  }
+  function create(rows) { return {rows, index:0, answers:new Map(), skipped:new Set()}; }
+  function answer(state, label, time = new Date().toISOString()) {
+    if (!labels.includes(label)) throw new Error('Unknown label.');
+    const id = state.rows[state.index].block_id;
+    state.answers.set(id, {block_id:id, label, labelled_at:time});
+    state.skipped.delete(id);
+    state.index = Math.min(state.index + 1, state.rows.length - 1);
+  }
+  function skip(state) {
+    const id = state.rows[state.index].block_id;
+    state.answers.delete(id); state.skipped.add(id);
+    state.index = Math.min(state.index + 1, state.rows.length - 1);
+  }
+  function exported(state) {
+    return state.rows.filter(row => state.answers.has(row.block_id)).map(row => JSON.stringify(state.answers.get(row.block_id))).join('\n');
+  }
+  function signature(rows) { return JSON.stringify(rows); }
+  function key(rows) {
+    // Cache key is compact; the full signature below rejects a hash collision.
+    let hash = 2166136261;
+    for (const char of signature(rows)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    return `margin-hand-labels-v1-${(hash >>> 0).toString(16)}`;
+  }
+  function snapshot(state) {
+    return JSON.stringify({signature:signature(state.rows), index:state.index,
+      answers:[...state.answers.values()], skipped:[...state.skipped]});
+  }
+  function restore(state, text) {
+    const data = JSON.parse(text);
+    if (data.signature !== signature(state.rows) || !Number.isInteger(data.index) || data.index < 0 || data.index >= state.rows.length ||
+        !Array.isArray(data.answers) || !Array.isArray(data.skipped)) throw new Error('Saved progress does not match this sample.');
+    const answers = imported(data.answers.map(row => JSON.stringify(row)).join('\n'), state.rows);
+    const ids = new Set(state.rows.map(row => row.block_id));
+    if (data.skipped.some(id => !ids.has(id) || answers.some(row => row.block_id === id))) throw new Error('Invalid saved skipped blocks.');
+    state.index = data.index; state.answers = new Map(answers.map(row => [row.block_id,row])); state.skipped = new Set(data.skipped);
+  }
+  return {labels,sample,imported,create,answer,skip,exported,key,snapshot,restore};
+})();
+globalThis.LabelSession = LabelSession;
+
+if (typeof document !== 'undefined') {
+  const el = id => document.getElementById(id);
+  let state = null, loadGeneration = 0;
+  function render() {
+    const row = state.rows[state.index], answer = state.answers.get(row.block_id);
+    el('source').textContent = `${row.file} · Page ${row.page}`;
+    el('text').textContent = row.text;
+    el('count').textContent = `Block ${state.index + 1} of ${state.rows.length}`;
+    el('totals').textContent = `${state.answers.size} labelled · ${state.skipped.size} skipped · ${state.rows.length - state.answers.size - state.skipped.size} remaining`;
+    el('progress').max = state.rows.length; el('progress').value = state.answers.size;
+    el('current').textContent = answer ? `Your label: ${answer.label}` : state.skipped.has(row.block_id) ? 'Skipped — review later.' : 'Not labelled yet.';
+    el('back').disabled = state.index === 0; el('next').disabled = state.index === state.rows.length - 1;
+    el('export').disabled = state.answers.size === 0;
+    for (const button of el('choices').children) button.setAttribute('aria-pressed', String(button.dataset.label === answer?.label));
+  }
+  function save() {
+    try { localStorage.setItem(LabelSession.key(state.rows), LabelSession.snapshot(state)); el('save').textContent = 'Progress saved in this browser. Export a backup before closing.'; }
+    catch { el('save').textContent = 'Browser storage unavailable or full. Export now; progress may be lost on reload.'; }
+  }
+  function change(action) { if (!state) return; action(); render(); save(); }
+  for (const [index,label] of LabelSession.labels.entries()) {
+    const button = document.createElement('button'); button.textContent = `${index + 1} · ${label[0].toUpperCase() + label.slice(1)}`;
+    button.dataset.label = label; button.onclick = () => change(() => LabelSession.answer(state,label)); el('choices').append(button);
+  }
+  el('sample').onchange = async event => {
+    const file = event.target.files[0]; if (!file) return;
+    const generation = ++loadGeneration;
+    el('message').textContent = ''; el('save').textContent = 'Loading sample…';
+    try {
+      const candidate = LabelSession.create(LabelSession.sample(await file.text()));
+      if (generation !== loadGeneration) return;
+      let notice = '';
+      try {
+        const cached = localStorage.getItem(LabelSession.key(candidate.rows));
+        if (cached) LabelSession.restore(candidate,cached);
+      } catch { notice = 'Saved progress could not be loaded. Restore an exported backup; loading alone will not overwrite it.'; }
+      state = candidate; el('workspace').hidden = false; render();
+      el('save').textContent = notice || 'Ready. Progress saves after each label or navigation action.';
+    } catch (error) {
+      if (generation !== loadGeneration) return;
+      el('message').textContent = error.message;
+      el('save').textContent = state ? 'Previous sample remains open.' : 'No dataset loaded.';
+    }
+  };
+  el('restore').onchange = async event => {
+    const file = event.target.files[0]; if (!state || !file) return;
+    const active = state;
+    try {
+      const text = await file.text();
+      if (active !== state) throw new Error('Sample changed while importing. Select the labels file again.');
+      const answers = LabelSession.imported(text,state.rows); // Validate all rows before mutating.
+      change(() => { for (const row of answers) { state.answers.set(row.block_id,row); state.skipped.delete(row.block_id); } });
+      el('message').textContent = '';
+    } catch (error) { el('message').textContent = error.message; }
+    event.target.value = '';
+  };
+  el('back').onclick = () => change(() => { state.index = Math.max(0,state.index - 1); });
+  el('next').onclick = () => change(() => { state.index = Math.min(state.rows.length - 1,state.index + 1); });
+  el('skip').onclick = () => change(() => LabelSession.skip(state));
+  el('export').onclick = () => {
+    if (!state || !state.answers.size) return;
+    const url = URL.createObjectURL(new Blob([LabelSession.exported(state) + '\n'], {type:'application/x-ndjson'}));
+    const link = document.createElement('a'); link.href = url; link.download = 'hand_labels.jsonl'; document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  document.addEventListener('keydown', event => {
+    if (!state || event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey ||
+        /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
+    if (/^[1-7]$/.test(event.key)) change(() => LabelSession.answer(state,LabelSession.labels[Number(event.key)-1]));
+    else if (event.key.toLowerCase() === 's') el('skip').click();
+    else if (event.key === 'ArrowLeft') el('back').click();
+    else if (event.key === 'ArrowRight') el('next').click();
+    else return;
+    event.preventDefault();
+  });
+}
+</script>
+</body>
+</html>

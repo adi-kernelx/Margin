@@ -1,0 +1,96 @@
+{
+  "example_only": true,
+  "question_count": 5,
+  "answerable_count": 5,
+  "unanswerable_excluded": 0,
+  "candidate_depth": 8,
+  "context_depth": 5,
+  "bootstrap_resamples": 2000,
+  "seed": 20261006,
+  "metrics": {
+    "train": {
+      "vector": {
+        "recall_at_5": {
+          "value": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "documents": 2,
+          "questions": 2
+        },
+        "mrr_at_10": {
+          "value": 0.375,
+          "ci95": [
+            0.25,
+            0.5
+          ],
+          "documents": 2,
+          "questions": 2
+        }
+      },
+      "reranked": {
+        "recall_at_5": {
+          "value": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "documents": 2,
+          "questions": 2
+        },
+        "mrr_at_10": {
+          "value": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "documents": 2,
+          "questions": 2
+        }
+      }
+    },
+    "test": {
+      "vector": {
+        "recall_at_5": {
+          "value": 0.6666666666666666,
+          "ci95": [
+            0.0,
+            1.0
+          ],
+          "documents": 3,
+          "questions": 3
+        },
+        "mrr_at_10": {
+          "value": 0.39999999999999997,
+          "ci95": [
+            0.0,
+            1.0
+          ],
+          "documents": 3,
+          "questions": 3
+        }
+      },
+      "reranked": {
+        "recall_at_5": {
+          "value": 0.6666666666666666,
+          "ci95": [
+            0.0,
+            1.0
+          ],
+          "documents": 3,
+          "questions": 3
+        },
+        "mrr_at_10": {
+          "value": 0.6666666666666666,
+          "ci95": [
+            0.0,
+            1.0
+          ],
+          "documents": 3,
+          "questions": 3
+        }
+      }
+    }
+  }
+}
