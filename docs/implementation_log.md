@@ -2325,8 +2325,7 @@ lack definitions or proofs. Notation has only four weak training examples.
   found in the generated training audit and documented rather than concealed.
 - ML1 human labels/UI acceptance and full 200-question benchmark remain pending.
 
-**Git checkpoint:** ML2.1 uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next:** review ML2.1, then ML2.2 baseline contracts and the first classifier
 with user ownership. No further ML2 substep has been implemented.
@@ -2385,8 +2384,7 @@ records scaffold preparation, not a completed or trained classifier.
 - No model fitted, no CV/evaluation run, no test source inspected, no UI change.
 - scikit-learn 1.6.1 is already installed; no dependency installation performed.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Remaining:** user implements the three functions and activates/passes six
 tests; then review before grouped evaluation. ML2.2 is not complete.
@@ -2459,8 +2457,7 @@ ML2.1; callers must retain that contract rather than passing original headings.
 - No new failing-test bug discovered. No UI, held-out evaluation or service
   interaction; previous JS/frontend checkpoints were not rerun.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next:** grouped train/development evaluation as a separate ML2 step. ML2.2
 implementation is complete, but ML2 phase acceptance remains open.
@@ -2552,8 +2549,7 @@ prose-definition recall. No test-set inspection or model tuning was performed.
 - Frozen groups were unchanged; no human-labelled test file was loaded.
 - No UI/frontend changes or rerun. No new bug was discovered by a failing test.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Remaining:** later model comparisons and independent human-label acceptance.
 ML1's 300 labels/UI acceptance and full 200-question baseline are still pending.
@@ -2641,8 +2637,7 @@ limitations and file-level interval caveats from ML2.3 remain.
   labels loaded, no hyperparameter tuning, no new dependencies installed.
 - No new product bug found by a failing test. No UI/frontend change or checks.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next goal to achieve:** separately implement a LightGBM/layout-feature
 comparison on these same train-only source folds, exposing definition recall
@@ -2754,8 +2749,7 @@ test, prose-definition measurement or independent gold evaluation is claimed.
 - Git ignore checks confirm both the local environment and row audit are excluded.
   No new product bug was exposed by a failing test. Unrelated frontend edits kept.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next goal to achieve:** ML2.6 — a reproducible 50-mistake development audit.
 Independent human labels, gold per-class intervals and prose-definition recall
@@ -2891,8 +2885,7 @@ proof of statistical superiority or unbiased independent performance.
 - No new product bug was caught by a failing test. The diagnostic data issues
   above were found by text inspection, not a test failure; page verification remains pending.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next goal to achieve:** ML2.7 — a narrow training-data quality repair focused
 on fragments and heading/table associations, preserving frozen memberships and
@@ -3048,8 +3041,7 @@ noise or development-selection bias. Full metrics/confusion matrices are saved.
   continuation paragraphs, cross-page role boundaries and possible genuine
   equation-only two-column pages rejected by the conservative prose rule.
 
-**Git checkpoint:** uncommitted; preceding checkpoint `13d5106` —
-`feat(ml): freeze dataset split and add labelling and retrieval evaluation`.
+**Git checkpoint:** `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 
 **Next goal to achieve:** ML2.8 — accept the repaired training snapshot and build
 a small independently reviewed, train-only label set with more rare-class examples.
@@ -3140,7 +3132,8 @@ ml/
   1,345 weak labels in the preserved ML1 extraction snapshot. Frozen split:
   23 train/dev, 10 test, 5 excluded groups. ML2.7 regenerated training-only snapshot:
   40 PDFs, 9,360 blocks / 938 weak labels; 549 capped training rows across 27 PDFs.
-- 17 commits after the safety checkpoint `ab63d6f`.
+- 19 commits after the safety checkpoint `ab63d6f` through ML2 checkpoint `984c0ea`
+  (not including the subsequent documentation-only checkpoint record).
 
 ### Build and test status
 
@@ -3169,11 +3162,11 @@ CI gates `src/core` at zero warnings.
   `9e79ffa`; the ML1 pipeline and manifest in `a11f5a9`.
 - Manual browser acceptance of 8R and F8R.2 remains pending and is not implied
   by those code checkpoints.
-- Uncommitted: this log, `docs/frontend_implementation_log.md` and
-  `docs/IMPLEMENTATION_PHASES.md` (documentation updates for the ML track).
-- ML2.1–ML2.7 code, tests, aggregate comparison reports, model documentation
-  and `.venv-ml` ignore rule also remain uncommitted. Existing frontend-plan
-  edits were preserved; they are not part of the layout comparison.
+- ML2.1–ML2.7 code, tests, aggregate comparison reports, model documentation,
+  roadmap/log entries and the `.venv-ml` ignore rule are checkpointed in
+  `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
+- Unrelated edits to `docs/FRONTEND_PLAN.md` and
+  `docs/frontend_implementation_log.md` remain uncommitted and were preserved.
 - `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` remain untracked local
   documentation; `PROJECT_SUMMARY.md` is out of date and is rewritten in ML7.
 - Full-repository ESLint still reports the inherited shell backlog (mostly
