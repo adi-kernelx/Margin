@@ -1,0 +1,58 @@
+file,group,category,text_layer,pages,headed_blocks,use,notes
+2301MC51_3.pdf,own-convex-assignments,assignment,latex,7,16,main,personal (name + roll no): never publish
+2301MC51_4.pdf,own-convex-assignments,assignment,latex,6,16,main,personal (name + roll no): never publish
+Convex_Opti.pdf,own-convex-assignments,assignment,latex,9,23,main,personal (name + roll no): never publish
+Aditya_2301MC51_Assignment1.pdf,own-convex-assignments,assignment,born-digital,2,0,main,mostly MATLAB code
+965962324-Convex-Function-and-Its-Application-11-8-25-1.pdf,upadhyay-ma3204,slides,beamer,171,112,main,
+Conjugate_direction_methods.pdf,upadhyay-ma3204,slides,beamer,45,20,main,
+KKT_Conditions_and_Constraint_Qualification__10th March 2026.pdf,upadhyay-ma3204,slides,beamer,124,18,main,
+Lagrange_Multiplier_Method__MA3204_.pdf,upadhyay-ma3204,slides,beamer,150,57,main,
+Newton's Method.pdf,upadhyay-ma3204,slides,beamer,19,7,main,
+PENALTY_METHODS__MA_3204_.pdf,upadhyay-ma3204,slides,beamer,54,19,main,
+main.pdf,upadhyay-ma3204,slides,beamer,40,18,main,also titled PENALTY METHODS: another version of the deck above
+Penalty_Example.pdf,upadhyay-ma3204,slides,beamer,14,4,main,
+Quadratic_Programing_Slides.pdf,upadhyay-ma3204,slides,beamer,56,5,main,
+Quasi_Newton_Methods_MA_3204_1.pdf,upadhyay-ma3204,slides,beamer,60,31,main,the shorter 88%-duplicate version was removed
+Steepest_Descent_Method_23 rd March 2026.pdf,upadhyay-ma3204,slides,beamer,48,34,main,
+MA401.pdf,ma401-exam,exam,scanner-ocr,1,0,scan-slice,Canon scan with its own OCR layer; same paper as Convex_MS_ES (1).pdf
+Convex_MS_ES (1).pdf,ma401-exam,exam,none,4,0,scan-slice,phone photo of the printed MA401 paper: needs OCR first
+"An Introduction to Optimization- E. Chong, S. Zak.pdf",chong-zak,textbook,scanner-ocr,495,481,scan-slice,scanned book with ABBYY OCR layer; use ~3 chapters; copyrighted: private only
+Introduction to the theory of computation_third edition - Michael Sipser.pdf,sipser,textbook,born-digital,482,60,main,headings are upper-case (THEOREM 1.25) so the regex needs updating; use ~3 chapters; copyrighted: private only
+David_Burton_-_Elementary_number_theory-McGraw-Hill_Higher_Education_(2005).pdf,burton,textbook,none,453,0,scan-slice,image-only scan: needs OCR first; use ~2 chapters; copyrighted: private only
+Bayesian Nets and Sampling.pdf,bayes-sampling,slides,born-digital,58,7,main,
+Bayesian Network.pdf,ma3206-ai,slides,born-digital,22,1,main,
+Decision_Trees_AI.pdf,ma3206-ai,slides,beamer,47,6,main,
+DAV Classification.pdf,dav-course,notes,latex,51,14,main,
+Lec Classification PDF.pdf,lec-classification,slides,born-digital,106,3,main,
+regression-2023.pdf,ng-regression,slides,born-digital,76,4,main,
+Chapter_1.pdf,networks-course,slides,born-digital,92,2,main,few formal blocks: mostly the other class
+Chapter_2_Application_Layer.pdf,networks-course,slides,born-digital,119,8,main,few formal blocks: mostly the other class
+Modern Cryptology L-6-8.pdf,crypto-course,slides,partial,48,0,main,16 of 48 pages are images with no text
+boneh franklin ibe.pdf,boneh-franklin,paper,born-digital,31,34,main,research paper: definitions written as prose; copyrighted: private only
+NIST.FIPS.203.pdf,nist-fips,standard,latex,56,45,main,US government work (public domain): safe for the demo; algorithm-heavy
+NIST.FIPS.204.pdf,nist-fips,standard,latex,65,111,main,public domain; algorithm-heavy
+NIST.FIPS.205.pdf,nist-fips,standard,latex,61,57,main,public domain; algorithm-heavy
+Finance_Solutions.pdf,finance-solutions,solutions,born-digital,4,0,main,
+Design_Brief_Relationship_Design_Challenge_2026.pdf,design-brief,non-math,born-digital,9,0,other,
+Design_Days_2026_Student_Competition.pdf,design-days,non-math,born-digital,8,1,other,
+FTE Guidelines- 2024-25.pdf,fte-guidelines,non-math,born-digital,7,0,other,partly Hindi
+efd2d38b-7612-4200-8f53-fcf722e8997b.pdf,data-licence,non-math,born-digital,6,0,other,legal agreement: keep private
+PKI for CBDC.pdf,rafiee-cbdc-pki,paper,latex,21,1,main,identical copy CBDC.pdf removed
+Offline payment requirements for CBDC.pdf,atangana-offline-cbdc,thesis,latex,182,29,main,PhD thesis (HAL open access); same author as the SoK paper
+systematization of knowledge on Offline-capable digital_currency_protocols.pdf,atangana-offline-cbdc,paper,latex,13,2,main,same author as the thesis: same group
+Side Channel Foundational.pdf,primas-pessl-sca,paper,latex,21,1,main,same authors as Side Channel Implementation.pdf
+Side Channel Implementation.pdf,primas-pessl-sca,paper,latex,20,5,main,same authors: same group
+Paper 2.pdf,yoon-kim-cbdc,paper,born-digital,17,0,main,journal paper (J. Cybersecur. Priv. 2025)
+1571327300.pdf,ijcds-pqc-review,paper,latex,10,3,main,review paper
+Aus-Pay-Infra.pdf,sammo-npp-pqc,paper,born-digital,74,24,main,student simulation study
+DIGITAL CURRENCY FOR DIGITAL PAYMENY.pdf,bahar-qrpl,paper,born-digital,17,1,main,independent-researcher preprint
+Quantum-Resistant_Cryptographic_Architecture_for_Secure_Payments_and_IoT-Driven_Banking_Ecosystems.pdf,qrca-iot-banking,paper,born-digital,7,2,main,
+PQC IN DIGITAL PAYMENT GATEWAYS.pdf,pqc-gateways,paper,none,8,0,scan-slice,Print to PDF of images: no text layer; needs OCR first
+Quantum Resilient Banking Security.pdf,qr-banking-security,paper,none,10,0,scan-slice,Print to PDF of images: no text layer; needs OCR first
+2609.35836v1.pdf,arxiv-wang-tuza,paper,latex,2,4,main,arXiv: fractional generalized Tuza conjecture (combinatorics); very short
+2609.35842v1.pdf,arxiv-colbrook-crown,paper,latex,18,26,main,arXiv: representation number of bipartite graphs
+2609.35896v1.pdf,arxiv-huang-resolving,paper,latex,29,70,main,arXiv: minimal resolving sets in grid graphs; lemma-dense
+2609.37935v1.pdf,arxiv-cao-svdd,paper,latex,32,15,main,arXiv/TMLR: post-anomaly-detection inference for Deep SVDD
+2609.37944v1.pdf,arxiv-boussard-identifiability,paper,latex,46,53,main,arXiv: identifiability for delayed physical systems; small-caps title loses spaces in extraction
+2609.38058v1.pdf,arxiv-hashimoto-tsfm,paper,latex,22,8,main,arXiv: inference-time guidance of time-series foundation models
+2609.38112v1.pdf,arxiv-resende-recirc,paper,latex,69,17,main,arXiv: rectified conformal risk control (statistics)

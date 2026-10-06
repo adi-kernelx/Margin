@@ -200,3 +200,10 @@ functions/lib/
 coverage/
 .nyc_output/
 *.lcov
+
+# -------------------
+# ML pipeline output (copyrighted text)
+# -------------------
+ml/out/
+# ML pipeline source lives in ml/data/; the Docker "data/" rule above must not hide it
+!ml/data/
