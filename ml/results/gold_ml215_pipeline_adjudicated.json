@@ -1,0 +1,679 @@
+{
+  "read": "second milestone read of the frozen test set",
+  "threshold": 0.4,
+  "train_rows": 4477,
+  "reliable_negatives": 4264,
+  "detector_training_sentences": {
+    "positive": 458,
+    "negative": 16098
+  },
+  "roles_pipeline": {
+    "scheme": "merged",
+    "blocks": 300,
+    "files": 12,
+    "gold_counts": {
+      "definition": 68,
+      "theorem": 43,
+      "other": 94,
+      "example": 26,
+      "algorithm": 13,
+      "proof": 56
+    },
+    "strata": {
+      "prose": 100,
+      "unlabelled": 100,
+      "weak": 100
+    },
+    "macro_f1_classes": [
+      "definition",
+      "theorem",
+      "proof",
+      "example",
+      "algorithm"
+    ],
+    "note": "Enriched sample: diagnostic rates, not population estimates.",
+    "heading_rule": {
+      "coverage": 0.3333333333333333,
+      "accuracy_when_it_fires": 0.93,
+      "accuracy_ci95": {
+        "ci95": [
+          0.8571428571428571,
+          1.0
+        ],
+        "undefined_resamples": 0
+      },
+      "precision": {
+        "definition": 1.0,
+        "theorem": 1.0,
+        "proof": 0.9333333333333333,
+        "example": 0.8181818181818182,
+        "algorithm": 0.9,
+        "other": 0.75
+      }
+    },
+    "classifier": {
+      "accuracy": 0.57,
+      "macro_f1": 0.5183736367946894,
+      "per_class": {
+        "definition": {
+          "precision": 0.8333333333333334,
+          "recall": 0.14705882352941177,
+          "f1": 0.25,
+          "support": 68
+        },
+        "theorem": {
+          "precision": 0.7878787878787878,
+          "recall": 0.6046511627906976,
+          "f1": 0.6842105263157895,
+          "support": 43
+        },
+        "proof": {
+          "precision": 0.7674418604651163,
+          "recall": 0.5892857142857143,
+          "f1": 0.6666666666666666,
+          "support": 56
+        },
+        "example": {
+          "precision": 0.5454545454545454,
+          "recall": 0.23076923076923078,
+          "f1": 0.32432432432432434,
+          "support": 26
+        },
+        "algorithm": {
+          "precision": 0.875,
+          "recall": 0.5384615384615384,
+          "f1": 0.6666666666666666,
+          "support": 13
+        },
+        "other": {
+          "precision": 0.46113989637305697,
+          "recall": 0.9468085106382979,
+          "f1": 0.6202090592334495,
+          "support": 94
+        }
+      },
+      "confusion_matrix": [
+        [
+          10,
+          4,
+          6,
+          0,
+          1,
+          47
+        ],
+        [
+          0,
+          26,
+          2,
+          0,
+          0,
+          15
+        ],
+        [
+          0,
+          0,
+          33,
+          2,
+          0,
+          21
+        ],
+        [
+          1,
+          2,
+          1,
+          6,
+          0,
+          16
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          7,
+          5
+        ],
+        [
+          1,
+          0,
+          1,
+          3,
+          0,
+          89
+        ]
+      ],
+      "missing_gold_classes": [],
+      "accuracy_ci95": {
+        "ci95": [
+          0.4853649033751892,
+          0.6703317281968967
+        ],
+        "undefined_resamples": 0
+      },
+      "macro_f1_ci95": {
+        "ci95": [
+          0.3899327343689908,
+          0.5901119825683904
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "two_stage": {
+      "accuracy": 0.73,
+      "macro_f1": 0.7232098102398854,
+      "per_class": {
+        "definition": {
+          "precision": 0.7076923076923077,
+          "recall": 0.6764705882352942,
+          "f1": 0.6917293233082706,
+          "support": 68
+        },
+        "theorem": {
+          "precision": 0.9459459459459459,
+          "recall": 0.813953488372093,
+          "f1": 0.875,
+          "support": 43
+        },
+        "proof": {
+          "precision": 0.9047619047619048,
+          "recall": 0.6785714285714286,
+          "f1": 0.7755102040816326,
+          "support": 56
+        },
+        "example": {
+          "precision": 0.6875,
+          "recall": 0.4230769230769231,
+          "f1": 0.5238095238095238,
+          "support": 26
+        },
+        "algorithm": {
+          "precision": 0.8181818181818182,
+          "recall": 0.6923076923076923,
+          "f1": 0.75,
+          "support": 13
+        },
+        "other": {
+          "precision": 0.6201550387596899,
+          "recall": 0.851063829787234,
+          "f1": 0.7174887892376681,
+          "support": 94
+        }
+      },
+      "confusion_matrix": [
+        [
+          46,
+          2,
+          0,
+          0,
+          1,
+          19
+        ],
+        [
+          1,
+          35,
+          1,
+          0,
+          0,
+          6
+        ],
+        [
+          4,
+          0,
+          38,
+          0,
+          0,
+          14
+        ],
+        [
+          5,
+          0,
+          3,
+          11,
+          0,
+          7
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          9,
+          3
+        ],
+        [
+          8,
+          0,
+          0,
+          5,
+          1,
+          80
+        ]
+      ],
+      "missing_gold_classes": [],
+      "accuracy_ci95": {
+        "ci95": [
+          0.6531975156975157,
+          0.8041732011070111
+        ],
+        "undefined_resamples": 0
+      },
+      "macro_f1_ci95": {
+        "ci95": [
+          0.5949939453914669,
+          0.7733134812996556
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "prose_definitions": {
+      "count": 62,
+      "files": 11,
+      "recall": 0.6451612903225806,
+      "recall_ci95": {
+        "ci95": [
+          0.46424107142857146,
+          0.8182272727272726
+        ],
+        "undefined_resamples": 0
+      },
+      "precision_on_unheaded": 0.6779661016949152,
+      "precision_ci95": {
+        "ci95": [
+          0.5692105263157895,
+          0.813953488372093
+        ],
+        "undefined_resamples": 0
+      },
+      "heading_rule_recall": 0.0
+    },
+    "by_stratum_two_stage_accuracy": {
+      "prose": 0.63,
+      "unlabelled": 0.63,
+      "weak": 0.93
+    }
+  },
+  "roles_reference_ml213": {
+    "scheme": "merged",
+    "blocks": 300,
+    "files": 12,
+    "gold_counts": {
+      "definition": 68,
+      "theorem": 43,
+      "other": 94,
+      "example": 26,
+      "algorithm": 13,
+      "proof": 56
+    },
+    "strata": {
+      "prose": 100,
+      "unlabelled": 100,
+      "weak": 100
+    },
+    "macro_f1_classes": [
+      "definition",
+      "theorem",
+      "proof",
+      "example",
+      "algorithm"
+    ],
+    "note": "Enriched sample: diagnostic rates, not population estimates.",
+    "heading_rule": {
+      "coverage": 0.3333333333333333,
+      "accuracy_when_it_fires": 0.93,
+      "accuracy_ci95": {
+        "ci95": [
+          0.8571428571428571,
+          1.0
+        ],
+        "undefined_resamples": 0
+      },
+      "precision": {
+        "definition": 1.0,
+        "theorem": 1.0,
+        "proof": 0.9333333333333333,
+        "example": 0.8181818181818182,
+        "algorithm": 0.9,
+        "other": 0.75
+      }
+    },
+    "classifier": {
+      "accuracy": 0.57,
+      "macro_f1": 0.5183736367946894,
+      "per_class": {
+        "definition": {
+          "precision": 0.8333333333333334,
+          "recall": 0.14705882352941177,
+          "f1": 0.25,
+          "support": 68
+        },
+        "theorem": {
+          "precision": 0.7878787878787878,
+          "recall": 0.6046511627906976,
+          "f1": 0.6842105263157895,
+          "support": 43
+        },
+        "proof": {
+          "precision": 0.7674418604651163,
+          "recall": 0.5892857142857143,
+          "f1": 0.6666666666666666,
+          "support": 56
+        },
+        "example": {
+          "precision": 0.5454545454545454,
+          "recall": 0.23076923076923078,
+          "f1": 0.32432432432432434,
+          "support": 26
+        },
+        "algorithm": {
+          "precision": 0.875,
+          "recall": 0.5384615384615384,
+          "f1": 0.6666666666666666,
+          "support": 13
+        },
+        "other": {
+          "precision": 0.46113989637305697,
+          "recall": 0.9468085106382979,
+          "f1": 0.6202090592334495,
+          "support": 94
+        }
+      },
+      "confusion_matrix": [
+        [
+          10,
+          4,
+          6,
+          0,
+          1,
+          47
+        ],
+        [
+          0,
+          26,
+          2,
+          0,
+          0,
+          15
+        ],
+        [
+          0,
+          0,
+          33,
+          2,
+          0,
+          21
+        ],
+        [
+          1,
+          2,
+          1,
+          6,
+          0,
+          16
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          7,
+          5
+        ],
+        [
+          1,
+          0,
+          1,
+          3,
+          0,
+          89
+        ]
+      ],
+      "missing_gold_classes": [],
+      "accuracy_ci95": {
+        "ci95": [
+          0.4853649033751892,
+          0.6703317281968967
+        ],
+        "undefined_resamples": 0
+      },
+      "macro_f1_ci95": {
+        "ci95": [
+          0.3899327343689908,
+          0.5901119825683904
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "two_stage": {
+      "accuracy": 0.6,
+      "macro_f1": 0.6335786542212765,
+      "per_class": {
+        "definition": {
+          "precision": 0.92,
+          "recall": 0.3382352941176471,
+          "f1": 0.4946236559139785,
+          "support": 68
+        },
+        "theorem": {
+          "precision": 0.7346938775510204,
+          "recall": 0.8372093023255814,
+          "f1": 0.782608695652174,
+          "support": 43
+        },
+        "proof": {
+          "precision": 0.6067415730337079,
+          "recall": 0.9642857142857143,
+          "f1": 0.7448275862068966,
+          "support": 56
+        },
+        "example": {
+          "precision": 0.2714285714285714,
+          "recall": 0.7307692307692307,
+          "f1": 0.3958333333333333,
+          "support": 26
+        },
+        "algorithm": {
+          "precision": 0.8181818181818182,
+          "recall": 0.6923076923076923,
+          "f1": 0.75,
+          "support": 13
+        },
+        "other": {
+          "precision": 0.6964285714285714,
+          "recall": 0.4148936170212766,
+          "f1": 0.52,
+          "support": 94
+        }
+      },
+      "confusion_matrix": [
+        [
+          23,
+          3,
+          19,
+          11,
+          1,
+          11
+        ],
+        [
+          0,
+          36,
+          3,
+          1,
+          0,
+          3
+        ],
+        [
+          0,
+          1,
+          54,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          4,
+          19,
+          0,
+          2
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          9,
+          0
+        ],
+        [
+          0,
+          9,
+          9,
+          36,
+          1,
+          39
+        ]
+      ],
+      "missing_gold_classes": [],
+      "accuracy_ci95": {
+        "ci95": [
+          0.5049864314789688,
+          0.6584203365857166
+        ],
+        "undefined_resamples": 0
+      },
+      "macro_f1_ci95": {
+        "ci95": [
+          0.5336340553559887,
+          0.69113132596905
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "prose_definitions": {
+      "count": 62,
+      "files": 11,
+      "recall": 0.27419354838709675,
+      "recall_ci95": {
+        "ci95": [
+          0.16455696202531644,
+          0.3888888888888889
+        ],
+        "undefined_resamples": 0
+      },
+      "precision_on_unheaded": 0.8947368421052632,
+      "precision_ci95": {
+        "ci95": [
+          0.8181818181818182,
+          1.0
+        ],
+        "undefined_resamples": 0
+      },
+      "heading_rule_recall": 0.0
+    },
+    "by_stratum_two_stage_accuracy": {
+      "prose": 0.47,
+      "unlabelled": 0.4,
+      "weak": 0.93
+    }
+  },
+  "contains_definition": {
+    "all_blocks_pipeline": {
+      "blocks": 300,
+      "positives": 120,
+      "precision": 0.8769230769230769,
+      "precision_ci95": [
+        0.7936208445642408,
+        0.9589110986860496
+      ],
+      "recall": 0.475,
+      "recall_ci95": [
+        0.3826023017902813,
+        0.5606111793611793
+      ],
+      "f1": 0.6162162162162161
+    },
+    "all_blocks_reference_ml213": {
+      "blocks": 300,
+      "positives": 120,
+      "precision": 1.0,
+      "precision_ci95": [
+        1.0,
+        1.0
+      ],
+      "recall": 0.20833333333333334,
+      "recall_ci95": [
+        0.12277738264580369,
+        0.2898586956521739
+      ],
+      "f1": 0.3448275862068966
+    },
+    "unheaded_detector": {
+      "blocks": 200,
+      "positives": 91,
+      "precision": 0.864406779661017,
+      "precision_ci95": [
+        0.78125,
+        0.9523809523809523
+      ],
+      "recall": 0.5604395604395604,
+      "recall_ci95": [
+        0.4146341463414634,
+        0.6986643835616436
+      ],
+      "f1": 0.6799999999999999
+    },
+    "unheaded_reference_ml213": {
+      "blocks": 200,
+      "positives": 91,
+      "precision": 1.0,
+      "precision_ci95": [
+        1.0,
+        1.0
+      ],
+      "recall": 0.2087912087912088,
+      "recall_ci95": [
+        0.12327924994385807,
+        0.3018977621763931
+      ],
+      "f1": 0.3454545454545455
+    }
+  },
+  "detector_curve_unheaded": [
+    {
+      "threshold": 0.2,
+      "precision": 0.803030303030303,
+      "recall": 0.5824175824175825
+    },
+    {
+      "threshold": 0.3,
+      "precision": 0.85,
+      "recall": 0.5604395604395604
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.864406779661017,
+      "recall": 0.5604395604395604
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.8679245283018868,
+      "recall": 0.5054945054945055
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.875,
+      "recall": 0.46153846153846156
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.8913043478260869,
+      "recall": 0.45054945054945056
+    },
+    {
+      "threshold": 0.8,
+      "precision": 0.95,
+      "recall": 0.4175824175824176
+    }
+  ]
+}

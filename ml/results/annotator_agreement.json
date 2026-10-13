@@ -1,0 +1,59 @@
+{
+  "blocks": 300,
+  "kappa_roles": 0.8062255205112349,
+  "kappa_merged": 0.825850571295077,
+  "kappa_contains_definition": 0.6454545454545455,
+  "raw_roles": 0.8433333333333334,
+  "raw_contains_definition": 0.8266666666666667,
+  "role_pairs": [
+    [
+      "other->definition",
+      9
+    ],
+    [
+      "definition->other",
+      4
+    ],
+    [
+      "definition->notation",
+      4
+    ],
+    [
+      "other->example",
+      4
+    ],
+    [
+      "other->notation",
+      3
+    ],
+    [
+      "example->other",
+      3
+    ],
+    [
+      "notation->other",
+      3
+    ],
+    [
+      "example->proof",
+      2
+    ],
+    [
+      "notation->definition",
+      2
+    ],
+    [
+      "other->theorem",
+      2
+    ],
+    [
+      "other->algorithm",
+      2
+    ],
+    [
+      "algorithm->other",
+      2
+    ]
+  ],
+  "missing_from_b": 0
+}
