@@ -213,11 +213,14 @@ class StackedLightGBM:
         import numpy as np
         return np.hstack([text_probabilities, self.hand.transform([hand_features(r) for r in rows])])
 
-    def predict(self, rows):
+    def predict_proba(self, rows):
+        """Class probabilities, columns in `self.classes` order."""
         rows = list(rows)
         probabilities = _text_probabilities(self.rows, self.labels, rows, self.classes, self.weights)
-        scores = self.booster.predict(self._matrix(probabilities, rows))
-        return [self.classes[i] for i in scores.argmax(axis=1)]
+        return self.booster.predict(self._matrix(probabilities, rows))
+
+    def predict(self, rows):
+        return [self.classes[i] for i in self.predict_proba(rows).argmax(axis=1)]
 
 
 def fit_stacked_lightgbm(rows, labels, sample_weight=None):

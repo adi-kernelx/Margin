@@ -1,0 +1,466 @@
+{
+  "test_evaluated": false,
+  "development_blocks": 240,
+  "headed_rows": 4477,
+  "negative_ratio": 1.0,
+  "seed": 20261013,
+  "model": "stacked_lightgbm, source-weighted",
+  "variants": {
+    "headed_only": {
+      "negatives_used_across_folds": 0,
+      "dev_unheaded": {
+        "blocks": 240,
+        "accuracy": 0.3958333333333333,
+        "accuracy_ci95": [
+          0.33186607020195086,
+          0.4651184087230599
+        ],
+        "definition_precision": 0.7307692307692307,
+        "definition_recall": 0.296875,
+        "definition_recall_ci95": [
+          0.18032786885245902,
+          0.4098360655737705
+        ],
+        "definition_precision_ci95": [
+          0.5263157894736842,
+          0.9048701298701293
+        ],
+        "other_recall": 0.37142857142857144,
+        "other_precision": 0.896551724137931,
+        "per_class": {
+          "definition": {
+            "precision": 0.7307692307692307,
+            "recall": 0.296875,
+            "f1": 0.4222222222222222,
+            "support": 64
+          },
+          "theorem": {
+            "precision": 0.02857142857142857,
+            "recall": 0.3333333333333333,
+            "f1": 0.05263157894736842,
+            "support": 3
+          },
+          "proof": {
+            "precision": 0.3235294117647059,
+            "recall": 0.8461538461538461,
+            "f1": 0.46808510638297873,
+            "support": 26
+          },
+          "example": {
+            "precision": 0.0196078431372549,
+            "recall": 0.25,
+            "f1": 0.03636363636363636,
+            "support": 4
+          },
+          "algorithm": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 3
+          },
+          "other": {
+            "precision": 0.896551724137931,
+            "recall": 0.37142857142857144,
+            "f1": 0.5252525252525253,
+            "support": 140
+          }
+        },
+        "confusion_matrix": [
+          [
+            19,
+            10,
+            18,
+            10,
+            1,
+            6
+          ],
+          [
+            1,
+            1,
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            2,
+            22,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            2,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            2,
+            0,
+            0
+          ],
+          [
+            5,
+            21,
+            25,
+            36,
+            1,
+            52
+          ]
+        ],
+        "definition_threshold_curve": [
+          {
+            "threshold": 0.3,
+            "precision": 0.7096774193548387,
+            "recall": 0.34375
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.7407407407407407,
+            "recall": 0.3125
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.75,
+            "recall": 0.28125
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.8421052631578947,
+            "recall": 0.25
+          },
+          {
+            "threshold": 0.7,
+            "precision": 0.8235294117647058,
+            "recall": 0.21875
+          },
+          {
+            "threshold": 0.8,
+            "precision": 0.8666666666666667,
+            "recall": 0.203125
+          }
+        ]
+      },
+      "headed": {
+        "rows": 4477,
+        "accuracy": 0.799195890104981,
+        "macro_f1": 0.7547471525401782,
+        "accuracy_ci95": [
+          0.7631975240206947,
+          0.8379322747780177
+        ]
+      }
+    },
+    "unlabelled_other": {
+      "negatives_used_across_folds": 17492,
+      "dev_unheaded": {
+        "blocks": 240,
+        "accuracy": 0.6208333333333333,
+        "accuracy_ci95": [
+          0.549015047879617,
+          0.6877935584880339
+        ],
+        "definition_precision": 1.0,
+        "definition_recall": 0.09375,
+        "definition_recall_ci95": [
+          0.0196078431372549,
+          0.16982135688478517
+        ],
+        "definition_precision_ci95": [
+          1.0,
+          1.0
+        ],
+        "other_recall": 0.9857142857142858,
+        "other_precision": 0.6216216216216216,
+        "per_class": {
+          "definition": {
+            "precision": 1.0,
+            "recall": 0.09375,
+            "f1": 0.17142857142857143,
+            "support": 64
+          },
+          "theorem": {
+            "precision": 0.2,
+            "recall": 0.3333333333333333,
+            "f1": 0.25,
+            "support": 3
+          },
+          "proof": {
+            "precision": 0.6666666666666666,
+            "recall": 0.15384615384615385,
+            "f1": 0.25,
+            "support": 26
+          },
+          "example": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 4
+          },
+          "algorithm": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 3
+          },
+          "other": {
+            "precision": 0.6216216216216216,
+            "recall": 0.9857142857142858,
+            "f1": 0.7624309392265194,
+            "support": 140
+          }
+        },
+        "confusion_matrix": [
+          [
+            6,
+            2,
+            1,
+            0,
+            0,
+            55
+          ],
+          [
+            0,
+            1,
+            0,
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            4,
+            0,
+            0,
+            22
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            1,
+            0,
+            0,
+            138
+          ]
+        ],
+        "definition_threshold_curve": [
+          {
+            "threshold": 0.3,
+            "precision": 0.75,
+            "recall": 0.140625
+          },
+          {
+            "threshold": 0.4,
+            "precision": 1.0,
+            "recall": 0.09375
+          },
+          {
+            "threshold": 0.5,
+            "precision": 1.0,
+            "recall": 0.078125
+          },
+          {
+            "threshold": 0.6,
+            "precision": 1.0,
+            "recall": 0.046875
+          },
+          {
+            "threshold": 0.7,
+            "precision": 1.0,
+            "recall": 0.015625
+          },
+          {
+            "threshold": 0.8,
+            "precision": 1.0,
+            "recall": 0.015625
+          }
+        ]
+      },
+      "headed": {
+        "rows": 4477,
+        "accuracy": 0.6997989725262452,
+        "macro_f1": 0.6673430314465743,
+        "accuracy_ci95": [
+          0.6380520481281232,
+          0.7646885132005559
+        ]
+      }
+    },
+    "reliable_negatives": {
+      "negatives_used_across_folds": 17052,
+      "dev_unheaded": {
+        "blocks": 240,
+        "accuracy": 0.65,
+        "accuracy_ci95": [
+          0.5855800922874094,
+          0.7111168384879725
+        ],
+        "definition_precision": 0.7619047619047619,
+        "definition_recall": 0.25,
+        "definition_recall_ci95": [
+          0.14280133928571428,
+          0.3623517786561263
+        ],
+        "definition_precision_ci95": [
+          0.5714285714285714,
+          0.9230769230769231
+        ],
+        "other_recall": 0.9428571428571428,
+        "other_precision": 0.6947368421052632,
+        "per_class": {
+          "definition": {
+            "precision": 0.7619047619047619,
+            "recall": 0.25,
+            "f1": 0.3764705882352941,
+            "support": 64
+          },
+          "theorem": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 3
+          },
+          "proof": {
+            "precision": 0.5,
+            "recall": 0.3076923076923077,
+            "f1": 0.38095238095238093,
+            "support": 26
+          },
+          "example": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 4
+          },
+          "algorithm": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 3
+          },
+          "other": {
+            "precision": 0.6947368421052632,
+            "recall": 0.9428571428571428,
+            "f1": 0.8,
+            "support": 140
+          }
+        },
+        "confusion_matrix": [
+          [
+            16,
+            6,
+            5,
+            1,
+            0,
+            36
+          ],
+          [
+            1,
+            0,
+            0,
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            1,
+            8,
+            0,
+            0,
+            15
+          ],
+          [
+            0,
+            1,
+            0,
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            3
+          ],
+          [
+            2,
+            3,
+            3,
+            0,
+            0,
+            132
+          ]
+        ],
+        "definition_threshold_curve": [
+          {
+            "threshold": 0.3,
+            "precision": 0.782608695652174,
+            "recall": 0.28125
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.7619047619047619,
+            "recall": 0.25
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.7857142857142857,
+            "recall": 0.171875
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.8333333333333334,
+            "recall": 0.15625
+          },
+          {
+            "threshold": 0.7,
+            "precision": 0.8,
+            "recall": 0.125
+          },
+          {
+            "threshold": 0.8,
+            "precision": 0.8571428571428571,
+            "recall": 0.09375
+          }
+        ]
+      },
+      "headed": {
+        "rows": 4477,
+        "accuracy": 0.7257091802546348,
+        "macro_f1": 0.701128635286781,
+        "accuracy_ci95": [
+          0.676432745773435,
+          0.7798049975840409
+        ]
+      }
+    }
+  }
+}

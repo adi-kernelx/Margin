@@ -1,0 +1,11 @@
+{
+  "papers": 20,
+  "aligned": 83,
+  "ambiguous": 7,
+  "unmatched": 6,
+  "latex_sentences": 97,
+  "duplicate": 1,
+  "positive_sentences": 83,
+  "positive_groups": 19,
+  "test_evaluated": false
+}
