@@ -4330,6 +4330,164 @@ detector pipeline, and run the second milestone read, reported as a second read.
 
 ---
 
+## Phase ML2.15: Second Milestone Read with the Frozen ML2.14 Pipeline
+
+**Date:** October 13, 2026
+
+### Preparing the test labels
+
+The 300 test labels gained the binary **contains_definition** field with the
+ML2.14 rule (a sentence states what a named term or symbol means; references,
+ordinary uses of "define", announcements, theorem hypotheses and exercise
+solutions do not count). Every test block not already labelled
+definition/notation was reviewed through its candidate sentences (108 blocks);
+33 became yes, giving 100 of 300. No per-block test prediction had been seen;
+only the ML2.13 aggregate results were known. Role labels are unchanged.
+
+### The run
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.gold_pipeline --frozen-test-milestone
+```
+
+`ml/eval/gold_pipeline.py` fits the frozen pipeline on all training data
+(4,477 headed rows, 4,264 reliable negatives; detector on 458 positive and 16,098
+negative sentences) and refits the ML2.13 pipeline as a reference, so both read
+the same blocks. Test-block emphasis comes from the block-box annotation (no
+re-extraction; IDs unchanged). This is the **second read** of the frozen test
+set. Intervals resample the 15 test files.
+
+### Results
+
+"Contains a definition" (100 positives in 300 blocks):
+
+| | Precision | 95% CI | Recall | 95% CI | F1 |
+|---|---:|---|---:|---|---:|
+| ML2.13 pipeline, all blocks | 0.96 | [0.90, 1.00] | 0.24 | [0.15, 0.34] | 0.38 |
+| **ML2.14 pipeline, all blocks** | **0.86** | [0.78, 0.96] | **0.56** | [0.45, 0.67] | **0.68** |
+| ML2.13 classifier, unheaded blocks | 0.95 | [0.85, 1.00] | 0.21 | [0.13, 0.31] | 0.35 |
+| **Detector, unheaded blocks** | **0.85** | [0.76, 0.96] | **0.60** | [0.47, 0.71] | **0.70** |
+
+Detector precision/recall on unheaded test blocks by threshold: 0.2 → 0.79 / 0.62;
+0.4 → 0.85 / 0.60; 0.6 → 0.85 / 0.49; 0.8 → 0.93 / 0.44. The dev choice (0.4)
+sits near the best trade-off on test as well.
+
+Roles (merged scheme, macro F1 over five classes):
+
+| Pipeline | Accuracy | 95% CI | Macro F1 | 95% CI | Prose-definition recall |
+|---|---:|---|---:|---|---:|
+| ML2.13 (refitted; reproduces the first read) | 0.603 | [0.498, 0.665] | 0.659 | [0.547, 0.707] | 0.262 |
+| **ML2.14** | **0.753** | [0.694, 0.817] | **0.769** | [0.626, 0.797] | **0.623** [0.457, 0.795] |
+
+Per-class F1 changes: definition 0.48 → 0.67, example 0.40 → 0.63, other 0.52 →
+0.75, theorem 0.80 → 0.90, proof 0.74 → 0.78, algorithm 0.87 → 0.87. Accuracy by
+stratum: headed 0.97 → 0.97, prose candidates 0.47 → 0.61, other unheaded 0.37 → 0.68.
+
+**Reading.** The development estimates transferred: dev "contains a definition"
+0.88 / 0.51 at threshold 0.4, test 0.85 / 0.60 on unheaded blocks. Accuracy
+intervals for the two pipelines do not overlap. The precision cost (0.96 → 0.86)
+is the expected trade: the bundle now finds more than twice as many definitions,
+and about one in seven detected blocks is wrong.
+
+**Caveats.**
+
+- Second read of the test set; the ML2.14 choices were made on development data,
+  but the overall direction (more recall for prose definitions) was motivated by
+  the first read.
+- Gold labels are single-annotator AI labels; contains_definition was added after
+  the first read's aggregate results were known (but blind to predictions).
+- The sample is enriched; rates are diagnostic, not population estimates.
+
+### Files
+
+- **Evaluation (created):** `ml/eval/gold_pipeline.py`;
+  `ml/results/gold_ml215_pipeline.json` (numbers only).
+- **Labels (ignored):** `ml/labels/gold_labels.jsonl` gained `contains_definition`.
+
+**Next goal to achieve:** ML3, the OKF bundle writer: one concept file per
+detected definition (defining sentence, page provenance, `status: draft`) and per
+headed theorem-like block, using this pipeline; optional human check of 50 gold
+labels to replace "single-annotator AI" with a measured agreement.
+
+---
+
+## Phase ML2.16: Independent Second Annotation and Adjudicated Gold Labels
+
+**Date:** October 13, 2026
+
+**Goal:** replace single-annotator AI labels with two independent annotations,
+a measured agreement, and adjudicated gold labels.
+
+### Procedure
+
+- `ml/labels/ANNOTATION_GUIDE.md` (committable; invented examples, no PDF text)
+  states the seven roles, hard-case rules and the `contains_definition` rule.
+- `ml/data/export_for_annotator.py` writes six self-contained batch prompts of
+  50 blocks (guide + blocks + output format) to the ignored
+  `ml/labels/second_annotator/`, with an opening prompt in `PROMPT.md`. No
+  existing label, weak label or prediction is included: the annotation is blind.
+- The user ran the batches through a different AI; all 300 lines were returned
+  and validated (`ml/eval/compare_annotators.py`).
+
+### Agreement (annotator A = this project's labels, B = second AI)
+
+| Field | Cohen's kappa | Raw agreement |
+|---|---:|---:|
+| Seven roles | **0.806** | 0.843 |
+| Merged roles (notation → definition) | **0.826** | — |
+| contains_definition | **0.645** | 0.827 |
+
+Most frequent role disagreements: other→definition (9), definition→other (4),
+definition→notation (4), other→example (4). Saved in
+`ml/results/annotator_agreement.json`.
+
+### Adjudication
+
+The 85 blocks with any disagreement were decided against the written guide, one
+reason recorded per block (`disagreements.jsonl`, ignored). Annotator A did the
+adjudication, so the split is reported: **44 decided for B, 38 for A, 3 mixed**
+(label from one, contains_definition from the other). B was more consistent on
+local notation inside proofs ("Write e − u + v for …", "Let P(n) be the
+statement …") and on slide titles; A's readings were kept for fragments that
+start a definition, theorem hypotheses and exercise-vs-definition proportions.
+Result: `ml/labels/adjudicated_labels.jsonl` (215 agreed + 85 adjudicated);
+120 of 300 blocks contain a definition (was 100).
+
+### Frozen pipelines re-scored on adjudicated labels (same models, labels changed)
+
+| | Single-annotator labels | Adjudicated labels |
+|---|---|---|
+| ML2.13 pipeline: role accuracy / macro F1 | 0.603 / 0.659 | 0.600 [0.505, 0.658] / 0.634 |
+| **ML2.14 pipeline: role accuracy / macro F1** | 0.753 / 0.769 | **0.730** [0.653, 0.804] / **0.723** [0.595, 0.773] |
+| Heading rule accuracy when it fires | 0.970 | 0.930 |
+| ML2.14 contains-definition, all blocks P / R | 0.86 / 0.56 | **0.88 / 0.48** |
+| ML2.13 contains-definition, all blocks P / R | 0.96 / 0.24 | 1.00 / 0.21 |
+| Detector, unheaded blocks P / R | 0.85 / 0.60 | **0.86 / 0.56** [0.41, 0.70] |
+| Prose-definition recall (roles) | 0.26 → 0.62 | 0.27 → **0.65** |
+
+**Reading.** The improvement survives independent labels: role accuracy +0.13,
+contains-definition recall more than doubled at higher precision. The absolute
+numbers drop a little because the adjudicated set counts more definitions,
+mostly local notation inside headed proofs. The pipeline cannot report those:
+a headed block takes the heading rule's role, so 29 of the 120 positives (in
+headed blocks) are structurally out of reach. For the knowledge bundle, proof-local
+notation has little value, so the unheaded-detector row (0.86 / 0.56) is the
+relevant one.
+
+### Files
+
+- **Created:** `ml/labels/ANNOTATION_GUIDE.md`, `ml/data/export_for_annotator.py`,
+  `ml/eval/compare_annotators.py`, `ml/tests/test_compare_annotators.py` (5 tests;
+  292 Python tests pass), `ml/results/annotator_agreement.json`,
+  `ml/results/gold_ml215_pipeline_adjudicated.json`.
+- **Modified:** `.gitignore` (ignore `ml/labels/second_annotator/`).
+- **Ignored:** batch prompts and replies, `disagreements.jsonl`, `adjudicated_labels.jsonl`.
+
+From here on, `ml/labels/adjudicated_labels.jsonl` is the gold set.
+
+**Next goal to achieve:** ML3, the OKF bundle writer, using the frozen pipeline.
+
+---
 
 ## Current Project State
 
@@ -4416,7 +4574,7 @@ ml/
 - 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- `ml/`: 6,326 Python lines across 46 files (including blank lines), 287 passing Python tests (68 extraction/layout, 16 split,
+- `ml/`: 6,326 Python lines across 46 files (including blank lines), 292 passing Python tests (68 extraction/layout, 16 split,
   eight sampling, 24 questions, eight baseline, seven training preparation)
   plus ten active classifier, eight grouped-CV, eight NB and 17 layout-classifier tests;
   nine error-audit, nine fixed-candidate, 16 training-repair and five label-scheme tests;
@@ -4477,7 +4635,7 @@ CI gates `src/core` at zero warnings.
 
 ---
 
-## Next Up: Training Signal for Unheaded Prose (ML2.14), then ML3
+## Next Up: ML3 — OKF Bundle Writer
 
 The full plan is in `docs/IMPLEMENTATION_PHASES.md`. Remaining ML1 work:
 
