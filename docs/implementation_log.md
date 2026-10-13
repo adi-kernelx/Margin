@@ -4147,6 +4147,190 @@ development measure that includes unheaded blocks.
 
 ---
 
+## Phase ML2.14: Training Signal for Unheaded Prose (first step)
+
+**Date:** October 13, 2026
+
+**Goal:** fix the ML2.13 finding that training contained no unheaded prose,
+choosing on development data only. The frozen test set was not read.
+
+### Development set with unheaded blocks
+
+`ml/data/sample_dev_unheaded.py` draws 240 unheaded blocks from **training
+sources only** (74 sources; frozen test and excluded groups rejected): four
+cells of 60, {original sources, arXiv} × {prose-definition candidate, other}.
+The assistant labelled them with the ML2.13 rules (40 flagged uncertain); labels
+are in `ml/labels/dev_labels.jsonl` (ignored). Counts: other 140, definition 44,
+notation 20, proof 26, example 4, algorithm 3, theorem 3, so 64 merged
+definitions. Even among cue-matching candidates half are not definitions (50 of
+120 are other, 16 are proofs: "define" is common inside proofs).
+
+### Three fixed variants (`ml/eval/unheaded_cv.py`)
+
+Frozen stacked LightGBM with source weights, scored out of fold: a dev block is
+predicted only by a model that never saw its source and is never used as a
+negative.
+
+- **A headed_only:** today's training rows.
+- **B unlabelled_other:** plus unheaded blocks from each training source as
+  "other", one per headed row (naive positive–unlabelled learning).
+- **C reliable_negatives:** as B, but blocks matching the prose-definition cue
+  regex are left out of the negatives (two-step PU: reliable negatives only).
+
+| Variant | Dev accuracy | 95% CI | Def. precision | Def. recall | 95% CI | Other recall | Headed accuracy |
+|---|---:|---|---:|---:|---|---:|---:|
+| A headed_only | 0.396 | [0.332, 0.465] | 0.73 | 0.297 | [0.180, 0.410] | 0.37 | 0.799 |
+| B unlabelled_other | 0.621 | [0.549, 0.688] | 1.00 | 0.094 | [0.020, 0.170] | 0.99 | 0.700 |
+| C reliable_negatives | **0.650** | [0.586, 0.711] | 0.76 | 0.250 | [0.143, 0.362] | 0.94 | 0.726 |
+
+**Readings.**
+
+1. The development set reproduces the test finding (A: definition recall 0.30
+   on dev, 0.26 on test), so it is a usable proxy.
+2. Negatives fix the "ordinary prose becomes example/proof" error: other recall
+   0.37 → 0.94 with C, dev accuracy 0.40 → 0.65 (non-overlapping intervals).
+3. They do not find more definitions; B collapses almost everything to other.
+4. Headed accuracy drops (0.80 → 0.73), which does not matter for the product:
+   headed blocks are labelled by the heading rule (0.97 on test). The classifier
+   only needs to be good on unheaded blocks.
+
+### How much do simple rules carry? (dev set)
+
+| Rule | Precision | Recall |
+|---|---:|---:|
+| Prose cue regex used for sampling | 0.43 | 0.81 |
+| Strong cues ("is called", "we say", "is defined as", `:=`, "denote by") | 0.54 | 0.42 |
+| Strong cues and not starting with Proof/Since/Hence/By | 0.58 | 0.41 |
+
+Block-level italics barely separate classes (italic in 83% of definitions, 60%
+of non-definitions) because mathematics is italic too.
+
+⚡ **Finding — the bottleneck is positive examples of prose definitions.** The
+only definitions in training are headed "Definition 2.1." blocks, whose wording
+differs from prose ("we say a graph is *bipartite* if…"). Neither negatives nor
+the current features close that gap.
+
+### Files
+
+- **Data (created):** `ml/data/sample_dev_unheaded.py`.
+- **Evaluation (created):** `ml/eval/unheaded_cv.py`; `ml/results/unheaded_cv.json`.
+- **Models (modified):** `definition_features.py` (`StackedLightGBM.predict_proba`).
+- **Tests (created):** `ml/tests/test_unheaded.py` (4); 280 Python tests pass.
+
+### Positive signal for prose definitions: emphasis, sentences and LaTeX
+
+At the user's request three independent kinds of evidence were added.
+
+1. **Emphasis (`ml/data/emphasis.py`).** Words set in a different text style from
+   the block's own body (italic in roman text, upright `\emph` in an italic
+   theorem), excluding maths fonts (CMMI, CMSY, LMMathItalic, MSBM, …) and the
+   block's heading. It reads spans inside an existing block's bounding box, so
+   no re-extraction is needed and frozen test block IDs are unchanged. 9,812 of
+   29,161 training blocks contain emphasis. On its own it is weak (59% of
+   definitions vs 40% of others: emphasis also marks paragraph titles, journal
+   names and stress), so it is used per sentence.
+2. **Sentence-level detection (`ml/models/sentences.py`,
+   `ml/models/prose_definitions.py`).** Block text is split into sentences
+   (abbreviation- and numbering-aware). Each sentence gets TF-IDF words plus
+   named features: nine defining cues, emphasis in the sentence, emphasis with a
+   cue, proof-style openings, subject openings, length, position and category.
+   A balanced, source-weighted logistic regression scores sentences; a block
+   scores its best sentence.
+3. **LaTeX positives (`ml/data/latex_definitions.py`).** In the 20 LaTeX sources,
+   sentences outside theorem/proof environments with an emphasis command and a
+   defining cue: 97 found, 83 aligned uniquely to PDF sentences in 19 papers
+   (7 ambiguous, 6 unmatched, 1 duplicate). A spot check of 20 found about 16
+   clean definitions; the rest are near misses ("is defined in an open interval",
+   a misaligned "Hence …", "so-called").
+
+Training sentences per fold: headed definition/notation sentences that carry a
+cue or emphasis (positives), optionally the LaTeX positives, and sentences from
+reliable-negative unheaded blocks and headed theorem/proof/example/algorithm
+blocks (negatives); about 385 positives and 12,700 negatives in fold 0.
+
+### Correcting the target: "contains a definition"
+
+Reading the detector's highest-scoring "false positives" showed that most were
+real definitions inside mixed blocks that the role labels called other ("The
+Rosenbrock function is defined as …", "is referred to as the encoder", "is called
+experts", "Digital identity, which can be defined as …"). Role labels pick one
+role per block; the product needs to know whether a block **contains** a
+definition and which sentence it is.
+
+⚡ **Design Decision — a separate binary label, applied to every block.**
+
+**Reasoning:** to avoid relabelling only the model's errors, every dev block not
+already labelled definition/notation was reviewed through its candidate defining
+sentences with one rule: yes if a sentence states what a named term or symbol
+means (local notation included); no for references to definitions elsewhere,
+"define" in its ordinary sense, announcements without content, and statements
+of results. 36 of 85 candidate blocks became yes; 100 of 240 dev blocks contain
+a definition. Role labels are unchanged. The frozen test labels need the same
+field, added blind to predictions, before the next milestone read.
+
+One cue was added after reading dev errors: a slide/bullet **gloss** ("Round-Trip
+Time (RTT) (definition): …"). Dev scores are therefore somewhat optimistic.
+
+### Results on "contains a definition" (240 dev blocks, out of fold)
+
+| Method | Precision | Recall | F1 | Average precision |
+|---|---:|---:|---:|---:|
+| A headed-only classifier | 0.85 | 0.22 | 0.35 | — |
+| C reliable negatives | 0.95 | 0.20 | 0.33 | — |
+| Strong-cue rule | 0.86 | 0.49 | 0.62 | — |
+| Detector, all evidence (D1) | 0.76 [0.66, 0.86] | 0.57 [0.46, 0.68] | 0.65 | 0.80 |
+| **Detector without LaTeX positives (D2)** | 0.79 [0.69, 0.88] | 0.59 [0.48, 0.70] | **0.67** | 0.78 |
+| Detector without emphasis (D3) | 0.84 [0.75, 0.92] | 0.47 [0.37, 0.57] | 0.60 | 0.78 |
+
+Precision at fixed thresholds for D2: 0.4 → 0.88 / 0.51; 0.6 → 0.92 / 0.45;
+0.8 → 0.92 / 0.34. The strongest learned hand weights are emphasis (+1.63), a
+subject opening (+0.99), the gloss cue (+0.80) and "we say" (+0.61).
+
+**Readings.**
+
+- The detector more than doubles prose-definition recall of the classifier at
+  similar precision (0.51 vs 0.22 at about 0.86–0.88 precision).
+- Against the strong-cue rule the gain is modest: about 2–4 points of precision
+  at equal recall, and more reachable recall at lower thresholds.
+- Emphasis adds recall (0.47 → 0.59 at cross-fitted thresholds).
+- The 83 LaTeX positives do not help beyond headed-definition sentences
+  (0.651 vs 0.674 F1, within noise); they remain an ablation result.
+
+⚡ **Design Decision — frozen choice for the next milestone.** Detector D2
+(emphasis on, no LaTeX positives) decides definitions in unheaded blocks at
+threshold **0.4** (highest dev recall with dev precision ≥ 0.85); variant C
+assigns the other roles; the heading rule handles headed blocks. Chosen on
+development data only.
+
+### Files (ML2.14 total)
+
+- **Data (created):** `ml/data/sample_dev_unheaded.py`, `ml/data/emphasis.py`,
+  `ml/data/latex_definitions.py`.
+- **Models (created):** `ml/models/sentences.py`, `ml/models/prose_definitions.py`;
+  `definition_features.py` gained `predict_proba`.
+- **Evaluation (created):** `ml/eval/unheaded_cv.py`, `ml/eval/prose_definition_cv.py`.
+- **Results (created):** `ml/results/unheaded_cv.json`,
+  `ml/results/prose_definition_cv.json`, `ml/results/latex_definition_positives.json`.
+- **Tests (created):** `ml/tests/test_unheaded.py` (4), `ml/tests/test_prose_definitions.py` (7);
+  **287 Python tests pass**.
+- **Ignored outputs:** `ml/labels/dev_to_label.jsonl`, `ml/labels/dev_labels.jsonl`,
+  `ml/out/ml214/` (emphasis maps, LaTeX positives, predictions).
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.data.sample_dev_unheaded
+.\.venv-ml\Scripts\python.exe -m ml.eval.unheaded_cv
+.\.venv-ml\Scripts\python.exe -m ml.data.emphasis --blocks ml/out/arxiv_expansion/context_blocks.jsonl --out ml/out/ml214/emphasis_train.jsonl
+.\.venv-ml\Scripts\python.exe -m ml.data.latex_definitions
+.\.venv-ml\Scripts\python.exe -m ml.eval.prose_definition_cv
+```
+
+**Next goal to achieve:** add the "contains a definition" field to the 300 test
+labels (blind to predictions), extend `gold_eval.py` to the frozen two-stage +
+detector pipeline, and run the second milestone read, reported as a second read.
+
+---
+
+
 ## Current Project State
 
 **As of:** October 7, 2026
@@ -4232,7 +4416,7 @@ ml/
 - 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- `ml/`: 6,326 Python lines across 46 files (including blank lines), 276 passing Python tests (68 extraction/layout, 16 split,
+- `ml/`: 6,326 Python lines across 46 files (including blank lines), 287 passing Python tests (68 extraction/layout, 16 split,
   eight sampling, 24 questions, eight baseline, seven training preparation)
   plus ten active classifier, eight grouped-CV, eight NB and 17 layout-classifier tests;
   nine error-audit, nine fixed-candidate, 16 training-repair and five label-scheme tests;
