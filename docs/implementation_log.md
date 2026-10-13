@@ -3049,6 +3049,1104 @@ Independent frozen-test labels and final gold acceptance remain pending.
 
 ---
 
+## Phase ML2.8: Scoring Scheme — Merged Labels and Estimable Classes
+
+**Date:** October 7, 2026
+
+**Goal:** make the development score measure what the classifier can learn
+from these sources. No model, feature, hyperparameter or training row changed.
+
+### Why the old macro F1 was misleading
+
+Seven-class macro F1 averaged two zeros that no model could avoid:
+
+- `notation` has 4 rows in the 549-row snapshot.
+- 23 of the 24 `algorithm` rows sit in fold 3 (18 from one thesis). When fold 3
+  is held out, the training folds contain one algorithm row, so recall is zero
+  by construction.
+- `other` (remarks, notes) is not something the product extracts, yet it counted
+  as one seventh of the score.
+
+### What changed
+
+⚡ **Design Decision — merge at scoring time, never in the labels.**
+
+**Reasoning:** hand labels and weak labels keep all seven classes, and
+`ml/labels/label.html` still offers keys 1–7. `ml/eval/label_scheme.py` maps
+`notation → definition` only when training and scoring, so the finer label can
+be recovered later. Notation statements define symbols, which is what the OKF
+bundle needs from them.
+
+⚡ **Design Decision — a class enters macro F1 only if it is estimable.**
+
+**Reasoning:** a class is estimable when it appears in at least 3 training
+sources **and** at least 3 development folds. Requiring folds as well as sources
+catches `algorithm`: it has 4 sources but only 2 folds. Non-estimable classes are
+still trained, predicted and reported per class; they are only left out of the
+average and listed as `not_estimable`. `other` stays a training class (useful
+negative evidence) but is never averaged.
+
+Coverage on the ML2.7 snapshot after merging:
+
+| Class | Rows | Sources | Folds | In macro F1 |
+|---|---:|---:|---:|---|
+| definition (incl. 4 notation) | 96 | 5 | 5 | yes |
+| theorem | 130 | 7 | 5 | yes |
+| proof | 123 | 6 | 4 | yes |
+| example | 135 | 8 | 5 | yes |
+| algorithm | 24 | 4 | 2 | no — not estimable |
+| other | 41 | 6 | 4 | no — unscored by design |
+
+### Results (same 549 rows, same folds, same models as ML2.7)
+
+| Model | Accuracy | Macro F1 (4 classes) | 95% file CI | Definition P / R / F1 |
+|---|---:|---:|---|---|
+| Majority | 0.2259 | 0.1037 | [0.080, 0.125] | 0 / 0 / 0 |
+| Logistic | 0.4044 | 0.4114 | [0.349, 0.489] | 0.65 / 0.21 / 0.31 |
+| Naive Bayes | 0.3752 | 0.3742 | [0.299, 0.470] | 0.67 / 0.15 / 0.24 |
+| Layout LightGBM | 0.2204 | 0.1860 | [0.120, 0.241] | 0.11 / 0.02 / 0.03 |
+| Balanced logistic | 0.4098 | 0.4444 | [0.388, 0.497] | 0.59 / 0.39 / 0.47 |
+| Balanced word+character | 0.4007 | 0.4537 | [0.385, 0.505] | 0.50 / 0.38 / 0.43 |
+
+**Read this honestly.** The rise in macro F1 from about 0.26 to 0.44 is a change
+in what is averaged, not a better model: accuracy moved by at most 0.004 and the
+same kind of predictions are being scored. What the new number does show is that
+on the four learnable classes the text models are clearly above the majority
+baseline (non-overlapping intervals), while layout-only features are not.
+Definition recall below 0.4 remains the main weakness.
+
+### Files created / modified
+
+- **Evaluation (created):** `ml/eval/label_scheme.py` — merge map, unscored
+  classes, coverage and the estimability rule.
+- **Evaluation (modified):** `ml/eval/classifier_cv.py` — `labels`/`scored`
+  arguments for metrics, bootstrap and fold checks (defaults reproduce the old
+  seven-class reports); `--merged` flag records `label_scheme` in the report.
+- **Tests (created):** `ml/tests/test_label_scheme.py` — 5 cases.
+- **Results (created):** `ml/results/classifier_merged_cv.json`.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`:
+  **213 passed** (208 + 5).
+- Earlier reports were not regenerated; the default runner output is unchanged.
+
+### Test-sample labels: assistant draft, human review pending
+
+At the user's request the assistant labelled all 300 frozen-test blocks from
+`to_label.jsonl` alone (text, file, page; weak labels never consulted), using the
+seven-class guide in `label.html`. Output, both git-ignored:
+
+- `ml/labels/assistant_labels.jsonl` — 300 rows in the page's export format;
+  verified to import through the page's own validator (300/300).
+- `ml/labels/assistant_review.jsonl` — 61 blocks the assistant marked uncertain
+  (mostly mixed blocks: prose that defines a term inside discussion or a proof,
+  statement fragments, slide tables).
+
+Counts: other 104, proof 57, theorem 41, definition 40, notation 22, example 24,
+algorithm 12. Rules applied: exercises and solutions are `example`; claims and
+statement fragments are `theorem`; references, captions, headings, front matter
+and remarks are `other`; a block that introduces a named concept is `definition`
+even inside discussion; symbol tables and "we denote" conventions are `notation`.
+
+⚡ **Design Decision — these are not human gold labels until reviewed.**
+
+**Reasoning:** an LLM annotator is independent of the weak labels and of the
+trained classifiers, but it is not the human labeller the plan specifies. The
+user restores the file in `label.html`, reviews at least the 61 uncertain blocks
+plus a random 50 of the rest, and exports `hand_labels.jsonl`. Agreement on the
+random 50 (Cohen's kappa) is reported with any gold result.
+
+**Next goal to achieve:** hand labels; then a gold evaluation script that applies
+the same `label_scheme` to the frozen test sample and reports prose-definition
+recall separately. Data expansion (more independent sources) follows.
+
+---
+
+## Phase ML2.9: Gold Evaluation Script (built, not yet run on the test set)
+
+**Date:** October 7, 2026
+
+`ml/eval/gold_eval.py` evaluates three systems on the labelled frozen-test sample:
+
+- heading rule (weak label or abstain);
+- classifier, fitted once on all training rows, applied to heading-free text;
+- two-stage system (the product): heading rule if a heading exists, else classifier.
+
+It reports, with file-cluster bootstrap intervals:
+
+- heading-rule coverage and its accuracy when it fires;
+- accuracy, per-class metrics and macro F1 for the classifier and the two-stage system;
+- **prose-definition recall and precision**, i.e. on blocks without a heading;
+- two-stage accuracy per sampling stratum (weak / prose candidate / unlabelled);
+- Cohen's kappa between two label files (`--compare`), e.g. the reviewed
+  `hand_labels.jsonl` against `assistant_labels.jsonl`.
+
+⚡ **Design Decision — reading the test set needs an explicit flag.**
+
+**Reasoning:** the rules say the frozen test set is read only at milestones. The
+script refuses to evaluate models without `--frozen-test-milestone`; `--kappa-only`
+compares label files without any model output. It has been unit-tested on toy
+data only. It has **not** been run against the test sample.
+
+`ml/eval/stats.py` gained `cluster_bootstrap(rows, statistic)`, a generic
+file-resampling interval that skips resamples where a statistic is undefined
+(for example recall with no positives) and reports how many were skipped.
+
+```powershell
+# after the user's review exports hand_labels.jsonl
+.\.venv-ml\Scripts\python.exe -m ml.eval.gold_eval --compare ml/labels/assistant_labels.jsonl --kappa-only
+# milestone only, once a model is chosen on development data
+.\.venv-ml\Scripts\python.exe -m ml.eval.gold_eval --model balanced_logistic --frozen-test-milestone
+```
+
+---
+
+## Phase ML2.10: Cue, Context and Layout Features; Three-Way Definition Detector
+
+**Date:** October 7, 2026
+
+**Goal:** add hand-designed evidence that TF-IDF misses, and test the reframed
+task the product needs (definition / theorem-like statement / neither).
+
+### Features (`ml/models/definition_features.py`)
+
+- **Cue phrases:** 22 named regular expressions grouped by role: definition
+  ("we say", "is called", "define", "denote", `:=`), statement ("Let … then",
+  "there exists", "for all"), proof ("hence", "by Lemma", "since", ∎/□), exercise
+  ("Find", "Compute", "how many", "?"), algorithm (Input/Output, numbered steps,
+  `←`), other (citations, figure/table captions). Plus length, sentence count and
+  digit ratio.
+- **Context:** heading label of the previous block in (file, page, block_index)
+  reading order, or "none". At inference the heading rule provides this.
+- **Layout:** the five ML2.5 measurements plus category.
+
+Two models use them:
+
+- `cue_logistic`: one balanced logistic regression over TF-IDF words plus the
+  standardised hand features. `coefficients()` returns each hand feature's
+  weight per class for inspection.
+- `stacked_lightgbm`: LightGBM over the balanced text model's class probabilities
+  plus the hand features. Training-row probabilities come from an inner 4-fold
+  source-grouped cross-fit, so LightGBM never sees probabilities from a text model
+  trained on the same rows.
+
+Both accept `sample_weight`, so they work with the parallel `--source-weighted`
+option in `classifier_cv.py`.
+
+`label_scheme.py` gained the coarse map: notation → definition; theorem stays
+(statement); proof, example, algorithm, other → other (neither). Macro F1 averages
+definition and theorem. Existing label names are reused so validators are unchanged.
+
+### Leakage check on context
+
+Previous-block labels for training rows: proofs follow a theorem block in 91 of
+123 cases and never follow their own lone "Proof." heading (0 cases). The signal
+is real document structure and is available at inference. Caveat: the training
+rows all had headings; for unheaded prose the previous block is more often
+unlabelled ("none"), so the gain may be smaller on the real target.
+
+### Results (same 549 rows and folds; no tuning)
+
+Merged scheme, macro F1 over definition/theorem/proof/example:
+
+| Model | Accuracy | Macro F1 | 95% file CI | Definition P / R / F1 | Proof F1 |
+|---|---:|---:|---|---|---:|
+| Balanced logistic (reference) | 0.410 | 0.444 | [0.388, 0.497] | 0.59 / 0.39 / 0.47 | 0.49 |
+| Cue logistic | 0.379 | 0.446 | [0.215, 0.526] | 0.58 / 0.48 / 0.53 | 0.54 |
+| Stacked LightGBM | 0.412 | 0.445 | [0.378, 0.533] | 0.67 / 0.17 / 0.27 | 0.75 |
+
+Coarse 3-way scheme, macro F1 over definition/theorem:
+
+| Model | Accuracy | Macro F1 | 95% file CI | Definition P / R / F1 |
+|---|---:|---:|---|---|
+| Majority | 0.588 | 0.000 | — | 0 / 0 / 0 |
+| Balanced logistic | 0.641 | 0.420 | [0.336, 0.483] | 0.67 / 0.35 / 0.46 |
+| Cue logistic | 0.630 | 0.432 | [0.111, 0.544] | 0.55 / 0.48 / 0.51 |
+| Stacked LightGBM | 0.667 | 0.353 | [0.141, 0.468] | 0.64 / 0.19 / 0.29 |
+
+**Verdict:** no overall gain that the intervals support. Two specific effects:
+context lifts proof F1 from 0.49 to 0.75 in the stacked model, and cue phrases
+raise definition recall from 0.39 to 0.48 in the logistic model. Both cue-model
+intervals are very wide: the effect depends on which sources are held out. With
+14 sources this cannot be settled; the comparison is re-run unchanged on the
+expanded arXiv training set. No model was selected and nothing was tuned.
+
+### Files created / modified
+
+- **Models (created):** `ml/models/definition_features.py`.
+- **Evaluation (created):** `ml/eval/gold_eval.py`.
+- **Evaluation (modified):** `ml/eval/label_scheme.py` (coarse scheme),
+  `ml/eval/stats.py` (`cluster_bootstrap`), `ml/eval/classifier_cv.py`
+  (`--coarse`, `--with-features`, `--context-blocks`).
+- **Tests (created):** `ml/tests/test_gold_eval.py` (5),
+  `ml/tests/test_definition_features.py` (10).
+- **Results (created):** `ml/results/classifier_merged_features_cv.json`,
+  `ml/results/classifier_coarse_features_cv.json`.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`:
+  **252 passed** (includes the parallel source-expansion tests).
+- `gold_eval` without `--frozen-test-milestone` exits with an error, as intended.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/ml27/verified/train_blocks.jsonl --dataset-revision ML2.7 --merged --with-improved --with-features --audit ml/out/ml210/cv_merged_features_predictions.jsonl
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/ml27/verified/train_blocks.jsonl --dataset-revision ML2.7 --coarse --with-improved --with-features --audit ml/out/ml210/cv_coarse_features_predictions.jsonl
+```
+
+**Next goal to achieve:** re-run both commands on the expanded training rows
+(with `--source-weighted` and `--context-blocks` pointing at the expanded blocks),
+then pick one model on development data before the milestone gold run.
+
+---
+
+## Phase ML2.E1: Training-only arXiv Expansion and Source-balanced Fits
+
+**Date:** October 7, 2026
+**Objective:** add 100–150 independent paper groups without changing the frozen
+test set, replace source caps with weights, and check weak labels against about
+20 corresponding LaTeX sources. PDF collection and weighting are complete;
+the 20-source audit is **not complete** because the source service rate-limited
+downloads. This entry records partial acceptance, not a finished audit.
+
+### Collection and provenance
+
+Collected and extracted **120 papers**, 20 per requested category: math.CO,
+math.PR, math.OC, stat.TH, cs.DS and theory-oriented cs.LG. The existing
+`process_pdf()` is called unchanged; neither `extract_blocks.py` nor
+`heading_rules.py` was edited for this expansion. There is no OCR step.
+
+Selection precedes extraction. Queries use the fixed 2025 submission window
+and descending submission order, cache 80 candidates per category, deduplicate
+base arXiv IDs across cross-listings, and reject existing embedded PDF titles.
+Exact PDF SHA-256 matches against the original corpus and previously downloaded
+papers are rejected before extraction. These checks reduce overlap; they do
+not prove that differently titled or revised PDFs contain no shared text.
+
+⚡ **Design Decision — category quotas and a title filter, not label-yield selection.**
+
+**Reasoning:** choosing papers because the extractor found many headings would
+bias the collection toward the extractor's easiest cases. The cs.LG query uses
+theory/theoretical/convergence/generalization title terms; this is a reproducible
+theory-oriented filter, not a manual guarantee that every selected paper is
+pure theory. Paper identity is the fold group; shared authors are not deduplicated.
+
+⚡ **Plan Deviation — canonical category and an unavailable source replacement.**
+
+**Reasoning:** arXiv's taxonomy identifies stat.TH as an alias for math.ST;
+the literal stat.TH API query returned zero entries. The collector queries
+math.ST but records the requested stat.TH bucket. `2512.24042v2` returned 404
+and its abstract page confirmed withdrawal. It was replaced by `2512.23643v1`,
+the next unused cached statistics candidate. The replacement is recorded locally
+and was not chosen by label count or classifier performance. Policy and taxonomy:
+[arXiv access terms](https://info.arxiv.org/help/api/tou.html),
+[bulk access guidance](https://info.arxiv.org/help/bulk_data.html),
+[category taxonomy](https://arxiv.org/category_taxonomy),
+[withdrawn paper](https://arxiv.org/abs/2512.24042).
+
+### Dataset yield, frozen boundary and fold coverage
+
+The new papers produce **19,804 blocks / 3,665 automatic labels**. The existing
+heading-free body-length filter retains **3,624 new training rows**. Adding the
+uncapped repaired ML2.7 corpus gives **4,477 rows**, rather than 549 capped rows.
+The repaired original corpus contributes 853 usable rows: **304 rows recovered**
+relative to its capped snapshot. That is not the 264-row difference from the
+older extraction snapshot in the request; extraction repairs changed the count.
+No row is now dropped by a source cap. Unlabelled and short-body filters remain.
+
+| Original weak class | Usable rows | Sources containing it |
+|---|---:|---:|
+| definition | 403 | 60 |
+| theorem | 1,946 | 102 |
+| proof | 1,458 | 99 |
+| example | 284 | 34 |
+| notation | 15 | 10 |
+| algorithm | 86 | 33 |
+| other | 285 | 63 |
+
+The extension assigns 143 training groups (23 original + 120 papers), of which
+124 have usable labels. It preserves the original ten test and five excluded
+groups. `ml/splits.json` is byte-for-byte unchanged; its SHA-256 is recorded in
+the aggregate report. No test-source text was extracted, no test predictions
+were made, and no test labels were used to select papers, folds or weights.
+Only metadata titles and file hashes were read for duplicate screening.
+
+⚡ **Design Decision — rebalance training folds, preserve the actual test freeze.**
+
+**Reasoning:** old development folds contained 200/200/57/49/43 capped rows.
+Adding 120 groups while keeping those training-fold memberships is not required
+by the frozen test contract. The new group-isolated folds contain
+**896/896/895/895/895 rows**, and every original class appears in every fold.
+Historical rows, reports and fold snapshots remain in their original directories.
+The new training-only split and manifest are separate ignored files.
+
+### Sample weighting instead of discarding rows
+
+Each usable row stores `1 / usable_rows_from_its_source`, so each labelled
+source contributes total weight one. CV recomputes this from its **training
+portion only**, then scales all weights by training rows / contributing sources
+to give mean weight one. The weighted majority baseline uses those same weights.
+The text and layout model fitters accept positive finite sample weights.
+
+⚡ **Design Decision — mean-one normalization at fit time.**
+
+**Reasoning:** feeding raw source totals of one into logistic regression changes
+the overall loss scale relative to fixed regularization; it also changes the
+effective strength of NB's smoothing. A common scaling preserves relative
+source influence without that accidental change. In balanced candidates, class
+weights are additional multipliers. TF-IDF vocabulary/document frequencies are
+still row-based: source weighting balances supervised loss, not every stage.
+The historical repair command explicitly retains cap 200 for reproduction.
+
+### Source-weighted development comparison
+
+Logistic and NB were fitted independently on each new training fold using
+heading-free text. ML2.8 notation-to-definition merging and estimability checks
+are preserved. All five scored classes are now estimable, including algorithm;
+`other` is trained but excluded from macro F1. Results are in the separate
+`ml/results/classifier_expanded_cv.json`; row predictions stay ignored.
+
+| Method | Accuracy | Macro F1, 5 classes | Accuracy 95% file interval |
+|---|---:|---:|---|
+| Source-weighted majority | 0.4347 | 0.1212 | [0.399, 0.470] |
+| Source-weighted logistic | 0.6813 | 0.4609 | [0.639, 0.721] |
+| Source-weighted NB | 0.6589 | 0.3870 | [0.609, 0.704] |
+
+This is a changed population, changed folds and a five-class macro denominator,
+not an identical-row improvement over earlier four-class reports. Logistic
+definition precision is 0.8723 but recall only **0.0981**; example recall is
+0.0035. More data helps common theorem/proof recognition but does not fix these
+rare-role failures. Accuracy is row-pooled; fit weights do not make that metric
+source-macro accuracy. File-bootstrap intervals are development diagnostics,
+not a final independent-label evaluation. Nothing is deployed.
+
+### LaTeX audit: tooling verified, collection still blocked
+
+The 20-paper audit selection is fixed before labels are inspected: category
+round-robin over the selected corpus, rather than the first 20 combinatorics
+papers. Archives are read in memory, never extracted or compiled. Bounds apply
+to member counts and decompressed source size; symlinks, hardlinks and unsafe
+paths are rejected. `.tex`, `.sty` and `.cls` declarations define environment
+aliases. Eight-word prose anchors near the PDF block start must identify exactly
+one source environment; nested, repeated or conflicting matches abstain.
+
+⚡ **Bug — a later proof paragraph could determine a statement's audit label.**
+
+**Reasoning:** the first real archive exposed two propositions incorrectly
+matched to proof environments via appended discussion. Restricting anchors to
+the block prefix and reading theorem aliases from style files removes that
+false disagreement. A regression test now confirms a tail-only proof match
+stays unresolved. The extractor was not changed to improve audit numbers.
+
+⚡ **Plan Deviation — only 2 of 20 archives downloaded; HTTP 429 stops collection.**
+
+**Reasoning:** sequential requests are spaced at least 3.1 seconds, with an
+additional 30-second delay for source archives after an initial rate-limit
+response. A later source request still returned 429 without `Retry-After`.
+The collector stores the failure and refuses requests during a 15-minute
+fallback cooldown. It does not switch endpoints or repeatedly retry the limit.
+Cached PDFs, blocks and successful archives are retained for resumption.
+
+The **partial** report checks 90 automatic labels from two archived papers:
+48 uniquely resolved, 48 agreeing with the source environment, 42 unresolved.
+That is 100% agreement **on the resolved subset**, with **53.3% coverage**.
+It is not a 20-paper precision estimate, not overall label precision and not
+independent human gold. Only one paper contributes resolved matches, so the
+bootstrap interval is intentionally absent; zero observed mismatches does not
+prove perfect population precision. Remaining 18 archives and review of
+unresolved/mixed blocks are required before quoting a meaningful audit result.
+
+### Files created / modified
+
+- **Data collection (created):** `ml/data/arxiv_corpus.py` — cached metadata,
+  category selection, rate-limited downloads, recorded unavailable-paper
+  replacements, duplicate screening and unchanged extraction calls.
+- **Data assembly (created):** `ml/data/expand_training.py` — training-only split
+  extension, uncapped rows, source weights, new folds and aggregate coverage.
+- **Data assembly (modified):** `ml/data/prepare_training.py` — no-cap default
+  and stored per-source weights; `ml/data/repair_training.py` — explicit legacy
+  cap so historical repair reproduction does not silently change.
+- **Models (modified):** `ml/models/first_classifier.py`,
+  `ml/models/improved_classifier.py`, `ml/models/layout_classifier.py` — validate
+  weights and pass them into majority, logistic, NB and LightGBM fits.
+- **Evaluation (modified):** `ml/eval/classifier_cv.py` — source-weighted fitting
+  and explicit split/manifest inputs; concurrent scoring/feature work preserved.
+- **Evaluation (created):** `ml/eval/latex_audit.py` — bounded source reader,
+  environment aliases, conservative block alignment, coverage and precision.
+- **Tests (created):** `ml/tests/test_source_expansion.py` — 24 deterministic
+  cases covering uncapped retention, group-weight totals, all existing base
+  fitters, train-only CV weights, split immutability, metadata deduplication,
+  cooldowns, unavailable-paper replacement, ambiguous/prefix alignment and
+  unsafe archives. No test performs a network download.
+- **Aggregate results (created):** `ml/results/arxiv_expansion_summary.json`,
+  `ml/results/classifier_expanded_cv.json`, `ml/results/arxiv_label_audit.json` —
+  counts/folds, the new baseline comparison and explicitly partial source audit.
+- **Documentation (modified):** `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`
+  and this log — reproducible commands, boundaries, status and remaining work.
+- **Local only (ignored):** `ml/out/arxiv_expansion/` — 120 PDFs, two archives,
+  metadata/provenance, block text, extension split/manifest and row-level audits.
+
+### Testing
+
+- Full current Python suite: **252 passed**, including 24 new expansion tests
+  and concurrent gold/feature tests. No frozen-test evaluation was run.
+- Typecheck (`npx tsc -b`), core-boundary lint, 185 frontend tests, seven Node
+  labelling-session tests and production build: **green**. Initial sandbox
+  `spawn EPERM` prevented Node/Vite startup; reruns with process access passed.
+- Existing non-fatal build warnings remain: Browserslist age, PDF.js image
+  URLs, mixed static/dynamic imports and large chunks. Full-shell ESLint and
+  live CI were not newly verified; no UI check is required for this data change.
+- `git diff` confirms extractor, heading rules and frozen split unchanged;
+  `git check-ignore` confirms downloaded sources and data stay out of Git.
+
+**Remaining/manual check:** resume the 18 source archives after cooldown, finish
+the category-spread audit and review unresolved matches before an overall
+precision claim. Human approval of the 300 draft test labels remains separate.
+Re-run existing definition-focused candidates on the expanded training data
+before choosing a classifier; do not tune on the frozen test set.
+
+**Git checkpoint: pending — no commit requested for this follow-up.**
+
+---
+
+## Phase ML2.E2: Expanded-data Definition-focused Comparison and Audit Integrity
+
+**Date:** October 7, 2026
+**Objective:** resume the remaining LaTeX sources and compare the existing
+definition-focused models on expanded training. The comparison is complete;
+the 20-source audit remains incomplete because of truncated downloads and a
+renewed HTTP 429. No new model architecture or test evaluation was introduced.
+
+### Training context and fixed candidates
+
+Reused all **4,477 rows**, their source-isolated folds, merged label scheme and
+source weights from ML2.E1. Repeated plain-logistic predictions match the
+previous run exactly. Four existing ML2.6/ML2.10 candidates are compared:
+balanced word logistic, balanced word+character logistic, cue/context/layout
+logistic, and the stacked LightGBM model. No settings were tuned on these results.
+
+`expand_training` now writes an ignored catalogue of **29,164 training blocks**
+for context attachment. This includes unlabelled neighbouring blocks: filtering
+to labelled rows would invent adjacency and pass the wrong preceding heading.
+Every non-training group is excluded before the catalogue is written. The
+regression checks that a labelled block after an unlabelled block gets `none`
+context, and that test/excluded blocks cannot enter the catalogue.
+
+The existing stack uses inner source-grouped out-of-fold text probabilities for
+its training matrix, not predictions from a text model fitted on those same
+rows. Outer source weights are inherited by those inner fits. Previous-block
+heading labels are available at inference, but they are correlated with weak
+supervision; human-labelled evaluation is still needed to establish real benefit.
+
+### Same-row development results
+
+Five classes enter macro F1: definition (including notation), theorem, proof,
+example and algorithm. `other` remains trained but unscored in that average.
+
+| Model | Accuracy | Macro F1 | Definition precision | Definition recall |
+|---|---:|---:|---:|---:|
+| Plain logistic | 0.6813 | 0.4609 | 0.8723 | 0.0981 |
+| Balanced word logistic | 0.7000 | 0.6167 | 0.5725 | 0.5670 |
+| Balanced word+character | 0.7208 | 0.6825 | 0.5451 | 0.5933 |
+| Cue/context/layout logistic | 0.7161 | 0.6922 | 0.6228 | 0.5885 |
+| Stacked LightGBM | 0.8043 | 0.7591 | 0.7275 | 0.6196 |
+
+The stack is the strongest measured development candidate here. Its example
+recall is 0.4401 and algorithm recall 0.8488. Its weak-label accuracy interval
+from the existing file-bootstrap runner is [0.7717, 0.8357]. This is not an
+80.4% real-world/gold accuracy claim, and nothing is deployed.
+
+⚡ **Design Decision — paired source-group differences, not overlapping standalone intervals.**
+
+**Reasoning:** each model predicts the same rows. The new comparison first
+rejects changed row IDs, files, folds, gold labels or repeated baseline outputs.
+It then aggregates correctness and definition hits by source and bootstraps
+**124 source groups**, with 2,000 draws and the fixed seed. Multiple PDFs from
+one original source stay together. The estimates remain row-pooled; source
+groups are the uncertainty unit, not a change to source-macro scoring.
+
+Against plain logistic, the stack gains **0.1231 accuracy** (95% paired interval
+[0.1010, 0.1466]) and **0.5215 definition recall** ([0.4611, 0.5877]). Balanced
+word logistic gains 0.0188 accuracy but its interval [-0.0066, 0.0455] includes
+zero; its definition-recall gain is supported. Word+character and cue models
+have small positive accuracy-difference intervals. These are development
+comparisons between already development-informed candidates, not final selection
+proof or independent gold results.
+
+### Archive collection and honest partial audit
+
+Collection resumed after the saved cooldown and downloaded three more archives.
+There are now **five downloaded archives**, but only **three readable sources**.
+Two files, `2512.25037v1.source` and `2601.00107v1.source`, end at 1 MiB and
+2 MiB respectively and fail gzip completeness checks. Another request returned
+429 without `Retry-After`; the collector stopped and saved a new cooldown.
+No endpoint switching or repeated rate-limit retries were performed.
+
+⚡ **Bug — downloaded bytes were mistaken for a complete source archive.**
+
+**Reasoning:** parsing real archives raised `EOFError`; checking existence alone
+would skip these broken files on every resume. Gzip data is now read through its
+footer under the decompression bound before parsing TeX. Partial HTTP responses
+and mismatched `Content-Length` are rejected. Newly downloaded source data must
+pass the archive check before caching. On a subsequent permitted resume, corrupt
+cached files are renamed to `.invalid-*` for diagnosis and re-requested, not
+deleted or overwritten. Those renames have not yet occurred during this run.
+
+⚡ **Design Decision — unreadable sources remain in the audit denominator.**
+
+**Reasoning:** dropping a corrupt archive could make coverage look better.
+The report instead includes its automatic labels as unresolved, records the
+source error, and reports downloaded/readable counts separately. Archives with
+no readable TeX are not accepted as LaTeX sources. A regression verifies that
+a corrupt source's predicted label remains counted, not silently omitted.
+
+The partial audit covers **246 automatic labels** in those five papers:
+**103 uniquely aligned and agreeing**, **143 unresolved**, or **41.9% alignment
+coverage**. Conditional agreement is 100% on those matches, not overall precision.
+There are no observed mismatches, so a boundary-only bootstrap interval is not
+reported as proof of perfection. **17 valid archives still needed**: 15 not
+downloaded and two truncated downloads needing replacement/refetch. The
+category-spread 20-paper audit is not accepted or complete.
+
+### Files created / modified
+
+- **Data (modified):** `ml/data/expand_training.py` — generates a train-only
+  full-block context catalogue without changing selected rows, folds or weights.
+- **Collection (modified):** `ml/data/arxiv_corpus.py` — response status/length
+  checks, archive validation before caching and recoverable handling of invalid
+  cached source files.
+- **Evaluation (modified):** `ml/eval/latex_audit.py` — full bounded gzip check,
+  readable-source accounting, per-source errors and conservative unresolved counts.
+- **Evaluation (created):** `ml/eval/compare_expanded.py` — identical-run guards
+  and paired source-group bootstrap differences for accuracy/definition recall.
+- **Tests (modified/created):** `ml/tests/test_source_expansion.py` — seven new
+  context/integrity cases; `ml/tests/test_expanded_comparison.py` — seven cases
+  for arithmetic, reproducibility and changed-comparison rejection.
+- **Results (created):** `ml/results/classifier_expanded_features_cv.json` and
+  `ml/results/expanded_paired_comparison.json` — aggregate same-row model results
+  and paired intervals; `ml/results/arxiv_label_audit.json` refreshed as partial.
+- **Local only (ignored):** full context catalogue, candidate row predictions,
+  five archives and refreshed download/audit diagnostics under `ml/out/`.
+- **Documentation (modified):** `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`
+  and this log — commands, measured results and remaining audit work.
+
+### Testing
+
+- **266 Python tests pass**, including seven new context/integrity cases and
+  seven paired-comparison tests; all tests remain network-free/toy-data checks.
+- Typecheck, core-boundary lint, **185 frontend tests** and production build
+  are green. Existing non-fatal production warnings remain unchanged.
+- Frozen split and extractor/heading-rule files are unchanged. Both reports
+  explicitly record that the test set was not evaluated. Unrelated frontend,
+  gold-evaluation and prior model work was preserved. No UI check is required.
+
+**Remaining/manual check:** finish the source transfers and inspect unresolved
+source matches before quoting automatic-label precision. Human review of the
+300 independent test labels remains necessary before a gold acceptance run.
+The stacked classifier is a development candidate, not an accepted product model.
+
+**Git checkpoint: pending — no commit requested for this follow-up.**
+
+---
+
+## Phase ML2.E3: Fixed-sample Source-audit Accounting and Download Handoff
+
+**Date:** October 12, 2026
+**Objective:** resume the remaining 17 valid LaTeX archives and complete the
+source audit. The service returned HTTP 429 again, so collection is still
+incomplete. This follow-up corrects audit accounting and supplies a reproducible
+manual handoff; it does not claim that the 20-source audit has been achieved.
+
+### Resume outcome and recoverable cache handling
+
+The saved cooldown had elapsed. One sequential source request was attempted
+after the configured delay; it returned HTTP 429 without `Retry-After` and
+collection stopped. No alternative endpoint or aggressive retry was used.
+The known truncated `2512.25037v1.source` was renamed, with its bytes intact,
+to `.source.invalid-1791798214015224600`. It can be recovered from that file;
+nothing was deleted. The other truncated archive remains cached for diagnosis.
+The state is still five previously downloaded papers, three readable sources,
+15 papers not downloaded and two needing a valid replacement transfer.
+
+### Correcting the audit denominator
+
+⚡ **Bug — missing or quarantined sources disappeared from the selected sample.**
+
+**Reasoning:** ML2.E2 kept corrupt `.source` files in the denominator, but
+renaming one to `.invalid-*` removed it from the next audit. Papers without any
+download were omitted as well. That made coverage depend on download success,
+although the 20-paper sample was meant to be fixed before looking at labels.
+
+The collector and auditor now share a category-round-robin selection function.
+All 20 selected papers contribute their automatic labels. Missing, unreadable
+or quarantined sources contribute unresolved labels, with an explicit error.
+Downloaded and readable paper counts are separate. Completing collection can
+no longer shrink or silently change this denominator.
+
+| Fixed audit sample | Count |
+|---|---:|
+| Selected papers | 20 |
+| Previously downloaded papers, including invalid caches | 5 |
+| Readable sources | 3 |
+| Automatic labels in selected papers | 742 |
+| Uniquely aligned labels agreeing with source environments | 103 |
+| Unresolved labels | 639 |
+| Alignment coverage | 13.9% |
+
+The 41.9% in ML2.E2 was coverage among the five downloaded papers. **13.9% is
+the corrected fixed-sample coverage**, not a decline in label correctness.
+Conditional agreement remains 103/103, but neither that ratio nor the
+verified fraction is an overall precision estimate. A 20-paper precision claim
+remains unsupported; no gold-test accuracy was measured here.
+
+### Exact-version manual handoff
+
+⚡ **Design Decision — offline manifest instead of repeated blocked requests.**
+
+**Reasoning:** waiting and retrying has repeatedly failed at the source service.
+The existing selected versions and cached PDFs must remain aligned. An offline
+manifest lists all 20 paper IDs, category/title, version-specific abstract and
+source URLs, absolute cache filenames and whether the source is still needed.
+It does not change paper selection or make a network request.
+
+`python -m ml.data.arxiv_corpus --list-sources` creates the ignored
+`ml/out/arxiv_expansion/audit_downloads.json`; **17 entries are marked needed**.
+If the source service is accessible to the user, download the LaTeX archive for
+the exact listed version, keep its bytes unchanged, and save it to the listed
+`.source` path. Do not download another PDF or overwrite `.invalid-*` diagnosis
+files. Running `python -m ml.eval.latex_audit` then validates and measures the
+available sources without requesting more downloads.
+
+### Files created / modified
+
+- **Collection (modified):** `ml/data/arxiv_corpus.py` — common fixed sample
+  selection and an offline exact-version download-manifest command.
+- **Evaluation (modified):** `ml/eval/latex_audit.py` — includes all selected
+  papers, recognizes quarantined downloads, and counts their labels unresolved.
+- **Tests (modified):** `ml/tests/test_source_expansion.py` — four new cases:
+  missing source, quarantined source, category round-robin sample and manual
+  manifest version/path preservation. Tests make no network requests.
+- **Aggregate result (refreshed):** `ml/results/arxiv_label_audit.json` — fixed
+  20-paper counts and the explicit partial status; no PDF/LaTeX prose included.
+- **Local only (ignored):** `audit_downloads.json`, refreshed row audit, cooldown
+  diagnostic and recoverable invalid cache under `ml/out/arxiv_expansion/`.
+- **Documentation (modified):** `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`
+  and this log — corrected coverage, manual instructions and blocker status.
+
+### Testing
+
+- **270 Python tests pass**, including the four new audit/handoff regressions.
+- Typecheck, core-boundary lint, **185 frontend tests** and production build
+  are green on October 12. Non-fatal build warnings remain unchanged.
+- Original extractor, heading rules and frozen split are unchanged. No model
+  was retrained and no frozen-test prediction was made in this follow-up.
+- Only assistant draft labels are present; there is no human-approved
+  `hand_labels.jsonl`. Gold evaluation is therefore still not run.
+
+**Remaining/manual check:** acquire the 17 valid sources using the exact-version
+manifest if the service is accessible, then inspect unresolved source matches.
+Otherwise the external source-service blocker must clear first. Human review
+of the independent test labels remains required before gold acceptance.
+
+**Git checkpoint: pending — no commit requested for this follow-up.**
+
+---
+
+## Phase ML2.E4: Built-in Browser Source-download Verification
+
+**Date:** October 12, 2026
+**Objective:** test the user's claim that source downloads work through the
+Codex built-in browser, instead of equating automated HTTP failures with paper
+unavailability. One source download and its local ingestion are verified; the
+full 20-source audit remains incomplete.
+
+### Browser result and archive validation
+
+The computer-use skill guided selection of the already-open arXiv tab and
+interaction with its observed **TeX Source** link. No native Codex UI automation,
+alternate guessed endpoint, source compilation or unrelated UI testing was used.
+The browser downloaded `2601.00107v1` via the page's `arxiv.org/src/` link and
+returned the actual local download path. The transfer completed, although the
+browser tool call took much longer than its requested timeout; it is not a
+verified fast collection mechanism yet.
+
+The file is **8,471,681 bytes** and passes bounded gzip-footer and archive
+validation. It contains one readable TeX file and 15 recognized environments.
+The old **2,097,152-byte** truncated cache is preserved intact as
+`2601.00107v1.source.invalid-browser-replacement`; no file was deleted. The
+complete browser download was copied into the existing source-cache filename,
+and the original download remains available.
+
+⚡ **Design Decision / Correction — transport failure is not source unavailability.**
+
+**Reasoning:** the script's `export.arxiv.org/e-print/` requests returned 429,
+while the browser's actual source link succeeded. The earlier broad wording
+that source collection was unavailable was therefore not justified. This
+establishes a working browser route for this paper, not a diagnosis of why the
+script route failed or proof that every remaining paper will download.
+
+### Audit refresh and files affected
+
+The fixed sample remains the same 20 papers and 742 automatic labels. There
+are now **four readable sources**, **113 uniquely aligned agreeing labels**,
+**629 unresolved labels** and **15.2% coverage**. Conditional agreement is still
+not overall precision. **16 valid sources remain** before collection acceptance.
+
+- **Aggregate result (refreshed):** `ml/results/arxiv_label_audit.json` — the
+  new readable-source count and fixed-sample coverage, still marked partial.
+- **Local only (ignored):** complete source cache, recoverable truncated cache,
+  regenerated audit rows and `audit_downloads.json` now marking 16 needed.
+- **Documentation (modified):** `ml/README.md`, `docs/IMPLEMENTATION_PHASES.md`
+  and this log — successful browser verification and corrected availability claim.
+- No extractor, classifier, source-code test, split or human-label file changed.
+
+### Testing
+
+- Browser download completion and its returned file path were observed.
+- Full archive validation passed; regenerated audit uses the intact source.
+- Download/cache SHA-256 equality and ignored-cache status were checked.
+- The latest code gates remain the October 12 **270 Python tests**, **185
+  frontend tests**, typecheck, core lint and production build from ML2.E3.
+  They were not rerun for this data-only follow-up; no new green-gate claim is made.
+- Frozen split and extractor/heading rules remain unchanged. No test-set
+  evaluation, source execution or model retraining occurred.
+
+**Remaining:** collect the remaining 16 selected source versions through the
+working browser route and validate them individually. Keep unresolved labels
+visible; independent human-label acceptance still remains separate.
+
+**Git checkpoint: pending — no commit requested for this follow-up.**
+
+---
+
+## Phase ML2.E5: Complete the Remaining Source Downloads
+
+**Date:** October 13, 2026
+**Objective:** download and validate the remaining 16 exact-version LaTeX sources.
+
+### Collection complete
+
+The browser-control skill guided use of each observed TeX Source link. All
+16 archives downloaded (22,231,565 bytes total), passed bounded archive validation,
+and matched their cached copies byte-for-byte. No LaTeX was compiled or executed.
+Original downloads and invalid caches remain recoverable. All **20 selected
+sources are readable**, and the refreshed manifest has zero downloads remaining.
+The temporary browser tab was closed after collection.
+
+### Automatic audit and limitations
+
+The fixed sample has 742 labels: 448 uniquely aligned, 446 agreeing, two
+disagreeing and 294 unresolved. Conditional agreement is **99.55%**, with a
+paper-bootstrap interval [98.90%, 100%] and **60.4% alignment coverage**. Two
+readable papers have no recognized environments. No paper was replaced based
+on audit outcomes. This is not overall precision or independent gold accuracy.
+
+⚡ **Bug / Design Limitation — the two disagreements have different causes.**
+
+**Reasoning:** `2601.00084v1`, page 16, has a fragmented reference to Definition 1
+inside a remark, incorrectly weak-labelled definition. `2512.25033v4`, page 27,
+has a legitimate claim environment inside a proof; custom problem-name macros
+prevent its correct token alignment, so the auditor matches proof text instead.
+The latter is an alignment artefact, not a confirmed wrong theorem label. Neither
+the extractor nor training labels were changed during this download step.
+
+### Files created / modified
+
+- **Result (refreshed):** `ml/results/arxiv_label_audit.json` — complete collection
+  and qualified automatic agreement/coverage.
+- **Local only (ignored):** 16 source caches, row audits, download checklist and
+  `browser_downloads_20261013.json` recording versions, routes, sizes and hashes.
+- **Documentation:** this log, roadmap and ML README record completion.
+
+### Testing
+
+All archive/hash checks pass. **270 Python tests**, **185 frontend tests**,
+typecheck, core-boundary lint and production build pass on October 13. Python's
+initial sandbox temp-fixture setup failed; a fresh ignored workspace `--basetemp`
+resolved the setup errors, without code changes or skipped tests. Existing build
+warnings remain. Frozen split, extractor and heading rules are unchanged; no
+model retraining or frozen-test prediction occurred.
+
+**Remaining/manual check:** review the 294 unresolved labels and the documented
+heading/alignment issues; approve the 300 draft test labels before gold evaluation.
+There are no remaining downloads.
+
+**Git checkpoint: pending — no commit requested for this follow-up.**
+
+---
+
+## Phase ML2.11: Model Choice Frozen Before the Gold Run
+
+**Date:** October 13, 2026
+
+**Goal:** choose one classifier on development data only, check it on the kinds
+of documents the test set contains, and make the gold script train it exactly
+as it was selected.
+
+### Check on non-arXiv sources
+
+After the expansion about 80% of training rows are arXiv papers, while the frozen
+test set is a textbook, slides, NIST standards, a cryptography paper and a payments
+paper. The expanded cross-validation predictions were therefore re-scored on the
+**14 original non-arXiv sources only** (855 rows: textbook, slides, assignments,
+thesis, notes), with intervals that resample source groups. Numbers below are
+after the ML2.12 regeneration; the pre-regeneration check gave the same ranking.
+
+| Model | Accuracy | 95% CI | Macro F1 (4 classes) | 95% CI | Definition P / R / F1 |
+|---|---:|---|---:|---|---|
+| Balanced logistic | 0.536 | [0.466, 0.600] | 0.533 | [0.385, 0.581] | 0.54 / 0.59 / 0.56 |
+| Word + character | 0.556 | [0.501, 0.682] | 0.569 | [0.498, 0.624] | 0.51 / 0.63 / 0.56 |
+| Cue logistic | 0.454 | [0.364, 0.759] | 0.497 | [0.208, 0.750] | 0.69 / 0.41 / 0.51 |
+| **Stacked LightGBM** | **0.654** | [0.610, 0.712] | **0.678** | [0.619, 0.699] | **0.84 / 0.60 / 0.70** |
+
+On these 14 sources the ML2.7 models trained on 549 rows reached about 0.41
+accuracy; the added arXiv sources lift them to 0.54–0.65 without any test data.
+
+⚡ **Design Decision — stacked LightGBM is the frozen model for the gold run.**
+
+**Reasoning:** it is the best candidate on all expanded sources (accuracy 0.799,
+paired gain over plain logistic +0.120 [0.099, 0.142]) and on the non-arXiv
+subset, where its lower interval bound is above every other model's point
+estimate. Its definition precision (0.73 overall, 0.84 non-arXiv) also suits a
+knowledge bundle where a wrong "definition" is worse than a missed one. The
+choice uses development data only; the test set has not been read.
+
+### `gold_eval.py` now matches the selected training setup
+
+- defaults: `--model stacked_lightgbm`, training rows
+  `ml/out/arxiv_expansion/train_blocks.jsonl`, context catalogue
+  `ml/out/arxiv_expansion/context_blocks.jsonl`;
+- source weights (1 / rows from that source, mean one), as in the selection
+  runs; `--unweighted` exists only for ablation;
+- refuses to run if any training row belongs to a frozen test group.
+
+A smoke fit on training data only (4,254 rows, three held-out training sources)
+completed in 18 s. The test sample has still not been evaluated.
+
+---
+
+## Phase ML2.12: LaTeX Audit Alignment, Heading-rule Fixes and Training Regeneration
+
+**Date:** October 13, 2026
+
+**Goal:** close item 1 of the remaining work: explain the 294 unmatched audit
+labels and fix the heading and alignment issues they reveal.
+
+### Why labels were unmatched
+
+| Reason | Labels |
+|---|---:|
+| 8-word anchor found in several LaTeX environments (repeated phrasing, restated results) | 123 |
+| Body under 8 words (formula-heavy statements) | 88 |
+| No 8-word match (maths tokenised differently: `\exp`, `\operatorname{LCS}`, inline `$…$`) | 80 |
+| Anchor only after word 24 | 3 |
+
+### Alignment changes (`ml/eval/latex_audit.py`)
+
+The exact 8-word anchor stays the first method. Fallbacks run only when it fails,
+and each must leave a single source label:
+
+- **nested:** several anchored environments, one nested in the others (a claim
+  inside a proof) → innermost;
+- **label:** several anchored environments that all carry the same label;
+- **short:** bodies under 8 words use exact 5-word anchors, unique environment;
+- **overlap:** no anchor at all, ≥ 80% of the first 40 words in one environment,
+  ≥ 0.2 ahead of the runner-up.
+
+LaTeX operator commands (`\exp`, `\lim`, `\sup`, …) keep their names so they match
+the PDF text. Each decision records its method, and the report gives
+per-method counts so no fallback can hide errors.
+
+### Heading-rule fixes (`ml/data/heading_rules.py`)
+
+| Issue found in review | Fix | Training rows affected |
+|---|---|---:|
+| "(see Definition 1) in the setting…" wrapped onto a new line read as a definition heading (hyperref colour gave font-change evidence) | number followed by an unbalanced `)` is rejected | 1 |
+| Name with nested brackets, "Lemma 16 (… Hall et al. (2014))", cut at the inner `)`; `) .` left in the body | one level of nesting in heading names | 32 |
+| "Proof of Lemma B.3." stopped at "B."; `3 .` left in the body | appendix-number lookahead in the proof-of pattern | 27 |
+| "Proof sketch." left "sketch" in the body | "sketch" is part of a proof heading | 6 |
+
+Seven regression tests cover these cases. Frozen test-set blocks were **not**
+re-extracted: `to_label.jsonl` block IDs depend on them, so the gold run uses the
+heading labels as originally extracted (no test block contains the
+cross-reference bug).
+
+### Regeneration (training data only)
+
+All 120 arXiv PDFs and the 40 original training PDFs were re-extracted
+(`repair_training --out ml/out/ml212`; `expand_training --base-blocks
+ml/out/ml212/blocks.jsonl`). Previous outputs are kept in
+`ml/out/arxiv_expansion/pre_ml212/`. Row count stays 4,477; arXiv weak labels
+change by −1 definition, −1 proof and +2 theorem. Block IDs are positional, so a
+removed false heading shifts later IDs in that paper; labels are preserved.
+
+### Results
+
+LaTeX audit, 20 papers, 740 automatic labels:
+
+| | Before (ML2.E5) | After |
+|---|---:|---:|
+| Matched to a LaTeX environment | 448 (60.4%) | **619 (83.6%)** |
+| Agreeing | 446 | 616 |
+| Precision on matched labels | 0.996 | **0.995**, paper-bootstrap 95% CI [0.984, 1.000] |
+| Unmatched | 294 | 121 |
+
+By method (agreeing / matched): anchor 449/450, nested 13/13, label 113/115,
+short 27/27, overlap 14/14. All three mismatches are statements that sit inside a
+LaTeX `proof` environment (a restated "Theorem 5" twice, a bold "Claim 27" with
+no claim environment). The heading rule's "theorem" describes those blocks
+better; they are reported as mismatches anyway. The 121 still unmatched were
+reviewed by heading and opening text: all are genuine headings with the correct
+role; they fail alignment because bodies are formula-only, results are restated
+in appendices, or macros differ. No recall is measured: LaTeX environments that
+the heading rule missed are not counted.
+
+Expanded development comparison on the regenerated rows (5 scored classes):
+
+| Model | Accuracy | Macro F1 | 95% CI | Definition P / R / F1 |
+|---|---:|---:|---|---|
+| Plain logistic | 0.679 | 0.458 | [0.429, 0.491] | 0.87 / 0.11 / 0.19 |
+| Balanced logistic | 0.703 | 0.630 | [0.583, 0.675] | 0.58 / 0.58 / 0.58 |
+| Word + character | 0.721 | 0.683 | [0.643, 0.724] | 0.55 / 0.58 / 0.56 |
+| Cue logistic | 0.718 | 0.694 | [0.655, 0.726] | 0.63 / 0.60 / 0.61 |
+| **Stacked LightGBM** | **0.799** | **0.755** | [0.725, 0.789] | **0.73 / 0.64 / 0.68** |
+
+Paired against plain logistic (124 source groups): stack +0.120 accuracy
+[0.099, 0.142], +0.528 definition recall [0.460, 0.589]. Changes from ML2.E2 are
+within 0.013 for every model; the ranking is unchanged.
+
+Remaining boundary issue, not fixed: a block sometimes absorbs a following
+footnote or section heading ("Claim 27 … 10 A vertex is called universal…").
+
+### Files created / modified
+
+- **Data:** `ml/data/heading_rules.py` (four fixes), `ml/data/expand_training.py`
+  (`--base-blocks`).
+- **Evaluation:** `ml/eval/latex_audit.py` (fallback alignment, operators,
+  per-method report), `ml/eval/gold_eval.py` (expanded weighted training,
+  test-group guard, frozen default model).
+- **Tests:** `ml/tests/test_heading_rules.py` (+5), `ml/tests/test_source_expansion.py`
+  (+1, one expectation updated: identical same-label environments now resolve).
+- **Results (regenerated):** `arxiv_label_audit.json`, `arxiv_expansion_summary.json`,
+  `classifier_expanded_cv.json`, `classifier_expanded_features_cv.json`,
+  `expanded_paired_comparison.json`.
+
+### Testing
+
+- `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider`: **276 passed**.
+- Regeneration log: `ml/out/ml212_regenerate.log` (about 6 minutes end to end).
+
+**Next goal to achieve:** user approval of the 300 draft test labels, then the
+single milestone gold run with the frozen stacked LightGBM.
+
+---
+
+## Phase ML2.13: Test-label Review and the First Milestone Gold Run
+
+**Date:** October 13, 2026
+
+### Labels used as gold, and what they are
+
+At the user's request the assistant reviewed its own 300 draft labels instead of
+a human review. Rules applied in the review:
+
+- **definition:** fixes the meaning of a named concept, including security games
+  and named assumptions; in a mixed block a definition taking roughly a third or
+  more of the block wins, because definitions are what the product extracts;
+- **notation:** symbol conventions and auxiliary `:=` quantities with no named concept;
+- otherwise the role that takes most of the block; fragments take the role of
+  what they continue.
+
+The 61 flagged blocks were re-read in full text (the first pass saw long blocks
+truncated): 7 changed. A seeded random 50 of the 239 unflagged blocks were
+re-read: 1 changed (49/50 kept). Changes, by sample index: 37 other→definition
+(SUF-CMA explained), 63 other→definition (modified Weil pairing), 69
+notation→other, 94 other→notation, 109 other→definition (admissible encoding),
+124 proof→example (mostly exercise solutions), 148 other→notation, 212
+other→notation. Output: `ml/labels/gold_labels.jsonl` (ignored).
+
+⚡ **Design Decision — the gold labels are single-annotator AI labels, and are
+named and reported that way.**
+
+**Reasoning:** the plan called for independent human labels. These labels are
+independent of the weak labels and the classifier (the annotator never saw
+either), but they come from one AI annotator reviewing its own draft. Kappa 0.966
+between draft and review is self-consistency, **not** inter-annotator agreement.
+A human check of a random subset (e.g. 50 blocks with Cohen's kappa) would
+upgrade these numbers; until then every gold figure below carries this caveat.
+
+### The run
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.gold_eval --gold ml/labels/gold_labels.jsonl --compare ml/labels/assistant_labels.jsonl --frozen-test-milestone --out ml/results/gold_merged_stacked_lightgbm.json
+```
+
+Frozen model: stacked LightGBM (ML2.11), trained on all 4,477 expanded,
+source-weighted training rows. Merged scheme; macro F1 over definition, theorem,
+proof, example and algorithm (all present in the sample). Intervals resample
+the 15 test files. The sample is enriched (100 headed, 100 prose-definition
+candidates, 100 other unheaded), so these are diagnostic rates, not population
+estimates.
+
+| System | Accuracy | 95% CI | Macro F1 | 95% CI |
+|---|---:|---|---:|---|
+| Heading rule (fires on 33.3% of blocks) | 0.970 when it fires | [0.923, 1.000] | — | — |
+| Classifier alone | 0.547 | [0.451, 0.611] | 0.589 | [0.483, 0.636] |
+| **Two-stage (product)** | **0.603** | [0.498, 0.665] | **0.659** | [0.547, 0.707] |
+
+Two-stage per class (precision / recall / F1, support): definition
+0.88 / 0.33 / 0.48 (67); theorem 0.73 / 0.88 / 0.80 (41); proof 0.61 / 0.96 /
+0.74 (56); example 0.27 / 0.76 / 0.40 (25); algorithm 0.91 / 0.83 / 0.87 (12);
+other 0.71 / 0.40 / 0.52 (99, unscored).
+
+**Prose definitions** (gold definition, no heading): 61 in 10 files.
+Recall **0.262** [0.159, 0.365]; precision on unheaded blocks **0.842**
+[0.706, 1.000]. Two-stage accuracy by stratum: headed 0.97, prose candidates
+0.47, other unheaded 0.37.
+
+### What the errors show
+
+Two-stage confusion, gold rows → predicted:
+
+- gold definition (67): 22 definition, 19 proof, 11 example, 11 other, 3 theorem, 1 algorithm;
+- gold other (99): 40 other, **39 example**, 10 proof, 9 theorem, 1 definition.
+
+⚡ **Finding — the training data contains no ordinary prose.**
+
+Every training row comes from a block with a formatted heading, because
+unlabelled is not treated as "other". At test time the classifier meets
+discussion, introductions, reference lists and prose definitions, which have no
+counterpart in training, and assigns them to the nearest headed role (often
+example or proof). Development scores (0.80 accuracy) were measured on headed
+blocks only and do not transfer to unheaded text. The headed path is solid
+(heading rule 0.97; theorem/proof/algorithm F1 0.74–0.87); the unheaded path is
+the weak point.
+
+Positive for the product: definition precision is high (0.88 overall, 0.84 on
+prose), so a bundle built from this model would contain few wrong definitions;
+it would miss about three quarters of prose definitions.
+
+### Consequences for the test set
+
+The frozen test set has now been read once for this model. It must not guide
+the next changes; the next model is chosen on development data, and any second
+gold read is reported as a second read.
+
+### Files
+
+- **Evaluation result (created):** `ml/results/gold_merged_stacked_lightgbm.json`
+  (numbers only).
+- **Labels (ignored):** `ml/labels/gold_labels.jsonl`.
+
+**Next goal to achieve:** ML2.14, training signal for unheaded prose:
+unlabelled blocks as a noisy "neither" class (positive–unlabelled learning,
+Elkan & Noto 2008), a prose-definition-specific cue set, and a precision-first
+threshold for the bundle, all selected on development data with a held-out
+development measure that includes unheaded blocks.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
@@ -3094,6 +4192,8 @@ ml/
 ├── data/sample_for_labelling.py  enriched independent held-out sample
 ├── data/prepare_training.py      train-only heading-free rows and source folds
 ├── data/repair_training.py       training-only regeneration with original source folds
+├── data/arxiv_corpus.py          cached, rate-limited training-paper/source collection
+├── data/expand_training.py       uncapped train-only extension and coverage/fold report
 ├── models/first_classifier.py    majority/heading baselines, TF-IDF logistic and NB fitting
 ├── models/layout_classifier.py   finite layout allowlist, category encoder and LightGBM
 ├── models/improved_classifier.py balanced word and word/character candidates
@@ -3104,13 +4204,22 @@ ml/
 ├── eval/baseline_current_rag.py   offline exact-vector and reranking baseline
 ├── eval/stats.py                 seeded document-cluster confidence intervals
 ├── eval/classifier_cv.py         grouped logistic/NB/layout development and intervals
+├── eval/label_scheme.py          merged labels and estimable-class rule
 ├── eval/error_audit.py           train-only diagnostic sampling and review binding
 ├── eval/training_quality.py      aggregate repair diagnostics and content overlap
+├── eval/latex_audit.py           bounded source-environment alignment and coverage
+├── eval/compare_expanded.py      identical-run guards and paired source intervals
 ├── results/classifier_layout_cv.json  numerical four-method weak-label comparison
 ├── results/classifier_improved_cv.json  fixed text-candidate comparison
 ├── results/error_audit_summary.json  aggregate provisional 50-error diagnoses
 ├── results/classifier_repaired_cv.json  separate repaired-row weak-label comparison
+├── results/classifier_merged_cv.json  ML2.8 merged-label, estimable-class scoring
 ├── results/training_repair_summary.json  numerical before/after training diagnostics
+├── results/arxiv_expansion_summary.json  training-only yield and fold coverage
+├── results/classifier_expanded_cv.json  source-weighted expanded-data baselines
+├── results/classifier_expanded_features_cv.json  fixed definition-focused candidates
+├── results/expanded_paired_comparison.json  same-row source-group bootstrap gains
+├── results/arxiv_label_audit.json  20 readable sources, 448/742 aligned labels
 ├── results/baseline_current_rag.json  five-example numerical smoke results
 └── tests/                        extraction, split, sampling and JS session tests
 ```
@@ -3123,15 +4232,24 @@ ml/
 - 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- `ml/`: 4,579 Python lines, 208 passing Python tests (68 extraction/layout, 16 split,
+- `ml/`: 6,326 Python lines across 46 files (including blank lines), 276 passing Python tests (68 extraction/layout, 16 split,
   eight sampling, 24 questions, eight baseline, seven training preparation)
   plus ten active classifier, eight grouped-CV, eight NB and 17 layout-classifier tests;
-  nine error-audit, nine fixed-candidate and 16 training-repair tests;
+  nine error-audit, nine fixed-candidate, 16 training-repair and five label-scheme tests;
+  15 concurrent gold/feature cases, 35 source-expansion cases and seven paired-comparison cases;
   seven non-UI JavaScript tests.
 - ML corpus: 58 PDFs / 38 groups; 52 eligible PDFs yield 14,237 blocks and
   1,345 weak labels in the preserved ML1 extraction snapshot. Frozen split:
   23 train/dev, 10 test, 5 excluded groups. ML2.7 regenerated training-only snapshot:
   40 PDFs, 9,360 blocks / 938 weak labels; 549 capped training rows across 27 PDFs.
+- ML2.E1: 120 new arXiv PDFs / 120 new training groups, 19,804 new blocks /
+  3,665 new weak labels. Expanded training: 160 extracted PDFs, 143 assigned
+  groups / 124 usable groups, 4,477 uncapped rows across 137 PDFs. All original
+  classes appear in all five folds. Source collection complete: 20 readable archives;
+  fixed-sample audit has 742 labels, 448 aligned, 446 agreeing, two disagreements
+  and 294 unresolved (60.4% coverage);
+  remaining transfers rate-limited and two archives truncated. ML2.E2 stacked
+  development accuracy 0.8043, macro F1 0.7591, definition P/R 0.7275/0.6196.
 - 19 commits after the safety checkpoint `ab63d6f` through ML2 checkpoint `984c0ea`
   (not including the subsequent documentation-only checkpoint record).
 
@@ -3141,8 +4259,8 @@ ml/
 |---|---|---|
 | `npx tsc -b` | Green | TypeScript project references |
 | `npm test -- --run` | Green | 185 tests in 31 files |
-| `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider` | Green, October 7 | 208 passed, no skips; extraction repair and data diagnostics checked |
-| `node --test ml/tests/label_session.test.cjs` | Green, October 6 | 7 non-UI offline labelling-session tests |
+| `.venv-ml/Scripts/python.exe -m pytest ml/tests -p no:cacheprovider` | Green, October 13 | 276 passed, no skips; includes ML2.12 heading-rule and audit-alignment regressions |
+| `node --test ml/tests/label_session.test.cjs` | Green, October 7 | 7 non-UI offline labelling-session tests |
 | `npx eslint src/core --max-warnings 0` | Green | pure-core boundary and core lint |
 | `npm run build` | Green | typecheck plus Vite production build |
 | `npm run build:demo` + `npm run demo:check` | Green | static demo and bundle exclusions |
@@ -3175,7 +4293,7 @@ CI gates `src/core` at zero warnings.
 
 ---
 
-## Next Up: ML2.8 Training-Data Acceptance, with ML1 Human-Data Acceptance Still Pending
+## Next Up: Training Signal for Unheaded Prose (ML2.14), then ML3
 
 The full plan is in `docs/IMPLEMENTATION_PHASES.md`. Remaining ML1 work:
 
@@ -3201,12 +4319,64 @@ Balanced logistic reaches accuracy 0.4124 / macro F1 0.2700 / definition recall
 ML2.7 is now implemented: source-page-verified extraction fixes, 549 regenerated
 rows with unchanged source folds, and separate evaluation (balanced accuracy
 0.4080 / macro F1 0.2638 / definition recall 0.4022). This changed-data result
-is not an identical-row improvement over ML2.6. Next is ML2.8 training-snapshot
-acceptance and rare-class label enrichment; final independent-label acceptance remains pending.
+is not an identical-row improvement over ML2.6. ML2.8 changed scoring only:
+notation merged into definition, other unscored, algorithm not estimable; on the
+four estimable classes balanced logistic reaches macro F1 0.4444 (same models, same rows).
+ML2.9 gold-evaluation tooling and ML2.10 cue/context model tooling were added
+in concurrent work; the draft test labels still require human approval. More
+training sources are now extracted in ML2.E1, with its source audit partial.
 Final held-out evaluation still requires the pending independent human labels.
+
+ML2.E1 now adds 120 training-only arXiv groups and replaces the cap with source
+weights: 4,477 usable rows, balanced five-fold row counts, every class in every
+fold. Expanded logistic reaches weak-label accuracy 0.6813 / macro F1 0.4609
+over five scored classes, but definition recall is only 0.0981. Do not treat
+that changed-population accuracy as proof of an across-the-board improvement.
+ML2.E2 has now compared the existing definition-focused candidates on identical
+expanded rows. The stack reaches accuracy 0.8043 / macro F1 0.7591 / definition
+recall 0.6196, with paired source-group intervals supporting gains over plain
+logistic. This is weak-label development evidence, not gold acceptance.
+The 20-paper source audit remains partial: five downloaded, four readable;
+16 valid sources still needed. The script resume returned HTTP 429, but the
+subsequent built-in-browser download succeeded.
+ML2.E3 fixes the full-sample denominator (103/742 resolved, 13.9% coverage) and
+provides an offline exact-version download manifest. Acquire those sources,
+complete the audit and review unresolved matches before a precision claim. ML2.9 human approval and
+gold acceptance remain pending; concurrent ML2.10 code is preserved separately.
+
+ML2.E4 verifies that the built-in browser downloads a complete source archive
+where the script route failed. Four sources are now readable, 16 still needed.
+Use that browser route for the next collection step; don't infer browser
+unavailability from the script's 429 responses or require manual downloads
+without first testing the available browser mechanism.
 
 Manual acceptance of Phase 8R and F8R.2 and publishing the static demo stay
 open in parallel; they do not block the ML track.
+
+**Current roadmap update, October 13:** ML2.E5 completes all source downloads.
+All 20 archives are readable; automatic agreement is 446/448 with 60.4% coverage.
+The earlier download blockers above are historical, not current. Next are the
+294 unresolved audit labels, the heading/alignment issues and human approval
+of 300 draft test labels before gold evaluation. No downloads remain.
+
+**Update, October 13 (ML2.11–ML2.12):** the audit review is done. Alignment
+coverage is 83.6% (619/740) with 0.995 precision [0.984, 1.000]; all 121 still
+unmatched labels were reviewed and are correct headings. Four heading-rule
+issues were fixed and training data regenerated; the stacked LightGBM remains
+best (0.799 accuracy, 0.755 macro F1; 0.654 / 0.678 on non-arXiv sources) and is
+frozen for the gold run. Remaining: (1) user review of the 300 draft labels in
+`label.html` → `hand_labels.jsonl`; (2) the single milestone run
+`python -m ml.eval.gold_eval --compare ml/labels/assistant_labels.jsonl --frozen-test-milestone`;
+(3) commit; (4) ML3, the OKF bundle writer.
+
+**Update, October 13 (ML2.13):** labels reviewed by the assistant (8 changes;
+single-annotator AI labels, not human) and the milestone gold run done.
+Two-stage accuracy 0.603 [0.498, 0.665], macro F1 0.659; heading rule 0.97 when
+it fires; prose-definition recall 0.262 [0.159, 0.365] at precision 0.842.
+Training has no unheaded prose, so unheaded text is forced into headed roles.
+Next: ML2.14 (unlabelled blocks as a noisy "neither" class, prose-definition
+cues, precision-first threshold), chosen on development data only; optional
+human check of 50 gold labels; then ML3.
 
 ---
 

@@ -110,9 +110,11 @@ baseline table with confidence intervals.
 ### ML2 — Block classifier v1 (Oct 13–19)
 
 Started October 6 at the user's request, while ML1 human-data acceptance is
-pending. Substeps are sequential; ML2.1–ML2.7 are implemented and verified.
+pending. ML2.1–ML2.10 tooling is implemented and verified; independent human
+acceptance remains pending. ML2.E1 has expanded training; its source audit is partial.
 Grouped weak-label development is measured; final independent-label acceptance
-remain later work. Next is repaired-data acceptance and training-label enrichment.
+remain later work. Finish the LaTeX audit, develop on expanded training only,
+and review hand labels before any final frozen-test evaluation.
 
 | Substep | Scope | Status |
 |---|---|---|
@@ -123,16 +125,27 @@ remain later work. Next is repaired-data acceptance and training-label enrichmen
 | ML2.5 | Layout-only LightGBM on identical source folds; five layout measurements plus category | Implemented and measured; accuracy 0.297 / macro F1 0.165; definition recall zero; 174 Python tests pass; gold test untouched |
 | ML2.6 | Reproducible 50-mistake development audit and two fixed text candidates, requested to improve accuracy | Complete text-only provisional audit; balanced logistic accuracy 0.412 / macro F1 0.270 / definition recall 0.391; does not beat NB accuracy; 192 Python tests pass; not independent gold acceptance |
 | ML2.7 | Training-data quality repair: fragmented blocks and heading/table associations | Implemented; six rendered source pages checked, 549 revised rows; 208 Python tests pass; original source folds/reports preserved; balanced accuracy 0.408 / macro F1 0.264, changed data not an identical-row improvement |
-| ML2.8 | Accept repaired training snapshot and independently review/enrich train-only labels, especially rare classes | Next; no further tuning or frozen-test evaluation until data acceptance |
+| ML2.8 | Scoring scheme: notation merged into definition, `other` unscored, macro F1 only over classes in ≥3 sources and ≥3 folds | Implemented; algorithm not estimable; balanced logistic macro F1 0.444 on 4 classes (rescoring, same models and rows); 213 Python tests pass |
+| ML2.9 | 300 test labels and gold evaluation with the same scheme and separate prose-definition recall | Assistant draft of 300 labels (61 flagged uncertain), user review pending; `gold_eval.py` built and tested on toy data, not run on the test set |
+| ML2.10 | Cue-phrase, previous-block context and layout features; cue logistic and stacked LightGBM; 3-way definition / statement / neither scheme | Implemented; no interval-supported overall gain on 549 rows (proof F1 0.49→0.75 with context, definition recall 0.39→0.48 with cues); re-run on expanded data next |
+| ML2.11 | Model choice on development data only, checked on the 14 non-arXiv sources | Stacked LightGBM frozen (non-arXiv accuracy 0.654, definition F1 0.70); `gold_eval.py` trains it on expanded weighted rows |
+| ML2.12 | Review unmatched LaTeX-audit labels; fix heading and alignment issues; regenerate training data | Coverage 60%→84%, precision 0.995 [0.984, 1.000]; 121 unmatched reviewed, all correct; 276 Python tests pass |
+| ML2.13 | Review the 300 test labels and run the milestone gold evaluation | Done with single-annotator AI labels (human check optional); two-stage accuracy 0.603, macro F1 0.659; prose-definition recall 0.262 at precision 0.842 |
+| ML2.14 | Training signal for unheaded prose: positive–unlabelled "neither" class, prose-definition cues, precision-first threshold | Next; selected on development data only |
 | Later ML2 steps | Evaluation on completed hand labels, final error analysis and BM25 | Pending; exact units defined when reached |
+| ML2.E1 | Training-only expansion to 120 arXiv papers, LaTeX environment agreement audit and uncapped source-weighted fitting | 120 papers extracted, 3,665 new weak labels, 4,477 uncapped weighted rows; all classes in every fold. Audit partial: 2/20 source archives, HTTP 429. Frozen test unchanged |
+| ML2.E2 | Existing definition-focused models on expanded rows; paired source-group intervals; source-audit integrity repairs | Comparison complete: stacked weak-label accuracy 0.804 / macro F1 0.759, definition recall 0.620; frozen test untouched. Audit still partial: 5 downloaded / 3 readable of 20; HTTP 429 and two truncated archives |
+| ML2.E3 | Fixed-sample audit accounting and exact-version manual source handoff | Accounting verified: all 20 papers / 742 labels included, 103 resolved / 639 unresolved. Source collection still blocked by HTTP 429; 3 readable / 17 needed; 270 Python tests pass |
+| ML2.E4 | Verify source download through Codex's built-in browser | Browser download of 2601.00107v1 succeeds: 8,471,681 bytes, complete gzip/TeX archive. Audit now 4 readable / 16 needed, 113/742 labels aligned; automated HTTP 429 did not establish browser unavailability |
+| ML2.E5 | Complete remaining source downloads and automatic comparison | Complete: 20/20 readable sources; 446/448 aligned labels agree (99.55%), 60.4% coverage; 294 unresolved and independent human/gold acceptance remain; 270 Python tests pass |
 
 - Train on `text_without_heading` so the model cannot learn the heading regex.
 - Baselines: majority class; headings only (the regex).
 - Models: TF-IDF + logistic regression; multinomial Naive Bayes; LightGBM with
   layout features (bold ratio, relative font size, indent, maths-character
   ratio, gap above, slide/paper/textbook category).
-- Grouped cross-validation on train groups; cap each group's contribution
-  (Sipser and the MA3204 slides hold 64% of weak labels).
+- Grouped cross-validation on train groups; retain usable rows and weight each
+  by 1 / rows from its source (ML2.E1 replaces the historical 200-row cap).
 - Own BM25 implementation (for ML3).
 
 **Acceptance:** per-class F1 with bootstrap intervals on the hand-labelled

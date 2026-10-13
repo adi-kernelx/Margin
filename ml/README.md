@@ -518,3 +518,168 @@ paragraphs, cross-page association and independent gold acceptance. The prose
 requirement may miss genuine equation-only two-column pages. Next goal is ML2.8:
 accept the repaired training snapshot and build a small independently reviewed
 training-label set with more rare-class examples before further model tuning.
+
+## ML2.8 — Merged labels and estimable classes
+
+`ml/eval/label_scheme.py` changes scoring only. `notation` is merged into
+`definition`; `other` is trained but not averaged; a class enters macro F1 only if
+it appears in at least 3 training sources and 3 development folds (algorithm fails:
+23 of 24 rows are in fold 3). Labels on disk and the labelling page keep 7 classes.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/ml27/verified/train_blocks.jsonl --dataset-revision ML2.7 --merged --with-naive-bayes --with-improved --with-layout --audit ml/out/ml28/cv_merged_predictions.jsonl
+```
+
+Output: `ml/results/classifier_merged_cv.json` (macro F1 over definition, theorem,
+proof, example). Balanced logistic 0.4444 versus 0.2638 under the seven-class
+average; accuracy is unchanged, so this is rescoring, not a better model.
+
+## ML2.E1 — Training-only arXiv expansion and source weights
+
+This expansion is separate from the concurrent gold-evaluation/feature work.
+Select 20 papers in each of math.CO, math.PR, math.OC, stat.TH (queried as its
+canonical math.ST category), cs.DS and cs.LG. The latter uses theory/theoretical/
+convergence/generalization title terms: a reproducible theory-oriented filter,
+not a guarantee every paper is purely theoretical. Selection uses a fixed 2025
+submission window, latest returned versions, cached metadata and deduplicated
+arXiv IDs before extraction. A 404 is replaced by the next unused candidate in
+the same cached category and recorded. No selection uses label yield or scores.
+
+```powershell
+# Sequential requests; resume caches instead of downloading again.
+.\.venv-ml\Scripts\python.exe -u -m ml.data.arxiv_corpus --extract --sources 0
+# Twenty category-spread source archives, with extra 30-second spacing.
+.\.venv-ml\Scripts\python.exe -u -m ml.data.arxiv_corpus --extract --sources 20
+.\.venv-ml\Scripts\python.exe -m ml.data.expand_training
+.\.venv-ml\Scripts\python.exe -m ml.eval.latex_audit
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/arxiv_expansion/train_blocks.jsonl --split ml/out/arxiv_expansion/training_split.json --manifest ml/out/arxiv_expansion/training_manifest.csv --source-weighted --merged --with-naive-bayes --dataset-revision ML2.E1 --out ml/results/classifier_expanded_cv.json --audit ml/out/arxiv_expansion/cv_predictions.jsonl
+```
+
+HTTP 429 stops collection; subsequent runs honor `Retry-After`, with a 15-minute
+cooldown when absent. Do not run multiple collectors at once. The extractor and
+`ml/splits.json` are unchanged. The local extension gives each new paper its own
+training group; test and excluded groups stay identical. Training folds are
+rebalanced for the new population, not the test. PDFs, archives, block text,
+split/manifest extensions and per-row audits stay under ignored
+`ml/out/arxiv_expansion/`. Only aggregate results are public.
+
+`prepare()` now defaults to no cap. Each usable row carries
+`sample_weight = 1 / usable_rows_in_source`; each source totals one. Each fit
+recomputes weights from its training rows, normalizing to mean one to preserve
+logistic regularization and NB smoothing scale. Weights reach majority,
+logistic, NB, balanced candidates and LightGBM. Requested class weights are
+additional multipliers. TF-IDF vocabulary/document frequencies remain row-based:
+weighting balances supervised loss, not every stage of the representation.
+Historical ML2.7 reproduction explicitly retains its old cap; old reports stay.
+
+The LaTeX audit reads bounded `.tex`, `.sty` and `.cls` files in memory, never
+extracting or executing archives. Declared theorem aliases and standard
+environments are matched using eight-word prose anchors near the block start.
+Nested/repeated/conflicting matches abstain. It reports precision **on uniquely
+resolved blocks**, coverage, per-class counts, a paper-bootstrap interval and a
+verified-correct fraction of all labels. Custom macros, PDF maths ordering and
+mixed blocks remain risks; no recall is measured. This conditional environment
+agreement is not overall automatic-label precision or independent human gold.
+
+Next goal: review independent test labels before a gold-acceptance evaluation;
+do not tune on frozen test predictions.
+
+## ML2.E2 — Expanded-data definition-focused comparison
+
+No new model or hyperparameter sweep: the four existing fixed candidates now
+run on the same 4,477 rows and source weights as the ML2.E1 logistic baseline.
+`expand_training` also writes ignored `context_blocks.jsonl`: all 29,164
+training blocks, including unlabelled neighbours, never held-out/excluded blocks.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.data.expand_training
+.\.venv-ml\Scripts\python.exe -m ml.eval.classifier_cv --rows ml/out/arxiv_expansion/train_blocks.jsonl --split ml/out/arxiv_expansion/training_split.json --manifest ml/out/arxiv_expansion/training_manifest.csv --source-weighted --merged --with-improved --with-features --context-blocks ml/out/arxiv_expansion/context_blocks.jsonl --dataset-revision ML2.E2 --out ml/results/classifier_expanded_features_cv.json --audit ml/out/arxiv_expansion/cv_features_predictions.jsonl
+.\.venv-ml\Scripts\python.exe -m ml.eval.compare_expanded
+```
+
+| Model | Weak-label accuracy | Macro F1, 5 classes | Definition precision / recall |
+|---|---:|---:|---:|
+| Plain logistic | 0.6813 | 0.4609 | 0.8723 / 0.0981 |
+| Balanced logistic | 0.7000 | 0.6167 | 0.5725 / 0.5670 |
+| Balanced word+character | 0.7208 | 0.6825 | 0.5451 / 0.5933 |
+| Cue/context logistic | 0.7161 | 0.6922 | 0.6228 / 0.5885 |
+| Stacked LightGBM | 0.8043 | 0.7591 | 0.7275 / 0.6196 |
+
+`expanded_paired_comparison.json` verifies identical IDs/files/folds/labels and
+identical repeated plain-logistic predictions, then bootstraps 124 source groups
+(2,000 draws). Against plain logistic, stacked accuracy improves by 0.1231
+[0.1010, 0.1466], definition recall by 0.5215 [0.4611, 0.5877]. Multiple PDF
+files from one original source stay in the same bootstrap cluster. These are
+paired development differences, not gold performance or deployment approval.
+The source-weighted balanced word model does not show an interval-supported
+accuracy gain, although its definition recall improves.
+
+Source audit resumed but remains partial: five archives downloaded, three
+readable. Two gzip archives are truncated, and another HTTP 429 stops requests.
+Download integrity now rejects partial HTTP responses and mismatched lengths;
+gzip sources must decompress through their footer before caching/auditing.
+Bad cached archives are preserved with an `.invalid-*` suffix when the collector
+next resumes. The audit counts unreadable papers' labels as unresolved, rather
+than dropping them from the denominator. Current agreement is 103/103 resolved
+labels out of 246 automatic labels (41.9% coverage); it is not overall precision.
+
+Next goal: obtain the remaining 17 valid source archives and finish that audit;
+human review of independent test labels is still required before gold acceptance.
+
+## ML2.E3 — Fixed-sample source-audit accounting
+
+The October 12 resume returned HTTP 429 again before adding a readable source.
+The first corrupt cache is preserved as `.source.invalid-*`; three of the
+fixed 20 papers have readable sources. Both collection and auditing now share
+the same category-round-robin sample. Missing, corrupt and quarantined sources
+remain in its denominator: **742 automatic labels, 103 resolved/agreeing,
+639 unresolved, 13.9% coverage**. The earlier 41.9% was coverage among five
+downloaded papers, not the fixed 20-paper sample. Conditional match agreement
+is still not overall label precision. The audit remains partial.
+
+If the source service is accessible to you, use the exact-version manual list:
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.latex_audit
+.\.venv-ml\Scripts\python.exe -m ml.data.arxiv_corpus --list-sources
+```
+
+`ml/out/arxiv_expansion/audit_downloads.json` marks 17 entries `needed: true`
+and provides an abstract link, source link and absolute `save_as` path. Download
+the **LaTeX source**, not the PDF, for that exact version. Keep its bytes unchanged
+and save it under the indicated `.source` filename. Do not overwrite `.invalid-*`
+files; they preserve the failed transfers. Once files are present, rerun the
+audit; its footer, path and size checks still apply. `--list-sources` is offline
+and does not make requests during a cooldown. No human-approved label export
+exists yet, so gold evaluation was not run.
+
+## ML2.E4 — Built-in browser source-download verification
+
+The user challenged the earlier availability claim. The built-in browser's
+actual **TeX Source** link successfully downloaded `2601.00107v1` through the
+page's `arxiv.org/src/` route. Its 8,471,681-byte archive passes the bounded full
+gzip/TeX validation (one source file, 15 recognized environments). The earlier
+2,097,152-byte cache is retained as `.source.invalid-browser-replacement`.
+The intact archive is now used by the local audit; the original downloaded
+file is also retained.
+
+An automated `export.arxiv.org/e-print/` HTTP 429 is not evidence that the
+paper is unavailable in a browser. The two routes were not equivalent in this
+run; the underlying cause of the difference has not been established.
+The fixed 20-paper audit now has four readable sources, 113 agreeing matches
+out of 742 labels (15.2% coverage), and 629 unresolved labels. Sixteen valid
+sources still needed; this is not a completed precision audit. Next source
+collection should use the demonstrated browser route rather than repeat the
+failed script requests or require manual user downloads by default.
+
+## ML2.E5 — Source collection complete
+
+All remaining 16 archives downloaded and passed validation on October 13.
+All 20 selected sources are readable; the checklist has zero downloads needed.
+The audit aligns 448/742 labels: 446 agreements, two disagreements, 294 unresolved.
+Conditional agreement is 99.55% (paper-bootstrap interval 98.90–100%), with 60.4%
+coverage, not overall precision. One disagreement is a definition-reference
+heading false positive; the other is a claim/proof alignment artefact involving
+source macros. No extractor, training-label or frozen-test changes were made.
+Next: unresolved-label review and approval of 300 draft test labels before gold
+evaluation. Raw archives and browser-download provenance remain Git-ignored.
