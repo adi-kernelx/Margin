@@ -1,0 +1,296 @@
+{
+  "gold_file": "ml\\labels\\gold_labels.jsonl",
+  "model": "stacked_lightgbm",
+  "train_rows": 4477,
+  "train_groups": 124,
+  "source_weighted": true,
+  "agreement": {
+    "blocks": 300,
+    "kappa_seven_class": 0.9665919625829982,
+    "kappa_merged": 0.9656814379477501,
+    "raw_agreement": 0.9733333333333334
+  },
+  "scheme": "merged",
+  "blocks": 300,
+  "files": 12,
+  "gold_counts": {
+    "definition": 67,
+    "theorem": 41,
+    "other": 99,
+    "example": 25,
+    "algorithm": 12,
+    "proof": 56
+  },
+  "strata": {
+    "prose": 100,
+    "unlabelled": 100,
+    "weak": 100
+  },
+  "macro_f1_classes": [
+    "definition",
+    "theorem",
+    "proof",
+    "example",
+    "algorithm"
+  ],
+  "note": "Enriched sample: diagnostic rates, not population estimates.",
+  "heading_rule": {
+    "coverage": 0.3333333333333333,
+    "accuracy_when_it_fires": 0.97,
+    "accuracy_ci95": {
+      "ci95": [
+        0.9230603448275863,
+        1.0
+      ],
+      "undefined_resamples": 0
+    },
+    "precision": {
+      "definition": 1.0,
+      "theorem": 1.0,
+      "proof": 0.9333333333333333,
+      "example": 1.0,
+      "algorithm": 1.0,
+      "other": 0.875
+    }
+  },
+  "classifier": {
+    "accuracy": 0.5466666666666666,
+    "macro_f1": 0.5892374061656374,
+    "per_class": {
+      "definition": {
+        "precision": 0.8636363636363636,
+        "recall": 0.2835820895522388,
+        "f1": 0.42696629213483145,
+        "support": 67
+      },
+      "theorem": {
+        "precision": 0.62,
+        "recall": 0.7560975609756098,
+        "f1": 0.6813186813186813,
+        "support": 41
+      },
+      "proof": {
+        "precision": 0.5730337078651685,
+        "recall": 0.9107142857142857,
+        "f1": 0.7034482758620689,
+        "support": 56
+      },
+      "example": {
+        "precision": 0.24675324675324675,
+        "recall": 0.76,
+        "f1": 0.37254901960784315,
+        "support": 25
+      },
+      "algorithm": {
+        "precision": 0.8888888888888888,
+        "recall": 0.6666666666666666,
+        "f1": 0.7619047619047619,
+        "support": 12
+      },
+      "other": {
+        "precision": 0.6792452830188679,
+        "recall": 0.36363636363636365,
+        "f1": 0.47368421052631576,
+        "support": 99
+      }
+    },
+    "confusion_matrix": [
+      [
+        19,
+        4,
+        20,
+        12,
+        1,
+        11
+      ],
+      [
+        0,
+        31,
+        4,
+        1,
+        0,
+        5
+      ],
+      [
+        0,
+        1,
+        51,
+        3,
+        0,
+        1
+      ],
+      [
+        1,
+        2,
+        3,
+        19,
+        0,
+        0
+      ],
+      [
+        1,
+        2,
+        0,
+        1,
+        8,
+        0
+      ],
+      [
+        1,
+        10,
+        11,
+        41,
+        0,
+        36
+      ]
+    ],
+    "missing_gold_classes": [],
+    "accuracy_ci95": {
+      "ci95": [
+        0.4506506114878572,
+        0.6106593248546363
+      ],
+      "undefined_resamples": 0
+    },
+    "macro_f1_ci95": {
+      "ci95": [
+        0.4825312855886307,
+        0.6362422702840537
+      ],
+      "undefined_resamples": 0
+    }
+  },
+  "two_stage": {
+    "accuracy": 0.6033333333333334,
+    "macro_f1": 0.6585307346326836,
+    "per_class": {
+      "definition": {
+        "precision": 0.88,
+        "recall": 0.3283582089552239,
+        "f1": 0.4782608695652174,
+        "support": 67
+      },
+      "theorem": {
+        "precision": 0.7346938775510204,
+        "recall": 0.8780487804878049,
+        "f1": 0.8,
+        "support": 41
+      },
+      "proof": {
+        "precision": 0.6067415730337079,
+        "recall": 0.9642857142857143,
+        "f1": 0.7448275862068966,
+        "support": 56
+      },
+      "example": {
+        "precision": 0.2714285714285714,
+        "recall": 0.76,
+        "f1": 0.4,
+        "support": 25
+      },
+      "algorithm": {
+        "precision": 0.9090909090909091,
+        "recall": 0.8333333333333334,
+        "f1": 0.8695652173913043,
+        "support": 12
+      },
+      "other": {
+        "precision": 0.7142857142857143,
+        "recall": 0.40404040404040403,
+        "f1": 0.5161290322580645,
+        "support": 99
+      }
+    },
+    "confusion_matrix": [
+      [
+        22,
+        3,
+        19,
+        11,
+        1,
+        11
+      ],
+      [
+        0,
+        36,
+        2,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        1,
+        54,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        4,
+        19,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0,
+        1,
+        10,
+        0
+      ],
+      [
+        1,
+        9,
+        10,
+        39,
+        0,
+        40
+      ]
+    ],
+    "missing_gold_classes": [],
+    "accuracy_ci95": {
+      "ci95": [
+        0.49800365637019023,
+        0.6649764673993396
+      ],
+      "undefined_resamples": 0
+    },
+    "macro_f1_ci95": {
+      "ci95": [
+        0.5467391184207572,
+        0.7070000568612673
+      ],
+      "undefined_resamples": 0
+    }
+  },
+  "prose_definitions": {
+    "count": 61,
+    "files": 10,
+    "recall": 0.26229508196721313,
+    "recall_ci95": {
+      "ci95": [
+        0.1590909090909091,
+        0.3651190476190474
+      ],
+      "undefined_resamples": 0
+    },
+    "precision_on_unheaded": 0.8421052631578947,
+    "precision_ci95": {
+      "ci95": [
+        0.7058823529411765,
+        1.0
+      ],
+      "undefined_resamples": 0
+    },
+    "heading_rule_recall": 0.0
+  },
+  "by_stratum_two_stage_accuracy": {
+    "prose": 0.47,
+    "unlabelled": 0.37,
+    "weak": 0.97
+  }
+}

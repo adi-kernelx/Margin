@@ -47,7 +47,7 @@ def main():
             result = process_pdf(str(Path("Test PDFs") / item["file"]), item["file"], item["group"], item["category"])
             blocks.extend(asdict(block) for block in result.blocks)
             print("Processed training document:", len(result.blocks), "blocks")
-    rows, report = prepare(blocks, split, source_folds=folds)
+    rows, report = prepare(blocks, split, cap=200, source_folds=folds)
     report.update(test_evaluated=False, regenerated_training_only=True,
                   previous_rows=previous["blocks"], comparison_warning="Changed weak-label dataset; not an accuracy gain on identical rows.")
     args.out.mkdir(parents=True, exist_ok=True)

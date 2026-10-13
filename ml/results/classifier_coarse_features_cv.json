@@ -1,0 +1,548 @@
+{
+  "weak_label_evaluation": true,
+  "test_evaluated": false,
+  "rows": 549,
+  "dataset_revision": "ML2.7",
+  "source_weighting": null,
+  "documents": 27,
+  "label_order": [
+    "definition",
+    "theorem",
+    "other"
+  ],
+  "seed": 20261006,
+  "bootstrap_resamples": 2000,
+  "folds": [
+    {
+      "fold": 0,
+      "train_rows": 349,
+      "dev_rows": 200,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "other",
+      "missing_train_classes": [],
+      "missing_dev_classes": []
+    },
+    {
+      "fold": 1,
+      "train_rows": 349,
+      "dev_rows": 200,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "other",
+      "missing_train_classes": [],
+      "missing_dev_classes": []
+    },
+    {
+      "fold": 2,
+      "train_rows": 492,
+      "dev_rows": 57,
+      "train_groups": 13,
+      "dev_groups": 1,
+      "majority_label": "other",
+      "missing_train_classes": [],
+      "missing_dev_classes": []
+    },
+    {
+      "fold": 3,
+      "train_rows": 500,
+      "dev_rows": 49,
+      "train_groups": 8,
+      "dev_groups": 6,
+      "majority_label": "other",
+      "missing_train_classes": [],
+      "missing_dev_classes": []
+    },
+    {
+      "fold": 4,
+      "train_rows": 506,
+      "dev_rows": 43,
+      "train_groups": 9,
+      "dev_groups": 5,
+      "majority_label": "other",
+      "missing_train_classes": [],
+      "missing_dev_classes": []
+    }
+  ],
+  "methods": {
+    "majority": {
+      "accuracy": 0.5883424408014571,
+      "macro_f1": 0.0,
+      "per_class": {
+        "definition": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.5883424408014571,
+          "recall": 1.0,
+          "f1": 0.7408256880733946,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          96
+        ],
+        [
+          0,
+          0,
+          130
+        ],
+        [
+          0,
+          0,
+          323
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.5384595701125895,
+          0.6901242897727271
+        ],
+        "macro_f1": [
+          0.0,
+          0.0
+        ],
+        "definition": [
+          0.0,
+          0.0
+        ],
+        "theorem": [
+          0.0,
+          0.0
+        ],
+        "other": [
+          0.6999983366600132,
+          0.8166550690060804
+        ]
+      }
+    },
+    "logistic": {
+      "accuracy": 0.6065573770491803,
+      "macro_f1": 0.13351100958182627,
+      "per_class": {
+        "definition": {
+          "precision": 0.7142857142857143,
+          "recall": 0.052083333333333336,
+          "f1": 0.0970873786407767,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.5652173913043478,
+          "recall": 0.1,
+          "f1": 0.16993464052287582,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.6069364161849711,
+          "recall": 0.9752321981424149,
+          "f1": 0.7482185273159145,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          5,
+          3,
+          88
+        ],
+        [
+          1,
+          13,
+          116
+        ],
+        [
+          1,
+          7,
+          315
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.5538308018739102,
+          0.7043263480705341
+        ],
+        "macro_f1": [
+          0.06007955100899605,
+          0.248367612074209
+        ],
+        "definition": [
+          0.0,
+          0.2916920731707316
+        ],
+        "theorem": [
+          0.06297982283464566,
+          0.2692307692307692
+        ],
+        "other": [
+          0.7053422912964897,
+          0.8228251689189189
+        ]
+      }
+    },
+    "balanced_logistic": {
+      "accuracy": 0.6411657559198543,
+      "macro_f1": 0.41957703583525463,
+      "per_class": {
+        "definition": {
+          "precision": 0.6666666666666666,
+          "recall": 0.3541666666666667,
+          "f1": 0.46258503401360546,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.41284403669724773,
+          "recall": 0.34615384615384615,
+          "f1": 0.37656903765690375,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.7017994858611826,
+          "recall": 0.8452012383900929,
+          "f1": 0.7668539325842697,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          34,
+          19,
+          43
+        ],
+        [
+          12,
+          45,
+          73
+        ],
+        [
+          5,
+          45,
+          273
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.6142779414171167,
+          0.6908414295628036
+        ],
+        "macro_f1": [
+          0.3360973555234214,
+          0.482531247021816
+        ],
+        "definition": [
+          0.346141975308642,
+          0.5609863072314933
+        ],
+        "theorem": [
+          0.27001759645464024,
+          0.45519994755473964
+        ],
+        "other": [
+          0.7378061271387863,
+          0.8120679095952043
+        ]
+      }
+    },
+    "word_char_logistic": {
+      "accuracy": 0.6338797814207651,
+      "macro_f1": 0.38331944279080843,
+      "per_class": {
+        "definition": {
+          "precision": 0.5769230769230769,
+          "recall": 0.3125,
+          "f1": 0.40540540540540543,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.422680412371134,
+          "recall": 0.3153846153846154,
+          "f1": 0.36123348017621143,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.6925,
+          "recall": 0.8575851393188855,
+          "f1": 0.7662517289073306,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          30,
+          20,
+          46
+        ],
+        [
+          12,
+          41,
+          77
+        ],
+        [
+          10,
+          36,
+          277
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.5990327184892402,
+          0.7052648077874938
+        ],
+        "macro_f1": [
+          0.30255249849634064,
+          0.4771819426574166
+        ],
+        "definition": [
+          0.29090132090132087,
+          0.5238290398126463
+        ],
+        "theorem": [
+          0.2686532614704257,
+          0.4706345530338117
+        ],
+        "other": [
+          0.7350580081330991,
+          0.82682035688188
+        ]
+      }
+    },
+    "cue_logistic": {
+      "accuracy": 0.6302367941712204,
+      "macro_f1": 0.43174603174603177,
+      "per_class": {
+        "definition": {
+          "precision": 0.5476190476190477,
+          "recall": 0.4791666666666667,
+          "f1": 0.5111111111111111,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.4625,
+          "recall": 0.2846153846153846,
+          "f1": 0.3523809523809524,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.6831168831168831,
+          "recall": 0.8142414860681114,
+          "f1": 0.7429378531073446,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          46,
+          17,
+          33
+        ],
+        [
+          4,
+          37,
+          89
+        ],
+        [
+          34,
+          26,
+          263
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.5784056656174782,
+          0.6666757641921397
+        ],
+        "macro_f1": [
+          0.11102129063628786,
+          0.5444979087849645
+        ],
+        "definition": [
+          0.1016949152542373,
+          0.6408602150537634
+        ],
+        "theorem": [
+          0.06451612903225806,
+          0.4609935088351965
+        ],
+        "other": [
+          0.7186617467954516,
+          0.7816104502333986
+        ]
+      }
+    },
+    "stacked_lightgbm": {
+      "accuracy": 0.6666666666666666,
+      "macro_f1": 0.35330608670267116,
+      "per_class": {
+        "definition": {
+          "precision": 0.6428571428571429,
+          "recall": 0.1875,
+          "f1": 0.2903225806451613,
+          "support": 96
+        },
+        "theorem": {
+          "precision": 0.5054945054945055,
+          "recall": 0.35384615384615387,
+          "f1": 0.416289592760181,
+          "support": 130
+        },
+        "other": {
+          "precision": 0.7023255813953488,
+          "recall": 0.934984520123839,
+          "f1": 0.8021248339973439,
+          "support": 323
+        }
+      },
+      "confusion_matrix": [
+        [
+          18,
+          26,
+          52
+        ],
+        [
+          8,
+          46,
+          76
+        ],
+        [
+          2,
+          19,
+          302
+        ]
+      ],
+      "missing_gold_classes": [],
+      "ci95": {
+        "accuracy": [
+          0.6266601123595505,
+          0.7295791816832731
+        ],
+        "macro_f1": [
+          0.14103243802276774,
+          0.46753821233895787
+        ],
+        "definition": [
+          0.05263157894736842,
+          0.45616541353383444
+        ],
+        "theorem": [
+          0.18691588785046728,
+          0.5223914212720182
+        ],
+        "other": [
+          0.7767340148649011,
+          0.8383849411141987
+        ]
+      }
+    }
+  },
+  "label_scheme": {
+    "coarse": {
+      "definition": "definition",
+      "notation": "definition",
+      "theorem": "theorem",
+      "proof": "other",
+      "example": "other",
+      "algorithm": "other",
+      "other": "other"
+    },
+    "macro_f1_classes": [
+      "definition",
+      "theorem"
+    ]
+  },
+  "feature_configuration": {
+    "cues": {
+      "def_we_say": "\\bwe (?:say|call)\\b",
+      "def_is_called": "\\b(?:is|are) (?:called|said to be|known as|referred to as|termed)\\b",
+      "def_define": "\\b(?:we )?defin(?:e|es|ed)\\b",
+      "def_denote": "\\b(?:denote[sd]?|stands? for|write)\\b",
+      "def_assign": ":=|\u225c|\u2261",
+      "def_iff": "\\bif and only if\\b|\\biff\\b",
+      "thm_let_then": "\\b(?:let|suppose|assume)\\b.*\\bthen\\b",
+      "thm_there_exists": "\\bthere (?:exists?|is|are)\\b",
+      "thm_for_all": "\\bfor (?:all|every|each|any)\\b",
+      "prf_connective": "\\b(?:hence|thus|therefore|consequently|so that|it follows)\\b",
+      "prf_by_result": "\\bby (?:lemma|theorem|proposition|corollary|claim|induction|definition|assumption)\\b",
+      "prf_since": "^\\s*(?:since|because|first|now|conversely|finally)\\b",
+      "prf_end": "(?:\u220e|\u25a1|\u25a0|\\bqed\\b)\\s*$",
+      "prf_contradiction": "\\bcontradict",
+      "ex_imperative": "^\\s*(?:\\(?[a-z0-9]\\)|\\d+\\s*\\.)?\\s*(?:find|compute|calculate|solve|show|prove|determine|consider|evaluate|explain|use)\\b",
+      "ex_question": "\\?",
+      "ex_how_many": "\\bhow (?:many|much)\\b",
+      "alg_io": "\\b(?:input|output|require|ensure|return)s?\\b\\s*:?",
+      "alg_steps": "(?:^|\\s)\\d+\\s*:\\s",
+      "alg_loop": "\\b(?:for|while)\\b.*\\bdo\\b|\\bend (?:for|while|if)\\b|\u2190",
+      "oth_citation": "\\[\\d+(?:\\s*,\\s*\\d+)*\\]|\\bet al\\.|\\bdoi\\b|https?://|\\b(?:19|20)\\d\\d\\)",
+      "oth_figure": "^\\s*(?:figure|table|fig\\.)\\s*\\d"
+    },
+    "context": "heading label of previous block in (file, page, block_index) order",
+    "context_blocks": "ml\\out\\ml27\\verified\\blocks.jsonl",
+    "cue_logistic": {
+      "C": 1.0,
+      "class_weight": "balanced",
+      "word_ngrams": [
+        1,
+        2
+      ],
+      "hand_scaling": "standard"
+    },
+    "stacked_lightgbm": {
+      "parameters": {
+        "objective": "multiclass",
+        "metric": "None",
+        "learning_rate": 0.05,
+        "num_leaves": 15,
+        "min_data_in_leaf": 10,
+        "num_threads": 2,
+        "seed": 20261006,
+        "deterministic": true,
+        "force_col_wise": true,
+        "verbosity": -1
+      },
+      "rounds": 150,
+      "inner_source_folds": 4,
+      "text_model": "balanced_logistic"
+    }
+  },
+  "comparison_warning": "Regenerated weak-label rows; scores are not identical-row improvements over earlier reports.",
+  "development_candidates": {
+    "balanced_logistic": {
+      "C": 1.0,
+      "class_weight": "balanced",
+      "word_ngrams": [
+        1,
+        2
+      ]
+    },
+    "word_char_logistic": {
+      "C": 1.0,
+      "class_weight": "balanced",
+      "word_ngrams": [
+        1,
+        2
+      ],
+      "char_analyzer": "char_wb",
+      "char_ngrams": [
+        3,
+        5
+      ],
+      "char_min_df": 2
+    },
+    "selection_warning": "Candidates informed by development errors; not independent gold performance."
+  }
+}

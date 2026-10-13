@@ -1,0 +1,85 @@
+{
+  "test_evaluated": false,
+  "weak_label_development": true,
+  "baseline": "plain source-weighted logistic",
+  "bootstrap_unit": "source group",
+  "rows": 4477,
+  "groups": 124,
+  "bootstrap_resamples": 2000,
+  "seed": 20261006,
+  "paired_differences": {
+    "balanced_logistic": {
+      "accuracy": {
+        "delta": 0.02412329685056958,
+        "ci95": [
+          0.00039146671832064616,
+          0.04990449339281581
+        ],
+        "undefined_resamples": 0
+      },
+      "definition_recall": {
+        "delta": 0.4724220623501199,
+        "ci95": [
+          0.4025157232704403,
+          0.5253147421145254
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "word_char_logistic": {
+      "accuracy": {
+        "delta": 0.04243913334822426,
+        "ci95": [
+          0.010682714590285502,
+          0.07509223623838118
+        ],
+        "undefined_resamples": 0
+      },
+      "definition_recall": {
+        "delta": 0.47002398081534774,
+        "ci95": [
+          0.39411945319592034,
+          0.5343657288576286
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "cue_logistic": {
+      "accuracy": {
+        "delta": 0.039088675452311816,
+        "ci95": [
+          0.004057101315973759,
+          0.07851908628752535
+        ],
+        "undefined_resamples": 0
+      },
+      "definition_recall": {
+        "delta": 0.49640287769784175,
+        "ci95": [
+          0.3893523876616515,
+          0.6140385412349773
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "stacked_lightgbm": {
+      "accuracy": {
+        "delta": 0.1201697565333929,
+        "ci95": [
+          0.09901806309748548,
+          0.14228626723769996
+        ],
+        "undefined_resamples": 0
+      },
+      "definition_recall": {
+        "delta": 0.5275779376498801,
+        "ci95": [
+          0.4595152284108392,
+          0.5894239445091921
+        ],
+        "undefined_resamples": 0
+      }
+    }
+  },
+  "limitation": "Same-row development comparison, not independent gold; candidates already informed by prior development errors. Scores are row-pooled; sources are the bootstrap unit."
+}

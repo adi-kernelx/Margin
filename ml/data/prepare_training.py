@@ -1,7 +1,7 @@
 """ML2.1 plumbing: heading-free weak supervision and train-only source folds.
 
 No classifier, feature fitting or test evaluation. Unlabelled is not 'other'.
-The per-source cap is fixed before training; folds never divide a source.
+Sources have equal total sample weight; folds never divide a source.
 """
 
 import argparse
@@ -16,13 +16,13 @@ from ml.data.make_splits import LABELS, load_inputs
 FEATURES = ("bold_ratio", "font_size_rel", "indent_rel", "math_char_ratio", "gap_above_rel")
 
 
-def prepare(blocks, split, cap=200, folds=5, seed=20261006, source_folds=None):
+def prepare(blocks, split, cap=None, folds=5, seed=20261006, source_folds=None):
     if split.get("status") != "frozen":
         raise ValueError("Training preparation requires the frozen split")
     train = set(split["train_groups"])
     if train & (set(split["test_groups"]) | set(split["excluded_groups"])):
         raise ValueError("Training groups overlap held-out/excluded sources")
-    if cap < 1 or not 2 <= folds <= len(train):
+    if (cap is not None and (type(cap) is not int or cap < 1)) or not 2 <= folds <= len(train):
         raise ValueError("Need positive source cap and 2..train-group-count folds")
     if source_folds is not None and (set(source_folds) != train or any(
             type(value) is not int or value not in range(folds) for value in source_folds.values())):
@@ -56,10 +56,11 @@ def prepare(blocks, split, cap=200, folds=5, seed=20261006, source_folds=None):
         for label in sorted(queues):
             rng.shuffle(queues[label])
         chosen = []
+        limit = len(candidates[group]) if cap is None else cap
         # Class cycling within a source retains sparse labels when capping it.
-        while len(chosen) < cap and any(queues.values()):
+        while len(chosen) < limit and any(queues.values()):
             for label in sorted(queues):
-                if queues[label] and len(chosen) < cap:
+                if queues[label] and len(chosen) < limit:
                     chosen.append(queues[label].pop())
         dropped["source_cap"] += len(candidates[group]) - len(chosen)
         selected.extend(chosen)
@@ -78,7 +79,8 @@ def prepare(blocks, split, cap=200, folds=5, seed=20261006, source_folds=None):
         rows.append({"block_id": block["block_id"], "file": block["file"], "group": block["group"],
                      "page": block["page"], "text": block["text_without_heading"].strip(),
                      "label": block["weak_label"], "category": block["category"],
-                     "features": {key: block[key] for key in FEATURES}, "fold": fold_of[block["group"]]})
+                     "features": {key: block[key] for key in FEATURES}, "fold": fold_of[block["group"]],
+                     "sample_weight": 1.0 / counts[block["group"]]})
     fold_stats = []
     for index, groups in enumerate(fold_groups):
         labels = Counter(row["label"] for row in rows if row["fold"] == index)

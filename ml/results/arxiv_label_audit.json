@@ -1,0 +1,302 @@
+{
+  "selected_papers": 20,
+  "papers_with_sources": 20,
+  "papers_with_recognized_environments": 18,
+  "readable_sources": 20,
+  "status": "complete",
+  "counts": {
+    "automatic_labels": 740,
+    "resolved": 619,
+    "correct": 616,
+    "unresolved": 121,
+    "wrong": 3
+  },
+  "papers": [
+    {
+      "id": "2601.00119v1",
+      "category": "math.CO",
+      "environments": 84,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 84,
+      "resolved": 72,
+      "correct": 72,
+      "unresolved": 12
+    },
+    {
+      "id": "2601.00107v1",
+      "category": "math.PR",
+      "environments": 15,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 15,
+      "resolved": 15,
+      "correct": 15
+    },
+    {
+      "id": "2601.00906v1",
+      "category": "math.OC",
+      "environments": 0,
+      "downloaded": true,
+      "source_error": null
+    },
+    {
+      "id": "2601.00091v1",
+      "category": "stat.TH",
+      "environments": 67,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 72,
+      "resolved": 56,
+      "correct": 56,
+      "unresolved": 16
+    },
+    {
+      "id": "2601.00094v3",
+      "category": "cs.DS",
+      "environments": 49,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 48,
+      "resolved": 38,
+      "correct": 38,
+      "unresolved": 10
+    },
+    {
+      "id": "2512.25034v1",
+      "category": "cs.LG",
+      "environments": 1,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 1,
+      "resolved": 1,
+      "correct": 1
+    },
+    {
+      "id": "2601.00104v1",
+      "category": "math.CO",
+      "environments": 7,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 6,
+      "resolved": 2,
+      "correct": 2,
+      "unresolved": 4
+    },
+    {
+      "id": "2512.25030v1",
+      "category": "math.PR",
+      "environments": 32,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 32,
+      "unresolved": 7,
+      "resolved": 25,
+      "correct": 25
+    },
+    {
+      "id": "2512.25018v1",
+      "category": "math.OC",
+      "environments": 7,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 7,
+      "resolved": 7,
+      "correct": 7
+    },
+    {
+      "id": "2601.00084v1",
+      "category": "stat.TH",
+      "environments": 52,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 53,
+      "resolved": 49,
+      "correct": 49,
+      "unresolved": 4
+    },
+    {
+      "id": "2512.25033v4",
+      "category": "cs.DS",
+      "environments": 46,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 66,
+      "resolved": 41,
+      "correct": 38,
+      "wrong": 3,
+      "unresolved": 25
+    },
+    {
+      "id": "2512.25017v2",
+      "category": "cs.LG",
+      "environments": 59,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 59,
+      "resolved": 52,
+      "correct": 52,
+      "unresolved": 7
+    },
+    {
+      "id": "2512.25037v1",
+      "category": "math.CO",
+      "environments": 64,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 65,
+      "resolved": 62,
+      "correct": 62,
+      "unresolved": 3
+    },
+    {
+      "id": "2512.25003v3",
+      "category": "math.PR",
+      "environments": 29,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 29,
+      "resolved": 27,
+      "correct": 27,
+      "unresolved": 2
+    },
+    {
+      "id": "2512.24999v2",
+      "category": "math.OC",
+      "environments": 36,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 36,
+      "resolved": 33,
+      "correct": 33,
+      "unresolved": 3
+    },
+    {
+      "id": "2512.25042v1",
+      "category": "stat.TH",
+      "environments": 49,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 49,
+      "resolved": 34,
+      "correct": 34,
+      "unresolved": 15
+    },
+    {
+      "id": "2512.25020v1",
+      "category": "cs.DS",
+      "environments": 22,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 22,
+      "resolved": 18,
+      "correct": 18,
+      "unresolved": 4
+    },
+    {
+      "id": "2512.24977v1",
+      "category": "cs.LG",
+      "environments": 0,
+      "downloaded": true,
+      "source_error": null
+    },
+    {
+      "id": "2512.25022v1",
+      "category": "math.CO",
+      "environments": 76,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 76,
+      "resolved": 68,
+      "correct": 68,
+      "unresolved": 8
+    },
+    {
+      "id": "2512.24916v1",
+      "category": "math.PR",
+      "environments": 19,
+      "downloaded": true,
+      "source_error": null,
+      "automatic_labels": 20,
+      "resolved": 19,
+      "correct": 19,
+      "unresolved": 1
+    }
+  ],
+  "per_class": {
+    "algorithm": {
+      "automatic_labels": 8,
+      "resolved": 8,
+      "correct": 8,
+      "unresolved": 0,
+      "resolved_subset_precision": 1.0
+    },
+    "definition": {
+      "automatic_labels": 47,
+      "resolved": 44,
+      "correct": 44,
+      "unresolved": 3,
+      "resolved_subset_precision": 1.0
+    },
+    "example": {
+      "automatic_labels": 14,
+      "resolved": 11,
+      "correct": 11,
+      "unresolved": 3,
+      "resolved_subset_precision": 1.0
+    },
+    "other": {
+      "automatic_labels": 75,
+      "resolved": 72,
+      "correct": 72,
+      "unresolved": 3,
+      "resolved_subset_precision": 1.0
+    },
+    "proof": {
+      "automatic_labels": 236,
+      "resolved": 201,
+      "correct": 201,
+      "unresolved": 35,
+      "resolved_subset_precision": 1.0
+    },
+    "theorem": {
+      "automatic_labels": 360,
+      "resolved": 283,
+      "correct": 280,
+      "wrong": 3,
+      "unresolved": 77,
+      "resolved_subset_precision": 0.9893992932862191
+    }
+  },
+  "resolved_precision_paper_bootstrap_ci95": [
+    0.984041844601489,
+    1.0
+  ],
+  "interval_note": "No interval with fewer than two contributing papers or no observed variation; zero mismatches does not establish perfect population precision.",
+  "resolved_subset_precision": 0.9951534733441034,
+  "by_method": {
+    "anchor": {
+      "resolved": 450,
+      "correct": 449
+    },
+    "nested": {
+      "resolved": 13,
+      "correct": 13
+    },
+    "label": {
+      "resolved": 115,
+      "correct": 113
+    },
+    "short": {
+      "resolved": 27,
+      "correct": 27
+    },
+    "overlap": {
+      "resolved": 14,
+      "correct": 14
+    }
+  },
+  "alignment_coverage": 0.8364864864864865,
+  "verified_correct_fraction_lower_bound": 0.8324324324324325,
+  "limitation": "Conditional precision of uniquely aligned prose only; unresolved blocks need human review. Not a gold estimate for all labels; no recall measured. Custom macros and cross-references can defeat alignment."
+}

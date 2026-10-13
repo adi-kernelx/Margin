@@ -1,0 +1,114 @@
+{
+  "blocks": 4477,
+  "new_papers": 120,
+  "new_weak_labels": 3663,
+  "new_usable_rows": 3622,
+  "labels": {
+    "algorithm": 86,
+    "definition": 402,
+    "example": 284,
+    "notation": 15,
+    "other": 285,
+    "proof": 1457,
+    "theorem": 1948
+  },
+  "source_coverage": {
+    "proof": 99,
+    "theorem": 102,
+    "definition": 60,
+    "algorithm": 33,
+    "other": 63,
+    "example": 34,
+    "notation": 10
+  },
+  "dropped": {
+    "unlabelled": 24558,
+    "short_heading_free": 126,
+    "source_cap": 0
+  },
+  "original_split_sha256": "cc065d59918699d4946a2679b39d69ec9701dadb885f60d5d9ffdf359ef588b3",
+  "test_evaluated": false,
+  "sample_weight": "1 / usable rows from that source",
+  "training_groups": 143,
+  "usable_groups": 124,
+  "requested_categories": {
+    "cs.DS": 20,
+    "cs.LG": 20,
+    "math.CO": 20,
+    "math.OC": 20,
+    "math.PR": 20,
+    "stat.TH": 20
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "blocks": 896,
+      "labels": {
+        "algorithm": 13,
+        "definition": 98,
+        "example": 107,
+        "notation": 1,
+        "other": 58,
+        "proof": 307,
+        "theorem": 312
+      },
+      "missing_labels": []
+    },
+    {
+      "fold": 1,
+      "blocks": 896,
+      "labels": {
+        "algorithm": 13,
+        "definition": 96,
+        "example": 105,
+        "notation": 1,
+        "other": 82,
+        "proof": 235,
+        "theorem": 364
+      },
+      "missing_labels": []
+    },
+    {
+      "fold": 2,
+      "blocks": 895,
+      "labels": {
+        "algorithm": 10,
+        "definition": 97,
+        "example": 32,
+        "notation": 3,
+        "other": 41,
+        "proof": 311,
+        "theorem": 401
+      },
+      "missing_labels": []
+    },
+    {
+      "fold": 3,
+      "blocks": 895,
+      "labels": {
+        "algorithm": 12,
+        "definition": 46,
+        "example": 19,
+        "notation": 3,
+        "other": 57,
+        "proof": 313,
+        "theorem": 445
+      },
+      "missing_labels": []
+    },
+    {
+      "fold": 4,
+      "blocks": 895,
+      "labels": {
+        "algorithm": 38,
+        "definition": 65,
+        "example": 21,
+        "notation": 7,
+        "other": 47,
+        "proof": 291,
+        "theorem": 426
+      },
+      "missing_labels": []
+    }
+  ]
+}

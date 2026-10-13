@@ -71,7 +71,8 @@ _NUMBER_PATTERN = re.compile(
 _FUNCTION_NAME = re.compile(r"^\s+[\w.\-]+(?:\s*_\s*[\w.\-]+)*\s*\(")
 
 # A parenthesised or bracketed name: "(Regular point)", "[Boneh]"
-_NAME_PAREN = re.compile(r"^[\s]*\(([^)]+)\)")
+# One level of nesting: "(Martingale SLLN, Hall et al. (2014))", "(Conditions for (P2))".
+_NAME_PAREN = re.compile(r"^[\s]*\(((?:[^()]|\([^()]*\))+)\)")
 _NAME_BRACKET = re.compile(r"^[\s]*\[([^\]]+)\]")
 
 # "Proof of Theorem 2.1" / "Proof (of Lemma 3)" — special proof-of pattern.
@@ -80,7 +81,9 @@ _NAME_BRACKET = re.compile(r"^[\s]*\[([^\]]+)\]")
 _PROOF_OF = re.compile(
     # Words are letters only, so the number "4.1" is consumed whole instead of
     # stopping at "Theorem 4" and leaving ".1." behind.
-    r"^[\s]+(?:\()?of\s+[A-Za-z]+(?:\s+[A-Za-z]+)*(?:\s+[A-Z]?\.?\d+(?:\.\d+)*)?(?:\))?",
+    # A capital letter followed by ".digit" is an appendix number ("Lemma B.3"),
+    # not another word, so the lookahead stops the word loop before it.
+    r"^[\s]+(?:\()?of\s+[A-Za-z]+(?:\s+(?![A-Z]\.\d)[A-Za-z]+)*(?:\s+[A-Z]?\.?\d+(?:\.\d+)*)?(?:\))?",
     re.IGNORECASE,
 )
 
@@ -220,6 +223,12 @@ def detect_heading(
     if subtype == "proof" and _PROOF_OF_CONCEPT.match(rest):
         return None
 
+    # "Proof sketch." / "Proof Sketch:" -- the qualifier belongs to the heading.
+    if subtype == "proof":
+        sketch = re.match(r"^\s+sketch\b", rest, re.IGNORECASE)
+        if sketch:
+            rest = rest[sketch.end():]
+
     # --- Check for continuation verbs (disqualifies heading) ---
     # But only if there's no number first.
     # "Theorem 2.1 shows ..." needs the number consumed first.
@@ -229,6 +238,12 @@ def detect_heading(
     if nm:
         heading_number = nm.group(1)
         rest = rest[nm.end():]
+
+    # "(see Definition 1) in the setting ...": a cross-reference wrapped onto a
+    # new line leaves an unbalanced ")" after the number. Hyperref link colour
+    # can supply the font-change evidence, so reject it here.
+    if heading_number and re.match(r"^\s*\)", rest):
+        return None
 
     # After keyword (+ optional number), check for continuation verbs
     # that signal this is a sentence, not a heading.

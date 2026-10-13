@@ -3,7 +3,7 @@
 import math
 from numbers import Real
 
-from ml.models.first_classifier import _validated_labels
+from ml.models.first_classifier import _validated_labels, validated_weights
 
 FEATURES = ("bold_ratio", "font_size_rel", "indent_rel", "math_char_ratio", "gap_above_rel")
 PARAMETERS = {"objective": "multiclass", "metric": "None", "learning_rate": 0.05,
@@ -50,7 +50,7 @@ class LayoutClassifier:
         return [self.classes[index] for index in probabilities.argmax(axis=1)]
 
 
-def fit_layout_classifier(rows, labels):
+def fit_layout_classifier(rows, labels, sample_weight=None):
     values = layout_features(rows)
     labels = _validated_labels(labels)
     if len(values) != len(labels) or len(set(labels)) < 2:
@@ -62,6 +62,6 @@ def fit_layout_classifier(rows, labels):
     matrix = vectorizer.fit_transform(values)
     classes = sorted(set(labels))
     encoded = [classes.index(label) for label in labels]
-    dataset = lgb.Dataset(matrix, label=encoded)
+    dataset = lgb.Dataset(matrix, label=encoded, weight=validated_weights(sample_weight, len(labels)))
     booster = lgb.train({**PARAMETERS, "num_class": len(classes)}, dataset, num_boost_round=ROUNDS)
     return LayoutClassifier(vectorizer, booster, classes)

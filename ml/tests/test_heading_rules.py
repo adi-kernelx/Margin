@@ -310,3 +310,35 @@ class TestTocDetection:
     def test_not_toc_empty(self):
         assert not is_toc_entry("")
         assert not is_toc_entry(None)  # type: ignore[arg-type]
+
+
+class TestWrappedCrossReference:
+    """A '(see Definition 1)' reference wrapped onto a new line is not a heading."""
+
+    def test_unbalanced_parenthesis_after_number_rejected(self):
+        assert detect_heading("Definition 1) in the setting where the variances are known",
+                              has_font_change=True) is None
+
+    def test_named_heading_with_nested_parentheses_still_accepted(self):
+        h = detect_heading("Theorem 3 (Second-Order Conditions for (P2)). Let x be ...", is_bold=True)
+        assert h is not None and h.weak_label == "theorem" and h.heading_number == "3"
+
+
+class TestHeadingLeftovers:
+    """Heading fragments must not leak into the heading-free training text."""
+
+    def test_nested_parenthesised_name(self):
+        h = detect_heading("Lemma 16 (Martingale SLLN, Hall et al. (2014)) . Let X be a martingale")
+        assert h is not None and h.heading_name == "Martingale SLLN, Hall et al. (2014)"
+        assert remove_heading_from_text("Lemma 16 (Martingale SLLN, Hall et al. (2014)) . Let X be",
+                                        h.heading_text).startswith("Let")
+
+    def test_appendix_number_in_proof_of(self):
+        h = detect_heading("Proof of Lemma B.3. Firstly, according to (67), we have")
+        assert h is not None and h.heading_name == "of Lemma B.3"
+        assert h.heading_text == "Proof of Lemma B.3."
+
+    def test_proof_sketch(self):
+        h = detect_heading("Proof sketch. Our algorithm is a standard DP")
+        assert h is not None and h.weak_label == "proof" and h.heading_text == "Proof sketch."
+        assert detect_heading("Proof Sketch: we leverage Danskin's theorem") is not None

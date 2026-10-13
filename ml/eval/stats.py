@@ -30,3 +30,29 @@ def document_bootstrap(values_by_file, resamples=2000, seed=20261006):
         means.append(sum(sums[file] for file in sampled) / sum(counts[file] for file in sampled))
     return {"value": estimate, "ci95": [percentile(means, .025), percentile(means, .975)],
             "documents": len(files), "questions": sum(counts.values())}
+
+
+def cluster_bootstrap(rows, statistic, key="file", resamples=2000, seed=20261006):
+    """95% percentile interval for statistic(rows), resampling whole clusters.
+
+    `statistic` maps a list of rows to a number, or None when undefined on a
+    resample (for example a recall with no positives); those resamples are
+    skipped and their count is returned, so a sparse interval is visible.
+    """
+    clusters = {}
+    for row in rows:
+        clusters.setdefault(row[key], []).append(row)
+    names = sorted(clusters)
+    if not names or resamples < 1:
+        raise ValueError("Need nonempty clusters and positive resamples")
+    rng = random.Random(seed)
+    values = []
+    for _ in range(resamples):
+        sampled = [row for _ in names for row in clusters[rng.choice(names)]]
+        value = statistic(sampled)
+        if value is not None:
+            values.append(value)
+    if not values:
+        return {"ci95": None, "undefined_resamples": resamples}
+    return {"ci95": [percentile(values, .025), percentile(values, .975)],
+            "undefined_resamples": resamples - len(values)}
