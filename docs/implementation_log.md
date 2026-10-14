@@ -4729,6 +4729,60 @@ nor ML4's ranker can be measured.
 
 ---
 
+## Phase ML3.3: Knowledge Panel with Verify
+
+**Date:** October 14, 2026
+
+**Goal:** show a document's OKF bundle in Margin, jump from a concept to its
+place in the PDF, and let the reader record a check as an OKF `verified` entry.
+
+### Implementation
+
+- **Service:** `POST /bundle` also returns `concepts`, one plain record per
+  concept file (path, type, title, description, page, bbox, method, confidence,
+  proof pages, linked paths), so the browser never parses YAML.
+  `local-llm/rag-api/bundle_server.py` serves only `/bundle` and `/health` on
+  port 9101 from `.venv-ml`, for machines without Docker or the chat stack.
+- **Core (`src/core/knowledge/okf.ts`, pure, 10 tests):** filter and group
+  concepts (Definitions, Notation, Results, Algorithms; page order);
+  `addVerification` inserts or extends `verified: [{by, at}]` in a concept's
+  frontmatter; `appendLog` adds a `**Verification**` line under the day's
+  heading in `log.md`; `verifyConcept` applies both and updates the record;
+  `carryVerifications` keeps checks across a rebuild for concepts whose path and
+  title are unchanged (anything renamed is a new draft).
+- **Storage:** its own IndexedDB database `margin-knowledge` (store `bundles`,
+  keyed by document id), separate from the library and annotation databases.
+- **Panel (`src/components/KnowledgePanel.tsx`):** third dock tab and panel-bar
+  button (Mod+Shift+K, also in the command palette). States: no bundle (Build
+  knowledge, with the document kind the classifier uses), building (cancellable),
+  service not running, ready. Ready lists concepts with type, page, proof page,
+  "found in prose" for detector concepts, description and linked concepts;
+  clicking scrolls to the concept's region of the original page (following pages
+  that were moved, and saying so when the page was deleted). Verify writes
+  `verified: {by: human:local, at}`. Export downloads the bundle as a zip of its
+  Markdown files; Rebuild keeps unchanged verifications.
+- The bundle is built from the original source bytes, so page edits made in the
+  organiser do not change concept page numbers; navigation maps original pages
+  to the current page records.
+
+### Checks
+
+- 195 Vitest tests and the production build pass; new files lint clean (the
+  viewer keeps its 21 pre-existing lint findings, unchanged).
+- Python: 310 tests pass; the standalone server returned a real slide deck's
+  bundle (16 concepts) with the CORS header in 10 s.
+- The UI itself is checked by the user (checklist in the session notes).
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m uvicorn bundle_server:app --app-dir local-llm/rag-api --port 9101
+npm run dev
+```
+
+**Next goal to achieve:** the 200 evaluation questions, then ML4 (learned
+ranker over the hybrid candidates).
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
