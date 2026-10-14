@@ -69,6 +69,15 @@ def summarise(results):
             for row in results:
                 by_file[row["file"]].append(row[method][metric])
             report[method][metric] = document_bootstrap(by_file) if by_file else None
+    # Paired: per-question difference from dense, resampling whole documents.
+    report["paired_vs_dense"] = {}
+    for method in METHODS[1:]:
+        report["paired_vs_dense"][method] = {}
+        for metric in ("recall_at_5", "mrr_at_10"):
+            by_file = defaultdict(list)
+            for row in results:
+                by_file[row["file"]].append(row[method][metric] - row["dense"][metric])
+            report["paired_vs_dense"][method][metric] = document_bootstrap(by_file) if by_file else None
     return report
 
 
@@ -111,9 +120,12 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"{len(results)} questions, {len(files)} documents")
-    for method, values in report["metrics"].items():
-        print(f"{method:16} " + "   ".join(f"{m} {v['value']:.3f} [{v['ci95'][0]:.3f}, {v['ci95'][1]:.3f}]"
-                                         for m, v in values.items()))
+    show = lambda values: "   ".join(f"{m} {v['value']:+.3f} [{v['ci95'][0]:+.3f}, {v['ci95'][1]:+.3f}]"
+                                     for m, v in values.items())
+    for method in METHODS:
+        print(f"{method:16} {show(report['metrics'][method])}")
+    for method, values in report["metrics"]["paired_vs_dense"].items():
+        print(f"{method + ' - dense':24} {show(values)}")
 
 
 if __name__ == "__main__":

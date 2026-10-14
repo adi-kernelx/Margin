@@ -4783,6 +4783,64 @@ ranker over the hybrid candidates).
 
 ---
 
+## Phase ML3.4: Evaluation Questions and the Hybrid Retrieval Comparison
+
+**Date:** October 14, 2026
+
+**Goal:** complete the 200-question collection that ML3–ML5 are measured on,
+then compare dense, BM25, hybrid and hybrid + concepts retrieval on it.
+
+### Question collection (`ml/eval/questions.jsonl`, git-ignored)
+
+- 200 questions, 15 PDFs (13–14 each), 40 unanswerable, 120 train and 80 test
+  questions; `python -m ml.eval.validate_questions --require-complete` reports
+  VALID (every quote occurs on a listed physical page).
+- PDFs: Steepest Descent and KKT slides, networking Chapter 1, the
+  classification lecture, Decision Trees, the side-channel NTT paper, the Deep
+  SVDD and TSFM arXiv papers, Sipser (train); NIST FIPS 203, Levin, Boneh–Franklin,
+  the resolving-sets paper, the Bayesian sampling slides and the CBDC PKI paper
+  (test groups). The 5 existing example questions were kept.
+- Types: definition, theorem-lookup, needs-definition, explain, other.
+  Questions are paraphrased, not copied from the evidence sentence, so they do
+  not favour keyword matching. Unanswerable questions were checked by searching
+  the whole document for their key terms first.
+- **Caveat:** I wrote the questions myself, after building the retriever, from
+  the PDFs' text layers. They were not written by an independent person, so a
+  spot check by the user is advisable before ML5's final read.
+
+### Hybrid retrieval on the train split (`ml/results/hybrid_retrieval_train.json`)
+
+95 answerable train questions over 9 documents; same chunks and MiniLM embedder
+as the current-RAG baseline; no parameter tuning (BM25 k1 = 1.2, b = 0.75; RRF
+k = 60). 95% intervals resample whole documents; paired differences are
+per-question differences from dense, resampled the same way.
+
+| Method | Recall@5 | MRR@10 |
+|---|---|---|
+| Dense (current retriever) | 0.863 [0.796, 0.935] | 0.644 [0.547, 0.759] |
+| BM25 | 0.842 [0.745, 0.924] | 0.717 [0.621, 0.806] |
+| Hybrid (RRF) | 0.916 [0.842, 0.979] | 0.746 [0.679, 0.818] |
+| Hybrid + OKF concepts | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] |
+
+| Paired difference from dense | Recall@5 | MRR@10 |
+|---|---|---|
+| BM25 | −0.021 [−0.095, +0.053] | +0.072 [−0.034, +0.181] |
+| Hybrid | +0.053 [0.000, +0.111] | **+0.101** [+0.024, +0.178] |
+| Hybrid + concepts | **+0.074** [+0.011, +0.133] | **+0.117** [+0.040, +0.190] |
+
+Hybrid fusion clearly improves ranking (MRR) over dense retrieval; adding the
+OKF concepts as retrievable items improves both measures over dense, with on
+average 0.73 concepts among the top 5. Hybrid + concepts versus hybrid alone is
+not separately tested and is small. The 80 test questions were not read; they
+are reserved for the milestone read.
+
+**Next goal to achieve:** ML4, a learned ranker over the hybrid + concepts
+candidates (features: BM25 and cosine scores and ranks, concept type, page
+position, cross-encoder score), trained on the train questions and compared
+with the hybrid baseline above.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
