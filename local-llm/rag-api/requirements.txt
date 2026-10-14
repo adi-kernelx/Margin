@@ -10,3 +10,10 @@ qdrant-client>=1.9.0
 pydantic>=2.7.0
 langchain-openai>=0.1.0
 sentence-transformers>=2.7.0
+# POST /bundle (ml/okf); versions match the saved pipeline artifact
+pymupdf==1.28.0
+lightgbm==4.7.0
+scikit-learn==1.6.1
+joblib==1.4.2
+numpy>=2.0
+PyYAML>=6.0

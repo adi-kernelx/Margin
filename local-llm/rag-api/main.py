@@ -6,6 +6,7 @@ from schemas import QueryRequest, QueryResponse
 from graph import run_graph
 from ingest import process_ingest, check_status, IngestRequest, IngestResponse, StatusResponse
 from embedder import get_embedding
+from okf_api import router as okf_router
 
 app = FastAPI(title="Local RAG API", version="1.0.0")
 
@@ -16,6 +17,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(okf_router)
 
 class EmbedRequest(BaseModel):
     text: str

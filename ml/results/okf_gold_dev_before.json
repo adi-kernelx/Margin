@@ -1,0 +1,94 @@
+{
+  "documents": 44,
+  "concepts_all": {
+    "precision": {
+      "n": 127,
+      "value": 0.677,
+      "ci95": [
+        0.567,
+        0.78
+      ]
+    },
+    "title_good": {
+      "n": 86,
+      "value": 0.57,
+      "ci95": [
+        0.43,
+        0.7
+      ]
+    },
+    "title_usable": {
+      "n": 86,
+      "value": 0.64,
+      "ci95": [
+        0.5,
+        0.767
+      ]
+    }
+  },
+  "concepts_heading": {
+    "precision": {
+      "n": 49,
+      "value": 0.959,
+      "ci95": [
+        0.897,
+        1.0
+      ]
+    },
+    "title_good": {
+      "n": 47,
+      "value": 0.809,
+      "ci95": [
+        0.633,
+        0.953
+      ]
+    },
+    "title_usable": {
+      "n": 47,
+      "value": 0.83,
+      "ci95": [
+        0.653,
+        0.965
+      ]
+    }
+  },
+  "concepts_detector": {
+    "precision": {
+      "n": 78,
+      "value": 0.5,
+      "ci95": [
+        0.372,
+        0.63
+      ]
+    },
+    "title_good": {
+      "n": 39,
+      "value": 0.282,
+      "ci95": [
+        0.139,
+        0.445
+      ]
+    },
+    "title_usable": {
+      "n": 39,
+      "value": 0.41,
+      "ci95": [
+        0.242,
+        0.583
+      ]
+    }
+  },
+  "fallback_titles": {
+    "n": 33,
+    "share": 0.26,
+    "real": 18
+  },
+  "links": {
+    "n": 68,
+    "value": 0.691,
+    "ci95": [
+      0.557,
+      0.821
+    ]
+  }
+}

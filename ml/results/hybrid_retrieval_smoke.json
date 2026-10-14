@@ -1,0 +1,92 @@
+{
+  "questions": 2,
+  "documents": 2,
+  "splits": [
+    "train"
+  ],
+  "passages": 80,
+  "concepts": 22,
+  "metrics": {
+    "dense": {
+      "recall_at_5": {
+        "value": 1.0,
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      },
+      "mrr_at_10": {
+        "value": 0.375,
+        "ci95": [
+          0.25,
+          0.5
+        ],
+        "documents": 2,
+        "questions": 2
+      }
+    },
+    "bm25": {
+      "recall_at_5": {
+        "value": 0.5,
+        "ci95": [
+          0.0,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      },
+      "mrr_at_10": {
+        "value": 0.5555555555555556,
+        "ci95": [
+          0.1111111111111111,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      }
+    },
+    "hybrid": {
+      "recall_at_5": {
+        "value": 1.0,
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      },
+      "mrr_at_10": {
+        "value": 0.625,
+        "ci95": [
+          0.25,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      }
+    },
+    "hybrid_concepts": {
+      "recall_at_5": {
+        "value": 1.0,
+        "ci95": [
+          1.0,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      },
+      "mrr_at_10": {
+        "value": 0.625,
+        "ci95": [
+          0.25,
+          1.0
+        ],
+        "documents": 2,
+        "questions": 2
+      }
+    }
+  },
+  "mean_concepts_in_top5": 0.0
+}

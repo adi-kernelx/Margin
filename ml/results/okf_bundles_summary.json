@@ -1,0 +1,798 @@
+{
+  "pdfs": 48,
+  "bundles": [
+    {
+      "group": "own-convex-assignments",
+      "category": "assignment",
+      "fingerprint": "b5d967af1c7ec928725c1b1a1356f898",
+      "blocks": 40,
+      "concepts": 10,
+      "types": {
+        "Definition": 4,
+        "Theorem": 6
+      },
+      "links": 1,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.9
+    },
+    {
+      "group": "own-convex-assignments",
+      "category": "assignment",
+      "fingerprint": "0d197aa1131398e04807599da3577af1",
+      "blocks": 41,
+      "concepts": 8,
+      "types": {
+        "Definition": 8
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.5
+    },
+    {
+      "group": "own-convex-assignments",
+      "category": "assignment",
+      "fingerprint": "2b54c549bac331baca6bd3fcac3c7b5b",
+      "blocks": 87,
+      "concepts": 8,
+      "types": {
+        "Claim": 2,
+        "Theorem": 5,
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.0
+    },
+    {
+      "group": "own-convex-assignments",
+      "category": "assignment",
+      "fingerprint": "dfa6ad15b23a1467624f36b4ed65a185",
+      "blocks": 21,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.2
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "95464d5b2422dbfa1f696afb702df859",
+      "blocks": 558,
+      "concepts": 61,
+      "types": {
+        "Definition": 36,
+        "Theorem": 19,
+        "Proposition": 2,
+        "Lemma": 2,
+        "Notation": 1,
+        "Corollary": 1
+      },
+      "links": 31,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 7.1
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "9abbf815b5681ed75f0da9043d8634e5",
+      "blocks": 125,
+      "concepts": 8,
+      "types": {
+        "Definition": 4,
+        "Lemma": 2,
+        "Theorem": 1,
+        "Proposition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.1
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "b39f9a38e4a1ec43e7896bf6b2efbae6",
+      "blocks": 270,
+      "concepts": 11,
+      "types": {
+        "Notation": 2,
+        "Definition": 2,
+        "Theorem": 5,
+        "Claim": 2
+      },
+      "links": 2,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 3.2
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "da5fcc71c13719b2a6061a6ce610557d",
+      "blocks": 372,
+      "concepts": 31,
+      "types": {
+        "Definition": 19,
+        "Theorem": 11,
+        "Lemma": 1
+      },
+      "links": 9,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 4.7
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "370eb8ddf67797b851536ebb473b3543",
+      "blocks": 41,
+      "concepts": 3,
+      "types": {
+        "Theorem": 2,
+        "Definition": 1
+      },
+      "links": 1,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.8
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "84b9cee2d03cdff508c0a16efcad2003",
+      "blocks": 122,
+      "concepts": 5,
+      "types": {
+        "Theorem": 4,
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.7
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "a262c0ec464025d8fc318a0037b433a3",
+      "blocks": 99,
+      "concepts": 11,
+      "types": {
+        "Definition": 4,
+        "Notation": 2,
+        "Lemma": 1,
+        "Theorem": 3,
+        "Proposition": 1
+      },
+      "links": 5,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.6
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "ce882bd29523c1f6eeebb73efa6a7436",
+      "blocks": 37,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.5
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "886e60cccf5a6b2db5c0faa01abdb61d",
+      "blocks": 183,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.9
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "077fb9abae962ed6ded022d2ed458bc9",
+      "blocks": 173,
+      "concepts": 6,
+      "types": {
+        "Proposition": 1,
+        "Theorem": 4,
+        "Lemma": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.4
+    },
+    {
+      "group": "upadhyay-ma3204",
+      "category": "slides",
+      "fingerprint": "d192ef2b83fb6eda9aeeeea5afa1606b",
+      "blocks": 94,
+      "concepts": 16,
+      "types": {
+        "Definition": 3,
+        "Theorem": 8,
+        "Proposition": 2,
+        "Lemma": 3
+      },
+      "links": 5,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.9
+    },
+    {
+      "group": "sipser",
+      "category": "textbook",
+      "fingerprint": "acb3a6cd7d9e63133a9c6bddcffc92af",
+      "blocks": 2325,
+      "concepts": 469,
+      "types": {
+        "Definition": 296,
+        "Notation": 10,
+        "Theorem": 109,
+        "Corollary": 23,
+        "Lemma": 23,
+        "Claim": 8
+      },
+      "links": 1076,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 51.2
+    },
+    {
+      "group": "bayes-sampling",
+      "category": "slides",
+      "fingerprint": "9ba95d733dffe1112ee07c9dabf7b83f",
+      "blocks": 152,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.5
+    },
+    {
+      "group": "ma3206-ai",
+      "category": "slides",
+      "fingerprint": "d9ee5859eeea88e8226cb428f27a391a",
+      "blocks": 41,
+      "concepts": 1,
+      "types": {
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.3
+    },
+    {
+      "group": "ma3206-ai",
+      "category": "slides",
+      "fingerprint": "2007229a78be57c5c5575437d3454ef8",
+      "blocks": 141,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.3
+    },
+    {
+      "group": "dav-course",
+      "category": "notes",
+      "fingerprint": "00a79250bf870a73eb6fcbd7589e32e8",
+      "blocks": 602,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 3.4
+    },
+    {
+      "group": "lec-classification",
+      "category": "slides",
+      "fingerprint": "f14c077e4ab0a746819a9cf98a303252",
+      "blocks": 313,
+      "concepts": 1,
+      "types": {
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.1
+    },
+    {
+      "group": "ng-regression",
+      "category": "slides",
+      "fingerprint": "b6e015f8d9d1c19a8945e1c6bdabdb8c",
+      "blocks": 97,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.4
+    },
+    {
+      "group": "networks-course",
+      "category": "slides",
+      "fingerprint": "0b45100a47970c4bad8557351e57e78b",
+      "blocks": 254,
+      "concepts": 1,
+      "types": {
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.7
+    },
+    {
+      "group": "networks-course",
+      "category": "slides",
+      "fingerprint": "17d86cb1ce7e5e47b7394eb6ff52043e",
+      "blocks": 407,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 3.5
+    },
+    {
+      "group": "crypto-course",
+      "category": "slides",
+      "fingerprint": "91092ea12991434bacfe487aabae8143",
+      "blocks": 71,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.5
+    },
+    {
+      "group": "boneh-franklin",
+      "category": "paper",
+      "fingerprint": "44f10cd5ef2c38469567330bfe78a59c",
+      "blocks": 195,
+      "concepts": 37,
+      "types": {
+        "Definition": 19,
+        "Notation": 3,
+        "Theorem": 4,
+        "Lemma": 5,
+        "Claim": 5,
+        "Corollary": 1
+      },
+      "links": 39,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 5.4
+    },
+    {
+      "group": "nist-fips",
+      "category": "standard",
+      "fingerprint": "4d25d94416d47fdb9b4657f4d68edde1",
+      "blocks": 233,
+      "concepts": 35,
+      "types": {
+        "Definition": 9,
+        "Algorithm": 21,
+        "Notation": 5
+      },
+      "links": 25,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 5.5
+    },
+    {
+      "group": "nist-fips",
+      "category": "standard",
+      "fingerprint": "afa358a7eb59f138de4bb36e25ce9c3b",
+      "blocks": 426,
+      "concepts": 63,
+      "types": {
+        "Definition": 3,
+        "Notation": 11,
+        "Algorithm": 49
+      },
+      "links": 4,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 7.5
+    },
+    {
+      "group": "nist-fips",
+      "category": "standard",
+      "fingerprint": "63814650ab6b291962585e04ebaa191e",
+      "blocks": 187,
+      "concepts": 30,
+      "types": {
+        "Definition": 7,
+        "Algorithm": 23
+      },
+      "links": 11,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 5.5
+    },
+    {
+      "group": "finance-solutions",
+      "category": "solutions",
+      "fingerprint": "8961b2e799b73c9f7d8ce473c7fbf8c2",
+      "blocks": 26,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.3
+    },
+    {
+      "group": "rafiee-cbdc-pki",
+      "category": "paper",
+      "fingerprint": "13c238910128c1077b8bbbdb1090738e",
+      "blocks": 205,
+      "concepts": 3,
+      "types": {
+        "Definition": 3
+      },
+      "links": 1,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.9
+    },
+    {
+      "group": "atangana-offline-cbdc",
+      "category": "thesis",
+      "fingerprint": "60e573423700895f17ff4f78a5520b05a01a7b8213ed71eb9d7f5b428c9453c7",
+      "blocks": 1089,
+      "concepts": 27,
+      "types": {
+        "Algorithm": 19,
+        "Definition": 1,
+        "Notation": 4,
+        "Theorem": 3
+      },
+      "links": 1,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 14.5
+    },
+    {
+      "group": "atangana-offline-cbdc",
+      "category": "paper",
+      "fingerprint": "05a8c63be3cb0659190ce4c96f450d66898079da8ff5a5645a8824770f98fd39",
+      "blocks": 92,
+      "concepts": 1,
+      "types": {
+        "Definition": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.9
+    },
+    {
+      "group": "primas-pessl-sca",
+      "category": "paper",
+      "fingerprint": "7169636bcae61bc1e077463d33ce23cc",
+      "blocks": 105,
+      "concepts": 2,
+      "types": {
+        "Definition": 1,
+        "Algorithm": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.0
+    },
+    {
+      "group": "primas-pessl-sca",
+      "category": "paper",
+      "fingerprint": "c5421d4f0947598f855a609c5b5d8353",
+      "blocks": 98,
+      "concepts": 3,
+      "types": {
+        "Algorithm": 3
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.0
+    },
+    {
+      "group": "yoon-kim-cbdc",
+      "category": "paper",
+      "fingerprint": "ed7829cf60bf907c72a797155ea2d50e",
+      "blocks": 63,
+      "concepts": 3,
+      "types": {
+        "Notation": 3
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.6
+    },
+    {
+      "group": "ijcds-pqc-review",
+      "category": "paper",
+      "fingerprint": "77ceebc9e9c9ed5d57ea8e12cb7a26a8",
+      "blocks": 97,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.6
+    },
+    {
+      "group": "sammo-npp-pqc",
+      "category": "paper",
+      "fingerprint": "2b8971049ea841f5710be3bb44b5a469",
+      "blocks": 374,
+      "concepts": 2,
+      "types": {
+        "Definition": 2
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 5.6
+    },
+    {
+      "group": "bahar-qrpl",
+      "category": "paper",
+      "fingerprint": "8f60b1f919dc5b9dcbb97ddc78051404",
+      "blocks": 151,
+      "concepts": 0,
+      "types": {},
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.8
+    },
+    {
+      "group": "qrca-iot-banking",
+      "category": "paper",
+      "fingerprint": "c8feaf3876b0f5a4158ee69bbd6cb0b8",
+      "blocks": 64,
+      "concepts": 1,
+      "types": {
+        "Algorithm": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 1.2
+    },
+    {
+      "group": "arxiv-wang-tuza",
+      "category": "paper",
+      "fingerprint": "2bc54a53489cf0eebdbb0b09ef4f2c0f",
+      "blocks": 10,
+      "concepts": 2,
+      "types": {
+        "Theorem": 1,
+        "Lemma": 1
+      },
+      "links": 0,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 0.3
+    },
+    {
+      "group": "arxiv-colbrook-crown",
+      "category": "paper",
+      "fingerprint": "39b329e5c8acd2cf37bb9c59992f0017",
+      "blocks": 153,
+      "concepts": 14,
+      "types": {
+        "Definition": 3,
+        "Theorem": 1,
+        "Corollary": 1,
+        "Lemma": 8,
+        "Proposition": 1
+      },
+      "links": 3,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.6
+    },
+    {
+      "group": "arxiv-huang-resolving",
+      "category": "paper",
+      "fingerprint": "874321e7bee82dc7c6cb8dab8ffa7a17",
+      "blocks": 226,
+      "concepts": 40,
+      "types": {
+        "Definition": 10,
+        "Lemma": 20,
+        "Theorem": 5,
+        "Corollary": 5
+      },
+      "links": 25,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 5.1
+    },
+    {
+      "group": "arxiv-cao-svdd",
+      "category": "paper",
+      "fingerprint": "552417cf5cd36f623fc19db4e4aa25d5",
+      "blocks": 284,
+      "concepts": 13,
+      "types": {
+        "Definition": 5,
+        "Notation": 2,
+        "Theorem": 2,
+        "Lemma": 2,
+        "Algorithm": 1,
+        "Corollary": 1
+      },
+      "links": 5,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 4.2
+    },
+    {
+      "group": "arxiv-boussard-identifiability",
+      "category": "paper",
+      "fingerprint": "356164fb5d8edb19b597ae1c61bb171c",
+      "blocks": 247,
+      "concepts": 34,
+      "types": {
+        "Proposition": 4,
+        "Definition": 11,
+        "Theorem": 10,
+        "Notation": 2,
+        "Lemma": 7
+      },
+      "links": 22,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 6.0
+    },
+    {
+      "group": "arxiv-hashimoto-tsfm",
+      "category": "paper",
+      "fingerprint": "6ee6d82abfbe44d4afb584c219ec9bfe",
+      "blocks": 152,
+      "concepts": 9,
+      "types": {
+        "Definition": 6,
+        "Notation": 1,
+        "Proposition": 2
+      },
+      "links": 1,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 2.4
+    },
+    {
+      "group": "arxiv-resende-recirc",
+      "category": "paper",
+      "fingerprint": "07217011c139ede333ed7de5af7e64b6",
+      "blocks": 368,
+      "concepts": 20,
+      "types": {
+        "Definition": 8,
+        "Theorem": 2,
+        "Proposition": 5,
+        "Corollary": 2,
+        "Algorithm": 3
+      },
+      "links": 5,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 4.8
+    },
+    {
+      "group": "levin-discrete",
+      "category": "textbook",
+      "fingerprint": "27eb39322c5ab7a92c044985ef0e8174",
+      "blocks": 1826,
+      "concepts": 189,
+      "types": {
+        "Definition": 172,
+        "Notation": 6,
+        "Theorem": 7,
+        "Lemma": 1,
+        "Proposition": 2,
+        "Corollary": 1
+      },
+      "links": 319,
+      "conformant": true,
+      "errors": 0,
+      "warnings": 0,
+      "seconds": 27.9
+    }
+  ],
+  "conformant": 48,
+  "concept_types": {
+    "Definition": 653,
+    "Theorem": 212,
+    "Claim": 17,
+    "Proposition": 21,
+    "Lemma": 77,
+    "Notation": 52,
+    "Corollary": 35,
+    "Algorithm": 121
+  },
+  "concepts": 1188,
+  "links": 1591
+}

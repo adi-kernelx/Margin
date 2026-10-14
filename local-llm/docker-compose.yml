@@ -11,7 +11,10 @@ services:
       - QDRANT_URL=http://host.docker.internal:6333
       - QDRANT_API_KEY=my-secret-qdrant-key
       - LLM_BASE_URL=http://host.docker.internal:8081
+      - MARGIN_ML_ROOT=/margin
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./rag-api:/app
+      # ml/ holds the bundle code and its trained artifact (POST /bundle)
+      - ../ml:/margin/ml:ro

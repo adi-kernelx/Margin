@@ -170,16 +170,24 @@ STACK_ROUNDS = 150
 INNER_FOLDS = 4
 
 
-def _text_probabilities(train_rows, train_labels, predict_rows, classes, weights=None):
-    """Balanced TF-IDF logistic probabilities, columns aligned to `classes`."""
+def _fit_text_model(train_rows, train_labels, weights=None):
     from ml.models.improved_classifier import fit_balanced_classifier
+    return fit_balanced_classifier([r["text"] for r in train_rows], train_labels, sample_weight=weights)
+
+
+def _aligned_probabilities(model, predict_rows, classes):
+    """Text-model probabilities with columns aligned to `classes`."""
     import numpy as np
-    model = fit_balanced_classifier([r["text"] for r in train_rows], train_labels, sample_weight=weights)
     raw = model.predict_proba([r["text"] for r in predict_rows])
     out = np.zeros((len(predict_rows), len(classes)))
     for j, label in enumerate(model.classes_):
         out[:, classes.index(label)] = raw[:, j]
     return out
+
+
+def _text_probabilities(train_rows, train_labels, predict_rows, classes, weights=None):
+    """Balanced TF-IDF logistic probabilities, columns aligned to `classes`."""
+    return _aligned_probabilities(_fit_text_model(train_rows, train_labels, weights), predict_rows, classes)
 
 
 def inner_text_probabilities(rows, labels, classes, folds=INNER_FOLDS, weights=None):
@@ -205,9 +213,10 @@ def inner_text_probabilities(rows, labels, classes, folds=INNER_FOLDS, weights=N
 
 
 class StackedLightGBM:
-    def __init__(self, rows, labels, hand, booster, classes, weights=None):
-        self.rows, self.labels, self.hand, self.booster, self.classes = rows, labels, hand, booster, classes
-        self.weights = weights
+    def __init__(self, text_model, hand, booster, classes):
+        # The text model is fitted once on all training rows; earlier versions
+        # refitted the same deterministic model on every predict call.
+        self.text_model, self.hand, self.booster, self.classes = text_model, hand, booster, classes
 
     def _matrix(self, text_probabilities, rows):
         import numpy as np
@@ -216,7 +225,7 @@ class StackedLightGBM:
     def predict_proba(self, rows):
         """Class probabilities, columns in `self.classes` order."""
         rows = list(rows)
-        probabilities = _text_probabilities(self.rows, self.labels, rows, self.classes, self.weights)
+        probabilities = _aligned_probabilities(self.text_model, rows, self.classes)
         return self.booster.predict(self._matrix(probabilities, rows))
 
     def predict(self, rows):
@@ -230,7 +239,7 @@ def fit_stacked_lightgbm(rows, labels, sample_weight=None):
     weights = validated_weights(sample_weight, len(labels))
     classes = sorted(set(labels))
     hand = DictVectorizer(sparse=False).fit([hand_features(r) for r in rows])
-    model = StackedLightGBM(rows, labels, hand, None, classes, weights)
+    model = StackedLightGBM(_fit_text_model(rows, labels, weights), hand, None, classes)
     matrix = model._matrix(inner_text_probabilities(rows, labels, classes, weights=weights), rows)
     dataset = lgb.Dataset(matrix, label=[classes.index(label) for label in labels], weight=weights)
     model.booster = lgb.train({**STACK_PARAMETERS, "num_class": len(classes)}, dataset,

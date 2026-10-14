@@ -208,6 +208,7 @@ coverage/
 ml/out/
 ml/labels/*.jsonl
 ml/labels/second_annotator/
+ml/models/artifacts/
 # User questions include quotations from private/copyrighted PDFs.
 ml/eval/questions.jsonl
 # ML pipeline source lives in ml/data/; the Docker "data/" rule above must not hide it

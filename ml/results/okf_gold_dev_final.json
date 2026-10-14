@@ -1,0 +1,100 @@
+{
+  "documents": 44,
+  "dropped": {
+    "concepts_real": 15,
+    "concepts_not_real": 36,
+    "links_ok": 27,
+    "links_wrong": 20
+  },
+  "concepts_all": {
+    "precision": {
+      "n": 76,
+      "value": 0.934,
+      "ci95": [
+        0.859,
+        0.987
+      ]
+    },
+    "title_good": {
+      "n": 71,
+      "value": 0.803,
+      "ci95": [
+        0.667,
+        0.918
+      ]
+    },
+    "title_usable": {
+      "n": 71,
+      "value": 0.972,
+      "ci95": [
+        0.931,
+        1.0
+      ]
+    }
+  },
+  "concepts_heading": {
+    "precision": {
+      "n": 49,
+      "value": 0.959,
+      "ci95": [
+        0.897,
+        1.0
+      ]
+    },
+    "title_good": {
+      "n": 47,
+      "value": 0.872,
+      "ci95": [
+        0.729,
+        0.98
+      ]
+    },
+    "title_usable": {
+      "n": 47,
+      "value": 0.979,
+      "ci95": [
+        0.932,
+        1.0
+      ]
+    }
+  },
+  "concepts_detector": {
+    "precision": {
+      "n": 27,
+      "value": 0.889,
+      "ci95": [
+        0.72,
+        1.0
+      ]
+    },
+    "title_good": {
+      "n": 24,
+      "value": 0.667,
+      "ci95": [
+        0.417,
+        0.9
+      ]
+    },
+    "title_usable": {
+      "n": 24,
+      "value": 0.958,
+      "ci95": [
+        0.857,
+        1.0
+      ]
+    }
+  },
+  "fallback_titles": {
+    "n": 0,
+    "share": 0.0,
+    "real": 0
+  },
+  "links": {
+    "n": 21,
+    "value": 0.952,
+    "ci95": [
+      0.842,
+      1.0
+    ]
+  }
+}
