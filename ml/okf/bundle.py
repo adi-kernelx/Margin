@@ -348,7 +348,8 @@ def _concept(okf_type, title, body, sentence, score, method, block, key, used_pa
                    "confidence": round(float(score), 3)},
     }
     return {"path": path, "frontmatter": frontmatter, "body": body, "sentence": sentence,
-            "key": key, "title": title, "proof_pages": [], "uses": []}
+            "key": key, "title": title, "proof_pages": [], "uses": [],
+            "bbox": {k: round(float(block["bbox"][k]), 4) for k in ("x0", "y0", "x1", "y1")}}
 
 
 def link_concepts(concepts, max_links=12):
@@ -407,8 +408,21 @@ def render_index(concepts, file_name):
     return "".join(parts)
 
 
+def concept_records(concepts):
+    """One plain record per concept file: what the Knowledge panel lists and links."""
+    return [{"path": c["path"], "type": c["frontmatter"]["type"], "title": c["title"],
+             "description": c["frontmatter"]["description"], "page": c["frontmatter"]["margin"]["page"],
+             "bbox": c["bbox"], "method": c["frontmatter"]["margin"]["method"],
+             "confidence": c["frontmatter"]["margin"]["confidence"], "proofPages": sorted(set(c["proof_pages"])),
+             "uses": [path for path, _ in c["uses"]]} for c in concepts]
+
+
 def bundle_files(pdf_path, pipeline=None, category="paper", file_name=None):
-    """Extract and classify one PDF; return ({bundle path: text}, summary) without touching disk."""
+    """Extract and classify one PDF without touching disk.
+
+    Returns ({bundle path: text}, summary, records); records are the concepts as
+    plain data (see concept_records) so a client need not parse YAML.
+    """
     from ml.data.emphasis import annotate
     from ml.data.extract_blocks import process_pdf
     pdf_path = Path(pdf_path)
@@ -431,12 +445,12 @@ def bundle_files(pdf_path, pipeline=None, category="paper", file_name=None):
         counts[concept["frontmatter"]["type"]] = counts.get(concept["frontmatter"]["type"], 0) + 1
     summary = {"fingerprint": fingerprint, "blocks": len(blocks), "concepts": len(concepts), "types": counts,
                "links": sum(len(c["uses"]) for c in concepts)}
-    return files, summary
+    return files, summary, concept_records(concepts)
 
 
 def write_bundle(pdf_path, out_dir, pipeline=None, category="paper"):
     """Extract, classify and write one bundle; return a summary dict."""
-    files, summary = bundle_files(pdf_path, pipeline, category)
+    files, summary, _ = bundle_files(pdf_path, pipeline, category)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for path, text in files.items():

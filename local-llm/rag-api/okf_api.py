@@ -36,6 +36,8 @@ class BundleResponse(BaseModel):
     fileName: str
     summary: Dict
     files: List[BundleFile]
+    # the concepts as plain data (title, type, page, bbox, links), so clients need not parse YAML
+    concepts: List[Dict]
 
 
 def get_pipeline():
@@ -67,6 +69,7 @@ def bundle_endpoint(file: UploadFile = File(...), category: str = Form("paper"))
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "document.pdf"
         path.write_bytes(data)
-        files, summary = bundle_files(path, pipeline, category, file_name=name)
+        files, summary, records = bundle_files(path, pipeline, category, file_name=name)
     return BundleResponse(fingerprint=summary["fingerprint"], fileName=name, summary=summary,
-                          files=[BundleFile(path=p, content=c) for p, c in sorted(files.items())])
+                          files=[BundleFile(path=p, content=c) for p, c in sorted(files.items())],
+                          concepts=records)

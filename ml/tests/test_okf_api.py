@@ -52,6 +52,9 @@ def test_bundle_returns_conformant_files(client, tmp_path):
     assert {"index.md", "log.md", "definitions/bipartite.md"} <= paths
     assert body["fileName"] == "toy.pdf" and len(body["fingerprint"]) == 32
     assert body["summary"]["concepts"] == 1
+    record = body["concepts"][0]
+    assert record["path"] == "definitions/bipartite.md" and record["title"] == "bipartite"
+    assert record["page"] == 1 and set(record["bbox"]) == {"x0", "y0", "x1", "y1"} and record["uses"] == []
     out = tmp_path / "bundle"
     for item in body["files"]:
         (out / item["path"]).parent.mkdir(parents=True, exist_ok=True)

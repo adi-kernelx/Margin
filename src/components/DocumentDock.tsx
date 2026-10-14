@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ListTree, StickyNote, X } from 'lucide-react';
+import { Lightbulb, ListTree, StickyNote, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IconButton } from './ui/IconButton';
 
@@ -29,19 +29,21 @@ interface DocumentDockProps {
     onClose: () => void;
     notes: ReactNode;
     outline: ReactNode;
+    knowledge: ReactNode;
     noteCount: number;
 }
 
 const tabs: { id: DockTab; label: string; icon: ReactNode }[] = [
     { id: 'notes', label: 'Notes', icon: <StickyNote size={14} /> },
     { id: 'outline', label: 'Outline', icon: <ListTree size={14} /> },
+    { id: 'knowledge', label: 'Knowledge', icon: <Lightbulb size={14} /> },
 ];
 
 /**
  * The per-document right-hand dock. Elevation 1, resizable from its left
  * edge by pointer or keyboard, width shared across documents and remembered.
  */
-export function DocumentDock({ documentId, tab, onTabChange, onClose, notes, outline, noteCount }: DocumentDockProps) {
+export function DocumentDock({ documentId, tab, onTabChange, onClose, notes, outline, knowledge, noteCount }: DocumentDockProps) {
     const [width, setWidth] = useState(readWidth);
     const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -117,7 +119,7 @@ export function DocumentDock({ documentId, tab, onTabChange, onClose, notes, out
                 <IconButton size="sm" aria-label="Close panel" onClick={onClose}><X size={15} /></IconButton>
             </header>
             <div role="tabpanel" className="flex min-h-0 flex-1 flex-col">
-                {tab === 'notes' ? notes : outline}
+                {tab === 'notes' ? notes : tab === 'outline' ? outline : knowledge}
             </div>
         </aside>
     );

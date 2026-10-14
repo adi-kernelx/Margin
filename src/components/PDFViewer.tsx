@@ -67,6 +67,9 @@ import { DocumentDock } from './DocumentDock';
 import { DocumentPanelBar } from './DocumentPanelBar';
 import { readDockTab, type DockTab } from '@/lib/ui/dock';
 import { OutlinePanel } from './OutlinePanel';
+import { KnowledgePanel } from './KnowledgePanel';
+import { toast } from './ui/Toast';
+import { pageIdForSourceIndex } from '@/core/ui/outline';
 import { useRegisterCommands } from '@/lib/commands/registry';
 import { libraryDB } from '@/lib/storage/library-db';
 
@@ -941,6 +944,23 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         }
     }, []);
 
+    /** Scrolls to a region of a page of the original PDF; pages moved or merged later are followed. */
+    const scrollToSourceRegion = useCallback((page: number, bbox: { y0: number }) => {
+        const pageId = pageIdForSourceIndex(pageDocumentRef.current?.pages ?? [], page - 1, 'original');
+        const container = containerRef.current;
+        const frame = pageId ? container?.querySelector<HTMLElement>(`[data-page-id="${pageId}"]`) : null;
+        if (!pageId || !container || !frame) {
+            toast({ title: `Page ${page} is no longer in this document`, type: 'info' });
+            return;
+        }
+        const offset = frame.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        const top = container.scrollTop + offset + frame.offsetHeight * Math.max(0, Math.min(1, bbox.y0)) - 48;
+        container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        frame.classList.remove('focus-pulse');
+        void frame.offsetWidth;
+        frame.classList.add('focus-pulse');
+    }, []);
+
     // Document commands exist only while this document is the focused one.
     const isFocusedDocument = useAppStore(state => state.focusedDocId === fileId);
     const searchMatches = useAppStore(state => state.searchMatches);
@@ -953,6 +973,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
         { id: 'document.panel', title: dockTab ? 'Hide side panel' : 'Show side panel', group: 'Document', shortcut: 'Mod+\\', allowInInput: true, keywords: ['dock', 'sidebar'], run: () => setDockTab(current => current ? null : readDockTab(stableId)) },
         { id: 'document.notes', title: dockTab === 'notes' ? 'Hide notes' : 'Show notes', group: 'Document', shortcut: 'Mod+Shift+N', allowInInput: true, keywords: ['annotations', 'panel'], run: () => toggleDock('notes') },
         { id: 'document.outline', title: dockTab === 'outline' ? 'Hide outline' : 'Show outline', group: 'Document', shortcut: 'Mod+Shift+O', allowInInput: true, keywords: ['contents', 'toc', 'chapters'], run: () => toggleDock('outline') },
+        { id: 'document.knowledge', title: dockTab === 'knowledge' ? 'Hide knowledge' : 'Show knowledge', group: 'Document', shortcut: 'Mod+Shift+K', allowInInput: true, keywords: ['definitions', 'theorems', 'concepts', 'okf', 'glossary'], run: () => toggleDock('knowledge') },
         { id: 'document.new-note', title: 'New note', group: 'Document', keywords: ['write', 'comment'], run: () => void handleCreateNote() },
         { id: 'document.pages', title: 'Organise pages', group: 'Document', shortcut: 'Mod+Shift+P', enabled: role !== 'viewer', keywords: ['reorder', 'rotate', 'split', 'merge', 'extract', 'delete page'], run: () => setShowPageOrganizer(true) },
     ], isFocusedDocument);
@@ -1061,6 +1082,7 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     onClose={() => setDockTab(null)}
                     noteCount={notes.length}
                     outline={<OutlinePanel documentKey={stableId} loadSource={loadSource} pages={pageDocument?.pages ?? []} onNavigate={scrollToPageId} />}
+                    knowledge={<KnowledgePanel documentId={stableId} fileName={fileName} loadSource={loadSource} onNavigate={scrollToSourceRegion} />}
                     notes={<NotesPanel
                     documentId={stableId}
                     documentTitle={fileName}

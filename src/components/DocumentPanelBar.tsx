@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { LayoutGrid, ListTree, StickyNote } from 'lucide-react';
+import { LayoutGrid, Lightbulb, ListTree, StickyNote } from 'lucide-react';
 import type { DockTab } from '@/lib/ui/dock';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './ui/Tooltip';
@@ -60,7 +60,7 @@ function PanelButton({ icon, label, tooltip, shortcut, active = false, badge, di
 
 /**
  * The reader's floating switcher for its side panels and the page organiser:
- * one raised pill so the three read as a set, with the open panel pressed in.
+ * one raised pill so they read as a set, with the open panel pressed in.
  */
 export function DocumentPanelBar({ dockTab, onToggle, noteCount, pageCount, onOrganisePages, canOrganise }: DocumentPanelBarProps) {
     return (
@@ -85,6 +85,14 @@ export function DocumentPanelBar({ dockTab, onToggle, noteCount, pageCount, onOr
                 shortcut="Mod+Shift+O"
                 active={dockTab === 'outline'}
                 onClick={() => onToggle('outline')}
+            />
+            <PanelButton
+                icon={<Lightbulb size={15} />}
+                label="Knowledge"
+                tooltip={dockTab === 'knowledge' ? 'Hide knowledge' : 'Definitions, results and notation'}
+                shortcut="Mod+Shift+K"
+                active={dockTab === 'knowledge'}
+                onClick={() => onToggle('knowledge')}
             />
             <span aria-hidden className="mx-1 h-5 w-px bg-line" />
             <PanelButton
