@@ -4489,6 +4489,246 @@ From here on, `ml/labels/adjudicated_labels.jsonl` is the gold set.
 
 ---
 
+## Phase ML3.1: OKF Bundle Writer, Links and Conformance
+
+**Date:** October 14, 2026
+
+**Goal:** turn the frozen ML2.14 pipeline into an Open Knowledge Format v0.2
+bundle per PDF, conformant to the spec, ready for the Knowledge panel and for
+retrieval in ML4.
+
+### Spec facts used (OKF v0.2, read from the published SPEC.md)
+
+A concept is any non-reserved `.md` file with YAML frontmatter; only `type` is
+required. Optional families: `title`, `description`, `resource`, `tags`;
+`sources` (entries with `id`, `resource`, `title`); `generated: {by, at}`;
+`verified: [{by, at}]` (a bare mapping counts as one entry); `status` in
+draft/stable/deprecated. Actors are `<producer>/<version>`, `human:<id>` or
+`process:<id>`; timestamps are ISO 8601 with a UTC offset. Links are plain
+markdown links; broken links are tolerated. `index.md` and `log.md` are
+reserved; only the bundle-root index may carry `okf_version`. Conformance: every
+concept file has parseable frontmatter with a non-empty `type`, and reserved
+files follow their structure. Producers may add extension keys.
+
+### Implementation (`ml/okf/`)
+
+- **`pipeline.py`:** the frozen ML2.14 pipeline as one saved object, trained
+  exactly as in ML2.15 (same counts: 4,477 headed rows, 4,264 reliable negatives,
+  16,556 detector sentences). Saved to the ignored `ml/models/artifacts/`
+  because its vocabulary is learned from copyrighted text. `classify(blocks,
+  emphasis)` returns, per block, the role, whether it contains a definition, the
+  method (heading / detector / classifier), the score and every defining sentence
+  at or above the 0.4 threshold. The stacked model now fits its text sub-model
+  once at training time instead of on every predict call (deterministic, so
+  predictions are unchanged).
+- **`bundle.py`:** PDF → extractor blocks → emphasis → pipeline → concepts.
+  - Headed definition, theorem-like (theorem, lemma, proposition, corollary,
+    claim, conjecture), algorithm and notation blocks become concepts; examples,
+    exercises, remarks and notes do not. A proof adds "Proof on page N" to the
+    result before it.
+  - Each defining sentence found by the detector (up to three per block) becomes
+    a `Definition` titled by the defined term, or a `Notation` titled by its
+    symbol when no term can be named.
+  - Title rules: emphasised term nearest after the defining cue; cue patterns
+    ("is called X", "we say … is X", "we call [object] an X", "define the X");
+    the earliest emphasised term for headed definitions; clauses and
+    cross-references ("Then", "We observe that", "Section 5") rejected; a defined
+    term repeated later keeps its first occurrence; bibliography entries skipped.
+  - Frontmatter: `type`, `title`, `description`, `resource`
+    `margin://doc/<fingerprint>/page/<n>#bbox=x0,y0,x1,y1`, `tags`, `sources`,
+    `generated {by: margin-okf/0.1, at}`, `status: draft`, and a `margin`
+    extension key (page, block id, method, confidence). Nothing is written as
+    `verified`; only a human Verify action will add that.
+  - The fingerprint reproduces PDF.js `fingerprints[0]` (first trailer `/ID`, else
+    MD5 of the first 1,024 bytes), so resources point at the document the
+    frontend already identifies.
+  - Links under "# Uses": numbered references ("by Theorem 3.4", "Definition 2.1")
+    resolved within the document, and mentions of defined terms (only specific
+    terms: two or more words, or one word of seven or more letters).
+  - Root `index.md` (`okf_version: "0.2"`, sections Definitions / Notation /
+    Results / Algorithms) and `log.md`; no index for an empty bundle; concept
+    files never take the reserved names `index` or `log`.
+- **`conformance.py`:** the spec's three rules as errors; broken links, bare
+  `verified` mappings, unknown status and offset-less timestamps as warnings.
+- **`build_all.py`:** builds and checks every main PDF; numbers-only summary.
+
+### Results
+
+All **48 main PDFs** built in about 4.5 minutes; **48/48 conformant**, no
+warnings. 2,245 concepts and 6,587 links: Definition 1,313, Notation 449,
+Theorem 212, Algorithm 121, Lemma 77, Corollary 35, Proposition 21, Claim 17.
+
+| Category | PDFs | Concepts | Links |
+|---|---:|---:|---:|
+| Textbook | 2 | 1,447 | 6,184 |
+| Paper | 17 | 305 | 220 |
+| Slides | 19 | 255 | 61 |
+| Standard | 3 | 177 | 118 |
+| Assignment | 4 | 30 | 1 |
+| Thesis | 1 | 28 | 1 |
+| Solutions | 1 | 3 | 2 |
+| Notes | 1 | 0 | 0 |
+
+Four documents give empty bundles (an assignment, course notes, two non-maths
+papers), which is the expected outcome for text without definitions.
+
+Bugs found while building: an empty `index.md` failed conformance, and a
+Sipser concept titled "index" took the reserved filename `definitions/index.md`;
+both fixed with regression tests.
+
+**Quality, by inspection (not yet measured).** On an arXiv paper the Definitions
+section reads well (largest common subtrees, height, genealogical order, parent,
+plane tree, Bienaymé tree, spine, typical event, real tree). On slides many
+defining sentences have no nameable term and fall back to "Notation (page N)",
+and an "agreement subtree" sentence still falls back to a page title. Title
+accuracy and link precision have no gold set yet; they are measured in ML3.2.
+
+### Files
+
+- **Created:** `ml/okf/__init__.py`, `ml/okf/pipeline.py`, `ml/okf/bundle.py`,
+  `ml/okf/conformance.py`, `ml/okf/build_all.py`, `ml/tests/test_okf_bundle.py`
+  (7 tests), `ml/results/okf_bundles_summary.json`.
+- **Modified:** `ml/models/definition_features.py` (text model fitted once),
+  `.gitignore` (`ml/models/artifacts/`).
+- **Ignored outputs:** `ml/models/artifacts/okf_pipeline.joblib`, `ml/out/bundles/`.
+- **Tests:** 299 Python tests pass.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.okf.pipeline       # train and save once
+.\.venv-ml\Scripts\python.exe -m ml.okf.bundle --pdf "<file>.pdf" --out ml/out/bundles/<name> --category paper
+.\.venv-ml\Scripts\python.exe -m ml.okf.conformance ml/out/bundles/<name>
+.\.venv-ml\Scripts\python.exe -m ml.okf.build_all
+```
+
+**Next goal to achieve:** ML3.2: `POST /bundle` on the RAG service, the Knowledge
+panel with Verify in Margin, a small gold check of titles and links, and BM25 +
+vector hybrid retrieval over passages and concepts.
+
+---
+
+## Phase ML3.2: Bundle Endpoint, Title and Link Gold Check, Hybrid Retrieval
+
+**Date:** October 14, 2026
+
+**Goal:** serve bundles from the RAG service, measure title and link quality
+instead of judging them by eye, and build the BM25 + dense retrieval baseline
+that ML4's ranker has to beat. The Knowledge panel is the remaining ML3 piece.
+
+### `POST /bundle` (`local-llm/rag-api/okf_api.py`)
+
+- Multipart upload (`file`, optional `category`); returns `fingerprint`,
+  `fileName`, `summary` and `files: [{path, content}]`. Needs PDF bytes, not
+  extracted text, because block extraction reads fonts and layout.
+- Rejects non-PDFs (415), unknown categories (422) and files over 200 MB (413);
+  returns 503 when the trained artifact is missing. The pipeline is loaded once.
+- `ml/okf/bundle.py` now has `bundle_files()` (files in memory) and
+  `write_bundle()` uses it, so the endpoint and the batch build share one path.
+- Docker: `../ml` mounted read-only at `/margin/ml`, `MARGIN_ML_ROOT=/margin`,
+  `libgomp1` for LightGBM, and scikit-learn/LightGBM pinned to the artifact's
+  versions. Docker is optional: the endpoint was tested in `.venv-ml` with
+  FastAPI's test client, including a live run on a real paper (200 in 16 s,
+  57 files, same counts as the batch build).
+- **Bug fixed:** the saved pipeline was pickled as `__main__.FrozenPipeline`
+  (trained via `python -m ml.okf.pipeline`), so it loaded only from scripts that
+  happened to import that class. The entry point now runs through the importable
+  module, and the artifact was re-saved without retraining.
+
+### Gold check of concepts, titles and links
+
+Protocol: `ml/eval/okf_sample.py` draws at most 3 concepts and 3 links per
+document. A development sample (seed 1: 127 concepts, 68 links, 44 documents)
+was labelled and used to fix title rules; a held-out sample (seed 2: 85
+concepts, 41 links, excluding every development item) was drawn from the fixed
+build and labelled once. Labels per `ml/eval/okf_sample.py`: `real`
+(the block states what its type says), `title` good/partial/bad, `link_ok`.
+`ml/eval/okf_gold.py` scores with 95% intervals resampling whole documents;
+`ml/eval/okf_carry.py` carries labels to a rebuilt bundle (dropped items and
+changed titles are flagged; only changed titles are relabelled). All labels were
+assigned by me, a single annotator, so these are not agreement-checked numbers.
+
+| Sample | Concept precision | Title good | Title usable | Link precision |
+|---|---|---|---|---|
+| Development, ML3.1 build | 0.677 [0.567, 0.780] | 0.570 | 0.640 | 0.691 [0.557, 0.821] |
+| Development, final build (tuned on) | 0.934 [0.859, 0.987] | 0.803 | 0.972 | 0.952 (n = 21) |
+| **Held-out, first read** | **0.929 [0.857, 0.978]** | **0.747** [0.620, 0.861] | **0.924** | **0.756** [0.561, 0.943] |
+| Held-out, final build (after 2 fixes it exposed) | 0.938 | 0.776 | 0.921 | 0.811 |
+
+By method on the held-out first read: headed concepts precision 1.00, title good
+0.85; detector concepts precision 0.81, title good 0.54.
+
+What changed (all found on the development sample unless noted):
+- **Emphasis needs a defining position.** Bold or italic words are accepted as
+  the defined term only near a cue, as the sentence subject ("A *shared secret
+  key* is ..."), or as a predicate before a condition ("A graph is *viscous*
+  if ..."). Slides emphasise names, warnings and headings that define nothing.
+- **Headings and lists are not terms.** Enumerators ("a)", "(ii)", "2.1",
+  "A.1", bullets) are stripped; generic words ("Theory", "Algorithm",
+  "Conclusion", "Hint") rejected; "Term: gloss" accepted only with a
+  definitional gloss and never for a question.
+- **More patterns:** "refer to X as the TERM", "we call X the TERM at ...",
+  "is known as TERM •", "we say ... is TERM against", subject of "A TERM is a",
+  "Definition: A TERM is", symbols "denoted as 'X'", "where X denotes",
+  "function X is defined as", "define the following matrix: X =".
+- **No fallback concepts.** A detector sentence with neither a term nor a symbol
+  is no longer written as "Notation (page N)". On the development sample these
+  were 36 non-definitions against 15 real ones, and none could be found by name.
+- **Unnumbered results get a gist** ("Definition (ACQ)", "Theorem (N(F) is a
+  subspace of…)") instead of a bare "Theorem".
+- **Links:** a mention inside a longer defined term belongs to that term ("level
+  set" inside "lower level set"); concepts from the same block do not link; a
+  headed definition links by its name ("Definition (penalty function)" by
+  "penalty function").
+- **Found on the held-out sample, fixed afterwards:** the same symbol repeated as
+  three concepts ("cbRt"); a prose restatement surviving next to the headed
+  definition because the name sat only in the heading text. The held-out first
+  read above is the honest figure; the final-build row includes these fixes.
+
+Cost: concepts across the 48 PDFs fell from 2,245 to 1,188 (Definition 1,313 →
+653, Notation 449 → 52; headed results unchanged), links from 6,587 to 1,591.
+On the development sample 15 of 86 real concepts are no longer produced, so the
+gain in precision is bought with roughly 17% lower recall of real concepts.
+All 48 bundles remain conformant.
+
+### Hybrid retrieval (`ml/retrieval/hybrid.py`, `ml/eval/hybrid_eval.py`)
+
+- Hand-written BM25 (k1 = 1.2, b = 0.75, Lucene-style idf), unit-tested against a
+  hand computation; reciprocal rank fusion (k = 60) of BM25 and cosine rankings.
+- `hybrid_eval` compares dense, BM25, hybrid and hybrid + concepts (a concept hit
+  counts at its page), with the same chunks and embedder as the current-RAG
+  baseline. It scores only the train split unless `--frozen-test-milestone`.
+- **Smoke run only:** the question file has 2 answerable train questions, so the
+  output (`ml/results/hybrid_retrieval_smoke.json`) checks that the harness runs,
+  not that any method is better. A real comparison needs the 200-question set.
+
+### Files
+
+- **Created:** `local-llm/rag-api/okf_api.py`, `ml/eval/okf_sample.py`,
+  `ml/eval/okf_gold.py`, `ml/eval/okf_carry.py`, `ml/eval/hybrid_eval.py`,
+  `ml/retrieval/__init__.py`, `ml/retrieval/hybrid.py`,
+  `ml/tests/test_okf_api.py`, `ml/tests/test_hybrid.py`,
+  `ml/results/okf_gold_dev_before.json`, `ml/results/okf_gold_dev_final.json`,
+  `ml/results/okf_gold_test.json`, `ml/results/okf_gold_test_final.json`,
+  `ml/results/hybrid_retrieval_smoke.json`.
+- **Modified:** `ml/okf/bundle.py`, `ml/okf/pipeline.py`,
+  `ml/results/okf_bundles_summary.json`, `ml/tests/test_okf_bundle.py`,
+  `local-llm/rag-api/main.py`, `local-llm/rag-api/requirements.txt`,
+  `local-llm/rag-api/Dockerfile`, `local-llm/docker-compose.yml`.
+- **Ignored:** `ml/labels/okf_*.jsonl` (quote the PDFs), `ml/out/bundles*`.
+- **Tests:** 310 Python tests pass.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.okf_sample --out ml/labels/okf_dev.jsonl --seed 1
+.\.venv-ml\Scripts\python.exe -m ml.eval.okf_gold --labels ml/labels/okf_test.jsonl --out ml/results/okf_gold_test.json
+.\.venv-ml\Scripts\python.exe -m ml.eval.okf_carry --labels ml/labels/okf_test.jsonl --out ml/labels/okf_test_v4.jsonl
+.\.venv-ml\Scripts\python.exe -m ml.eval.hybrid_eval --out ml/results/hybrid_retrieval_train.json
+```
+
+**Next goal to achieve:** the Knowledge panel with Verify in Margin (frontend),
+and the 200 evaluation questions, without which neither the hybrid comparison
+nor ML4's ranker can be measured.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
@@ -4574,7 +4814,7 @@ ml/
 - 31 frontend test files and 185 test cases.
 - 2 property-based assertions: spatial index versus linear scan, and arbitrary
   command sequences round-tripping through inverses.
-- `ml/`: 6,326 Python lines across 46 files (including blank lines), 292 passing Python tests (68 extraction/layout, 16 split,
+- `ml/`: 6,326 Python lines across 46 files (including blank lines), 299 passing Python tests (68 extraction/layout, 16 split,
   eight sampling, 24 questions, eight baseline, seven training preparation)
   plus ten active classifier, eight grouped-CV, eight NB and 17 layout-classifier tests;
   nine error-audit, nine fixed-candidate, 16 training-repair and five label-scheme tests;

@@ -156,6 +156,8 @@ test set; recall on prose definitions reported separately; error analysis of
 
 ### ML3 — OKF bundle and hybrid retrieval (Oct 20–26)
 
+**Progress (Oct 14):** ML3.1 done: bundle writer, links, conformance checker; all 48 main PDFs build conformant bundles (2,245 concepts, 6,587 links). ML3.2 (Oct 14): `POST /bundle` on the RAG service; title/link gold check (held-out: concept precision 0.93, titles good 0.75 / usable 0.92, link precision 0.76); fallback concepts dropped (1,188 concepts, 1,591 links); hand-written BM25 + RRF hybrid retrieval with harness (smoke run only, 2 questions). Remaining: Knowledge panel with Verify; the 200 evaluation questions.
+
 - Bundle writer: one concept file per classified block with `type`, `title`,
   `description`, `resource` (`margin://doc/<fingerprint>/page/<pageId>#bbox=…`),
   `sources`, `generated`, `status: draft`; `index.md` per document.
