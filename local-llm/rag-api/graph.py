@@ -4,11 +4,12 @@ from schemas import Source, QueryRequest, QueryScope
 from retriever import retrieve
 from reranker import rerank
 from prompt import build_prompt
-from llm_client import generate as llm_generate
+from llm_client import LLMError, generate as llm_generate
 from validator import validate_answer
 from memory import memory_store
 from monitor import PerformanceMonitor, Measure
 from cache import cache_store
+import store
 import json
 import hashlib
 
@@ -33,7 +34,8 @@ def retrieve_step(state: GraphState):
     monitor = state["monitor"]
     with Measure(monitor, "retrieval"):
         # Cache Check
-        scope_str = str(state["scope"].dict()) if state["scope"] else ""
+        # The index generation keeps cached results from outliving an ingest or a verification.
+        scope_str = (str(state["scope"].dict()) if state["scope"] else "") + f"|{store.generation}"
         cached = cache_store.get_retrieval(state["question"], state["mode"], scope_str)
         if cached:
             print("[Cache] Retrieval hit")
@@ -56,6 +58,9 @@ def rerank_step(state: GraphState):
         ranked = rerank(state["question"], state["chunks"], state["topK"])
     return {"chunks": ranked}
 
+def llm_failure(error):
+    return {"answer": str(error), "confidence": 0.0, "metrics": {"mode": "error"}}
+
 def generate_step(state: GraphState):
     monitor = state["monitor"]
     
@@ -63,7 +68,10 @@ def generate_step(state: GraphState):
     if state["mode"] == "explain":
         with Measure(monitor, "llm"):
             prompt_text = build_prompt(state["question"], [], mode="explain")
-            answer = llm_generate(prompt_text)
+            try:
+                answer = llm_generate(prompt_text)
+            except LLMError as error:
+                return llm_failure(error)
         return {
             "answer": answer,
             "confidence": 1.0, 
@@ -89,7 +97,10 @@ def generate_step(state: GraphState):
 
     # 4. Generate LLM Response
     with Measure(monitor, "llm"):
-        raw_response = llm_generate(prompt_text)
+        try:
+            raw_response = llm_generate(prompt_text)
+        except LLMError as error:
+            return llm_failure(error)  # not cached, so a retry reaches the model again
     
     # Answer is now plain text (no JSON parsing needed)
     answer = raw_response.strip()
@@ -175,7 +186,7 @@ async def run_graph(req: QueryRequest):
     final_metrics.update(perf_metrics)
     
     # Map sources
-    sources = [Source(**c) for c in result.get("chunks", [])]
+    sources = [Source(**{**c, "docId": c.get("docId") or c.get("pdfFingerprint") or ""}) for c in result.get("chunks", [])]
     
     return {
         "answer": result["answer"],

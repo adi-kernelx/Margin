@@ -69,8 +69,8 @@ def cosine_scores(vectors, query):
     return np.divide(vectors @ query, norms, out=np.zeros(len(vectors)), where=norms > 0)
 
 
-def rrf(rankings, k=60, weights=None, top_k=None):
-    """Fuse ranked index lists; returns indices by descending fused score."""
+def rrf_scored(rankings, k=60, weights=None):
+    """Fuse ranked index lists; returns (index, fused score) by descending score."""
     weights = weights or [1.0] * len(rankings)
     fused = Counter()
     first_seen = {}
@@ -78,7 +78,12 @@ def rrf(rankings, k=60, weights=None, top_k=None):
         for rank, index in enumerate(ranked, 1):
             fused[index] += weight / (k + rank)
             first_seen.setdefault(index, len(first_seen))
-    order = sorted(fused, key=lambda i: (-fused[i], first_seen[i]))
+    return [(i, fused[i]) for i in sorted(fused, key=lambda i: (-fused[i], first_seen[i]))]
+
+
+def rrf(rankings, k=60, weights=None, top_k=None):
+    """Fuse ranked index lists; returns indices by descending fused score."""
+    order = [index for index, _ in rrf_scored(rankings, k, weights)]
     return order[:top_k] if top_k else order
 
 

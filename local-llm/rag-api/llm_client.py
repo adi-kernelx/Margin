@@ -1,30 +1,37 @@
+"""Chat completion through any OpenAI-compatible server.
+
+The default is a local Ollama with qwen2.5:3b-instruct, small enough for a
+laptop without a GPU. The Docker setup points LLM_BASE_URL at llama.cpp and
+sets LLM_MODEL to its Llama 3.1 8B model.
+"""
+
 import os
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-runtime:8081/v1")
+import httpx
 
-llm = ChatOpenAI(
-    base_url=LLM_BASE_URL,
-    api_key="sk-no-key-required",
-    model="meta-llama-3.1-8b-instruct",
-    temperature=0.1,
-    max_tokens=2048
-)
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:3b-instruct")
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "512"))
+# CPU generation of a few hundred tokens can take minutes.
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))
+
+SYSTEM = "You are a strict document QA assistant."
+
+
+class LLMError(RuntimeError):
+    pass
+
 
 def generate(prompt: str) -> str:
-    # Use system message content from the prompt if possible, or just send as user message
-    # For simplicity with the provided build_prompt, we just send it as one block or split it
-    # Ideally build_prompt returns system + user parts, but here we just wrap.
-    
-    messages = [
-        SystemMessage(content="You are a strict document QA assistant."),
-        HumanMessage(content=prompt)
-    ]
-    
     try:
-        response = llm.invoke(messages)
-        return response.content
+        response = httpx.post(f"{LLM_BASE_URL.rstrip('/')}/chat/completions", timeout=LLM_TIMEOUT, json={
+            "model": LLM_MODEL,
+            "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": LLM_MAX_TOKENS,
+        })
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"[LLM Client] Error: {e}")
-        return "Error generating response."
+        raise LLMError(f"The language model at {LLM_BASE_URL} ({LLM_MODEL}) did not answer: {e}") from e

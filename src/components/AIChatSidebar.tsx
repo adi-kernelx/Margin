@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, FileText, MessageSquarePlus, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, BookOpen, Clock, FileText, MessageSquarePlus, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
@@ -13,6 +13,8 @@ import {
     formatElapsed,
     parsePageList,
     resolveRequestScope,
+    sourceLabel,
+    sourceRegion,
     type AssistantMessage,
     type AssistantMode,
     type AssistantScopeKind,
@@ -227,7 +229,12 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
 
     const openSource = (source: AssistantSource) => {
         if (!onFocusDocument) return;
-        revealInDocument({ docId: source.docId, page: source.page, pdfFingerprint: source.docId }, documents, onFocusDocument);
+        revealInDocument({
+            docId: source.docId,
+            page: source.page,
+            pdfFingerprint: source.pdfFingerprint ?? source.docId,
+            bbox: sourceRegion(source),
+        }, documents, onFocusDocument);
     };
 
     const startNew = () => {
@@ -373,7 +380,11 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
                                                             title={source.text}
                                                             className="depth-pressable inline-flex h-6 items-center gap-1 border border-line px-2 text-xs text-text-soft"
                                                         >
-                                                            <FileText size={11} className="text-accent" />p. {source.page}
+                                                            {source.kind === 'concept'
+                                                                ? <BookOpen size={11} className="text-accent" />
+                                                                : <FileText size={11} className="text-accent" />}
+                                                            <span className="max-w-48 truncate">{sourceLabel(source)}</span>
+                                                            {source.verified && <BadgeCheck size={11} className="text-accent" aria-label="Verified" />}
                                                         </button>
                                                     ))}
                                                 </div>

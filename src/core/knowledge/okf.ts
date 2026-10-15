@@ -143,3 +143,34 @@ export function carryVerifications(previous: KnowledgeBundle, next: KnowledgeBun
     }
     return out;
 }
+
+export interface ConceptIndexRequest {
+    docId: string;
+    pdfFingerprint: string;
+    concepts: (Pick<ConceptRecord, 'path' | 'type' | 'title' | 'description' | 'page' | 'bbox'> & {
+        markdown: string;
+        verified: boolean;
+    })[];
+}
+
+/**
+ * The body of the RAG service's POST /concepts: every concept with its Markdown
+ * file (the service searches the defining sentence and body too) and whether
+ * the reader has verified it. The service replaces the PDF's concepts with these.
+ */
+export function conceptIndexRequest(bundle: KnowledgeBundle): ConceptIndexRequest {
+    return {
+        docId: bundle.documentId,
+        pdfFingerprint: bundle.fingerprint,
+        concepts: bundle.concepts.map(concept => ({
+            path: concept.path,
+            type: concept.type,
+            title: concept.title,
+            description: concept.description,
+            page: concept.page,
+            bbox: concept.bbox,
+            markdown: bundle.files[concept.path] ?? '',
+            verified: isVerified(concept),
+        })),
+    };
+}

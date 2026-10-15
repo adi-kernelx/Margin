@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    addVerification, appendLog, carryVerifications, filterConcepts, groupConcepts, isVerified, verifyConcept,
+    addVerification, appendLog, carryVerifications, conceptIndexRequest, filterConcepts, groupConcepts, isVerified, verifyConcept,
     type ConceptRecord, type KnowledgeBundle,
 } from './okf';
 
@@ -122,5 +122,25 @@ describe('carryVerifications', () => {
         const out = carryVerifications(previous, renamed);
         expect(out.concepts.map(isVerified)).toEqual([true, false]);
         expect(out.files['definitions/plane-tree.md'].match(/^- by:/gm)).toHaveLength(1);
+    });
+});
+
+describe('conceptIndexRequest', () => {
+    it('sends each concept with its file and verification state', () => {
+        const bundle: KnowledgeBundle = {
+            documentId: 'doc', fingerprint: 'abc', fileName: 'toy.pdf', builtAt: at,
+            summary: { concepts: 2, links: 0 },
+            files: { 'definitions/plane-tree.md': FILE, 'log.md': '' },
+            concepts: [concept('definitions/plane-tree.md', 'Definition', 'plane tree', 2),
+                concept('definitions/root.md', 'Definition', 'root', 3)],
+        };
+        const request = conceptIndexRequest(verifyConcept(bundle, 'definitions/plane-tree.md', { by: 'human:local', at }));
+        expect(request.docId).toBe('doc');
+        expect(request.pdfFingerprint).toBe('abc');
+        expect(request.concepts.map(c => [c.path, c.verified])).toEqual([
+            ['definitions/plane-tree.md', true], ['definitions/root.md', false]]);
+        expect(request.concepts[0].markdown).toContain('A plane tree is a subset');
+        expect(request.concepts[1].markdown).toBe('');
+        expect(request.concepts[0]).not.toHaveProperty('proofPages');
     });
 });

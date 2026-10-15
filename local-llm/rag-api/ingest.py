@@ -3,27 +3,14 @@ from typing import List, Dict, Optional, Any
 import hashlib
 import uuid
 import re
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
-import os
+from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
+import store
 
 # CONFIG
 MAX_CHUNK_CHARS = 800
 MIN_CHUNK_CHARS = 200
 OVERLAP_RATIO = 0.20
-QDRANT_COLLECTION = "pdf_chunks"
-
-QDRANT_URL = os.getenv("QDRANT_URL", "http://host.docker.internal:6333")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
-
-qdrant = None
-
-def get_qdrant():
-    """Create the service client on use, so offline chunking can be imported."""
-    global qdrant
-    if qdrant is None:
-        qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-    return qdrant
+QDRANT_COLLECTION = store.PASSAGES
 
 # --- Models ---
 class OcrToken(BaseModel):
@@ -204,15 +191,7 @@ def chunk_spans(spans: List[Dict]) -> List[Dict]:
     return chunks
 
 def ensure_collection():
-    qdrant = get_qdrant()
-    try:
-        qdrant.get_collection(QDRANT_COLLECTION)
-    except:
-        print("[Ingest] Creating collection...")
-        qdrant.create_collection(
-            collection_name=QDRANT_COLLECTION,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE)
-        )
+    store.ensure_collection(QDRANT_COLLECTION)
 
 def process_ingest(req: IngestRequest) -> IngestResponse:
     from embedder import get_embeddings
@@ -249,7 +228,8 @@ def process_ingest(req: IngestRequest) -> IngestResponse:
         ))
         
     # Upsert
-    get_qdrant().upsert(collection_name=QDRANT_COLLECTION, points=points)
+    store.get_qdrant().upsert(collection_name=QDRANT_COLLECTION, points=points)
+    store.changed()
     print(f"[Ingest] Upserted {len(points)} chunks.")
     
     return IngestResponse(
@@ -259,13 +239,13 @@ def process_ingest(req: IngestRequest) -> IngestResponse:
     )
 
 def check_status(pdf_fingerprint: str) -> StatusResponse:
-    qdrant = get_qdrant()
+    qdrant = store.get_qdrant()
     try:
         # Check if we have chunks for this fingerprint
         res = qdrant.count(
             collection_name=QDRANT_COLLECTION,
-            filter=models.Filter(
-                must=[models.FieldCondition(key="pdfFingerprint", match=models.MatchValue(value=pdf_fingerprint))]
+            count_filter=Filter(
+                must=[FieldCondition(key="pdfFingerprint", match=MatchValue(value=pdf_fingerprint))]
             )
         )
         return StatusResponse(

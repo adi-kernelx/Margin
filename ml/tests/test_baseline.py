@@ -48,7 +48,8 @@ def test_evaluation_reranks_and_excludes_unanswerable():
 def test_legacy_chunker_import_and_native_pdf_provenance(tmp_path):
     import pymupdf
     chunker = load_chunker()
-    assert chunker.__globals__["qdrant"] is None
+    # Importing the chunker must not open Qdrant (the service's store creates it on use).
+    assert chunker.__globals__["store"]._client is None
     path = tmp_path / "fixture.pdf"
     with pymupdf.open() as document:
         document.new_page().insert_textbox((30,30,500,700), "A mathematical statement with enough words. " * 20)
@@ -65,12 +66,13 @@ def test_empty_chunks_score_zero_and_bad_rerank_length_rejected():
 
 
 def test_qdrant_factory_is_lazy_and_reused(monkeypatch):
-    namespace = load_chunker().__globals__
+    store = load_chunker().__globals__["store"]
     created = []
     def factory(**kwargs):
         client = object()
         created.append(client)
         return client
-    monkeypatch.setitem(namespace, "QdrantClient", factory)
-    first = namespace["get_qdrant"]()
-    assert namespace["get_qdrant"]() is first and created == [first]
+    monkeypatch.setattr(store, "QdrantClient", factory)
+    monkeypatch.setattr(store, "_client", None)
+    first = store.get_qdrant()
+    assert store.get_qdrant() is first and created == [first]

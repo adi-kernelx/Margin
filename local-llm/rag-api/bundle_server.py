@@ -1,8 +1,8 @@
-"""Serve only POST /bundle (and /health), without the chat pipeline or Docker.
+"""Serve only POST /bundle (and /health), without the chat pipeline.
 
-The full service (main.py) also loads LangGraph, Qdrant and the LLM client.
-This entry point needs only FastAPI and the ml/ environment, so the Knowledge
-panel can be used on a machine without the RAG stack:
+The full service (main.py) also runs without Docker now (embedded Qdrant, a
+local Ollama model) and includes /bundle. This entry point is for when only
+the Knowledge panel is needed: it loads no embedding, reranker or LLM client.
 
     .venv-ml\\Scripts\\python.exe -m uvicorn bundle_server:app --app-dir local-llm/rag-api --port 9101
 

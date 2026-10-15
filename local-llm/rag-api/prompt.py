@@ -1,8 +1,17 @@
+def source_label(chunk: dict) -> str:
+    """Where a context item came from, so the model can tell a definition from a passage."""
+    page = f"page {chunk['page']}" if chunk.get("page") else "unknown page"
+    if chunk.get("kind") != "concept":
+        return f"({page})"
+    checked = ", verified by the reader" if chunk.get("verified") else ""
+    return f"({chunk.get('type') or 'Concept'} \"{chunk.get('title', '')}\", {page}{checked})"
+
+
 def build_prompt(question: str, chunks: list, mode: str = "qa"):
     context = ""
     if chunks:
         context = "\n\n".join(
-            f"[{i+1}] {c.get('text', '')}"
+            f"[{i+1}] {source_label(c)} {c.get('text', '')}"
             for i, c in enumerate(chunks)
         )
 

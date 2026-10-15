@@ -5,11 +5,41 @@
 export type AssistantMode = 'qa' | 'summary' | 'compare' | 'explain' | 'extract';
 export type AssistantScopeKind = 'document' | 'open' | 'pages';
 
+export interface SourceRegion {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+
 export interface AssistantSource {
     docId: string;
     page: number;
     text: string;
     score: number;
+    /** A passage of the PDF, or a concept from its knowledge bundle. Older messages have neither. */
+    kind?: 'passage' | 'concept';
+    pdfFingerprint?: string | null;
+    /** Passages send `[x0, y0, x1, y1]`, concepts `{x0, y0, x1, y1}`; page-normalised either way. */
+    bbox?: SourceRegion | number[] | null;
+    title?: string | null;
+    type?: string | null;
+    verified?: boolean;
+}
+
+/** The chip text: the page for a passage, the concept's type and title for a concept. */
+export function sourceLabel(source: AssistantSource): string {
+    if (source.kind !== 'concept' || !source.title) return `p. ${source.page}`;
+    return `${source.type ?? 'Concept'}: ${source.title} · p. ${source.page}`;
+}
+
+/** Concepts point at their defining region; passages keep page-level navigation (their box spans the chunk). */
+export function sourceRegion(source: AssistantSource): SourceRegion | undefined {
+    if (source.kind !== 'concept' || !source.bbox) return undefined;
+    const box = Array.isArray(source.bbox)
+        ? { x0: source.bbox[0], y0: source.bbox[1], x1: source.bbox[2], y1: source.bbox[3] }
+        : source.bbox;
+    return [box.x0, box.y0, box.x1, box.y1].every(value => Number.isFinite(value)) ? box : undefined;
 }
 
 export interface AssistantMessage {

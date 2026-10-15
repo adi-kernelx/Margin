@@ -4841,6 +4841,111 @@ with the hybrid baseline above.
 
 ---
 
+## Phase ML3.5: Hybrid Retrieval and OKF Concepts in the Live Assistant
+
+**Goal:** make `/query` use what ML3 built (hybrid retrieval and the reader's
+concepts), run the assistant without Docker on a laptop, and re-measure the
+live code against the pipeline it replaces.
+
+### What changed
+
+- **No Docker.** `local-llm/rag-api/store.py` gives the service one Qdrant
+  client: a server when `QDRANT_URL` is set (the Docker setup), otherwise
+  Qdrant embedded in the process with data in `local-llm/data/qdrant`
+  (ignored by git). Run from the repository root:
+  `.venv-ml\Scripts\python.exe -m uvicorn main:app --app-dir local-llm/rag-api --port 9101`.
+- **Local LLM.** `llm_client.py` calls any OpenAI-compatible server with
+  `httpx`; the default is Ollama with `qwen2.5:3b-instruct` (1.9 GB), chosen
+  for the laptop's limits. `LLM_BASE_URL`, `LLM_MODEL`, `LLM_MAX_TOKENS` (512)
+  and `LLM_TIMEOUT` override it; Docker keeps llama.cpp with Llama 3.1 8B.
+  LLM failures return an error answer and are no longer cached as answers.
+  `langchain-openai`, `langchain` and `langchain-community` are no longer used.
+- **Retrieval** (`retriever.py`, `RETRIEVAL=hybrid_concepts` by default): BM25
+  and exact cosine over the scoped passages and the PDF's OKF concepts, fused
+  by RRF (`ml/retrieval/hybrid.py`, now also `rrf_scored`). The scoped points
+  and their stored vectors are read once and kept until the next write.
+  `hybrid` and `dense` (the old behaviour) remain selectable; queries without a
+  document scope use dense search. The cross-encoder then reranks 3 × topK
+  candidates as before.
+- **Concept index** (`concepts_api.py`): `POST /concepts` replaces a PDF's
+  concepts with the reader's copy (title, description, Markdown, verified
+  flag); `DELETE /concepts/{fingerprint}` removes them. Searchable text is the
+  same as in ML3.4 (title, description, defining sentence, body; proof and
+  uses excluded), checked by a test against `ml.eval.okf_sample.read_concept`.
+- **Verified concepts** get `VERIFIED_BOOST` (1.0) added to their
+  cross-encoder logit. Untuned: the evaluation data has no verifications.
+- **Citations:** a concept source carries kind, type, title, verified flag and
+  its region. The prompt labels each context item
+  (`(Definition "regular point", page 27, verified by the reader)`). In Margin
+  a concept chip reads "Definition: regular point · p. 27", shows a check when
+  verified, and jumps to and highlights the defining region; passage chips keep
+  page navigation (their box spans the whole chunk).
+- **Sync:** the Knowledge panel sends its bundle to `/concepts` after a build,
+  rebuild or verification, and when a saved bundle opens (best effort).
+- **Bugs fixed on the way:**
+  - The ingest status check referenced an unimported `models` and always
+    reported "not indexed", so every open re-ingested the document.
+  - The retriever read `pageNumber`, but ingest stores `page`, so sources came
+    back without pages and the page scope matched nothing.
+  - Concepts are indexed under the Knowledge panel's document id, the chat
+    scopes by the ingest id, and the two differ in the app. The ML3.4
+    evaluation used the file name for both and could not see this. Concepts now
+    join their passages by the PDF fingerprint (found by the end-to-end smoke
+    test; covered by a test).
+
+### Live code on the train split (`ml/results/live_rag_train.json`)
+
+`ml/eval/live_rag_eval.py` imports the service's own retriever, concept indexer
+and reranker and runs them on in-memory Qdrant (passages from the legacy
+chunker over native PDF words; 525 concepts through `index_concepts`). 95
+answerable train questions, 9 documents, 24 candidates each, all kept ranked so
+MRR@10 is defined.
+
+| Method | Recall@5 | MRR@10 |
+|---|---|---|
+| Dense + rerank (service before ML3.5) | 0.926 [0.862, 0.979] | 0.775 [0.670, 0.871] |
+| Hybrid + concepts, no rerank | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] |
+| Hybrid + rerank | 0.916 [0.869, 0.967] | 0.768 [0.666, 0.865] |
+| Hybrid + concepts + rerank (service now) | 0.926 [0.881, 0.978] | 0.787 [0.713, 0.867] |
+
+| Paired difference from dense + rerank | Recall@5 | MRR@10 |
+|---|---|---|
+| Hybrid + concepts, no rerank | +0.011 [−0.042, +0.065] | −0.013 [−0.078, +0.069] |
+| Hybrid + rerank | −0.011 [−0.043, +0.022] | −0.006 [−0.021, +0.002] |
+| Hybrid + concepts + rerank | +0.000 [−0.043, +0.053] | +0.012 [−0.013, +0.053] |
+
+The no-rerank row reproduces ML3.4 exactly (0.937 / 0.761), so the live code
+matches the evaluated method. But ML3.4 compared against dense retrieval
+*without* the reranker; the cross-encoder already recovers most of hybrid's
+gain, and the new service is not measurably better than the old one at
+ranking pages (+0.012 MRR@10, interval includes zero). What ML3.5 adds is
+concept citations that point at a defining region and carry the reader's
+verification, plus the bug fixes. 0.68 concepts appear among the top 5 on
+average.
+
+### End-to-end smoke test
+
+In-process `/ingest` → `/status` → `/concepts` → `/query` with Ollama
+`qwen2.5:3b-instruct` on CPU, two train questions: both answers correct with
+the answer page ranked first; 10 s and 26 s per query, of which the LLM is
+9–25 s and retrieval plus reranking about 1 s. For the LICQ question the
+concept "Definition: regular point" (p. 27) is the second source.
+
+### Tests
+
+`ml/tests/test_live_rag.py` (11): concept text parity, replace-on-index,
+citable concepts, fingerprint join, page scope, cache invalidation, dense
+fallback, status count, prompt labels. `test_baseline.py` now checks the lazy
+client in `store.py`. Frontend: `sourceLabel`, `sourceRegion` and
+`conceptIndexRequest` tests. 321 Python tests, 198 Vitest tests and the
+production build pass.
+
+**Next goal to achieve:** ML4. The bar is now the live pipeline, hybrid +
+concepts + cross-encoder (MRR@10 0.787, Recall@5 0.926 on train), not dense
+retrieval.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026

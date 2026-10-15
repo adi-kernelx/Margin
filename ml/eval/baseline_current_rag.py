@@ -14,6 +14,7 @@ import argparse
 import csv
 import importlib.util
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -30,7 +31,10 @@ RERANKER = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
 def load_chunker():
-    spec = importlib.util.spec_from_file_location("margin_legacy_ingest", ROOT / "local-llm/rag-api/ingest.py")
+    service = str(ROOT / "local-llm/rag-api")
+    if service not in sys.path:
+        sys.path.append(service)  # ingest.py imports the service's store module
+    spec =importlib.util.spec_from_file_location("margin_legacy_ingest", ROOT / "local-llm/rag-api/ingest.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.chunk_spans

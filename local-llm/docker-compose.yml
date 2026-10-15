@@ -11,6 +11,7 @@ services:
       - QDRANT_URL=http://host.docker.internal:6333
       - QDRANT_API_KEY=my-secret-qdrant-key
       - LLM_BASE_URL=http://host.docker.internal:8081
+      - LLM_MODEL=meta-llama-3.1-8b-instruct
       - MARGIN_ML_ROOT=/margin
     extra_hosts:
       - "host.docker.internal:host-gateway"

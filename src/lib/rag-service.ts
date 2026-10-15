@@ -15,12 +15,9 @@ export interface QueryRequest {
     sessionId?: string;
 }
 
-export interface Source {
-    docId: string;
-    page: number;
-    text: string;
-    score: number;
-}
+import type { AssistantSource } from '@/core/assistant/conversation';
+
+export type Source = AssistantSource;
 
 export interface QueryResponse {
     answer: string;

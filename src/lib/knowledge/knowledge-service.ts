@@ -1,4 +1,4 @@
-import type { ConceptRecord, KnowledgeBundle } from '@/core/knowledge/okf';
+import { conceptIndexRequest, type ConceptRecord, type KnowledgeBundle } from '@/core/knowledge/okf';
 
 const RAG_API_URL = 'http://localhost:9101';
 
@@ -59,4 +59,22 @@ export async function buildBundle(
         files: Object.fromEntries(body.files.map(file => [file.path, file.content])),
         concepts: body.concepts,
     };
+}
+
+/**
+ * Sends the bundle's concepts, with the reader's verifications, to the RAG
+ * service so the assistant can retrieve and cite them. Best effort: the panel
+ * works without the service, and the next build or verification resends.
+ */
+export async function indexConcepts(bundle: KnowledgeBundle): Promise<boolean> {
+    try {
+        const response = await fetch(`${RAG_API_URL}/concepts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(conceptIndexRequest(bundle)),
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
 }

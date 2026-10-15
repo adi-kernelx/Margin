@@ -1,60 +1,107 @@
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
-from embedder import get_embedding
+"""Candidate retrieval for /query.
+
+RETRIEVAL selects the method (ML3.4 compared them on the training questions):
+  hybrid_concepts  (default) BM25 and dense rankings over the scoped passages
+                   and the PDF's OKF concepts, fused with reciprocal rank
+                   fusion (ml/retrieval/hybrid.py); a concept carries its page
+                   and region, so it can be cited like a passage
+  hybrid           the same without concepts
+  dense            Qdrant nearest neighbours over passages, the earlier behaviour
+BM25 needs the whole scoped set, so the hybrid methods read the scoped points
+(with their stored vectors) once and keep the index until the next write.
+Without a document scope they fall back to dense search over the library.
+"""
+
 import os
 
-QDRANT_URL = os.getenv("QDRANT_URL", "http://host.docker.internal:6333")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+from qdrant_client.models import FieldCondition, Filter, MatchAny
 
-qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-
+import margin_ml  # noqa: F401  (puts ml/ on the path)
+import store
+from embedder import get_embedding
+from ml.retrieval.hybrid import HybridRetriever, rrf_scored
 from schemas import QueryScope
 
-def retrieve(question: str, top_k: int = 8, scope: QueryScope = None):
-    print(f"[Retriever] Query: {question}, Scope: {scope}")
+RETRIEVAL = os.getenv("RETRIEVAL", "hybrid_concepts")
+METHODS = ("dense", "hybrid", "hybrid_concepts")
+DEPTH = 50
+_indexes = {}
+
+
+def scope_filter(scope, fingerprints=()):
+    must = []
+    if scope and scope.docIds:
+        # Clients send session ids, stable ids or fingerprints; match either field.
+        must.append(Filter(should=[FieldCondition(key="docId", match=MatchAny(any=scope.docIds)),
+                                   FieldCondition(key="pdfFingerprint",
+                                                  match=MatchAny(any=[*scope.docIds, *fingerprints]))]))
+    if scope and scope.pages:
+        must.append(FieldCondition(key="page", match=MatchAny(any=scope.pages)))
+    return Filter(must=must) if must else None
+
+
+def to_item(point, kind):
+    payload = point.payload or {}
+    item = {"kind": kind, "text": payload.get("text", ""), "docId": payload.get("docId"),
+            "pdfFingerprint": payload.get("pdfFingerprint"),
+            "page": payload.get("page", payload.get("pageNumber")), "bbox": payload.get("bbox")}
+    if kind == "concept":
+        item.update(title=payload.get("title"), type=payload.get("type"),
+                    conceptPath=payload.get("conceptPath"), verified=bool(payload.get("verified")))
+    return item
+
+
+def scroll(collection, flt):
+    client = store.get_qdrant()
+    if not client.collection_exists(collection):
+        return []
+    points, offset = [], None
+    while True:
+        batch, offset = client.scroll(collection, scroll_filter=flt, limit=512, offset=offset,
+                                      with_payload=True, with_vectors=True)
+        points.extend(batch)
+        if offset is None:
+            return points
+
+
+def hybrid_index(scope, with_concepts):
+    key = (repr(scope_filter(scope)), with_concepts, store.generation)
+    if key not in _indexes:
+        points = [(p, "passage") for p in scroll(store.PASSAGES, scope_filter(scope))]
+        if with_concepts:
+            # The Knowledge panel indexes concepts under its own document id, which
+            # need not be the id the chat scopes by; the PDF fingerprint joins them.
+            fingerprints = sorted({p.payload.get("pdfFingerprint") for p, _ in points} - {None})
+            points += [(p, "concept") for p in scroll(store.CONCEPTS, scope_filter(scope, fingerprints))]
+        items = [to_item(p, kind) for p, kind in points]
+        _indexes.clear()  # one scope at a time is enough for a single reader
+        _indexes[key] = HybridRetriever(items, [p.vector for p, _ in points], depth=DEPTH) if items else None
+    return _indexes[key]
+
+
+def dense(query_vector, top_k, scope):
+    client = store.get_qdrant()
+    if not client.collection_exists(store.PASSAGES):
+        return []
+    hits = client.query_points(store.PASSAGES, query=query_vector, query_filter=scope_filter(scope), limit=top_k).points
+    return [dict(to_item(p, "passage"), score=p.score) for p in hits]
+
+
+def retrieve(question: str, top_k: int = 8, scope: QueryScope = None, method: str = None):
+    method = method or RETRIEVAL
+    if method not in METHODS:
+        raise ValueError(f"RETRIEVAL must be one of {METHODS}")
+    print(f"[Retriever] {method} query: {question}, scope: {scope}")
     query_vector = get_embedding(question)
-    
-    must_filters = []
-    
-    if scope:
-        if scope.docIds:
-            must_filters.append(
-                models.FieldCondition(
-                    key="docId",
-                    match=models.MatchAny(any=scope.docIds)
-                )
-            )
-        if scope.pages:
-            must_filters.append(
-                models.FieldCondition(
-                    key="pageNumber",
-                    match=models.MatchAny(any=scope.pages)
-                )
-            )
-            
-    filters = None
-    if must_filters:
-        filters = models.Filter(must=must_filters)
-        
     try:
-        result = qdrant.query_points(
-            collection_name="pdf_chunks",
-            query=query_vector,
-            query_filter=filters,
-            limit=top_k
-        )
-        hits = result.points
-        
-        return [
-            {
-                "text": p.payload.get("text", ""),
-                "docId": p.payload.get("docId"),
-                "page": p.payload.get("pageNumber"),
-                "bbox": p.payload.get("bbox"),
-                "score": p.score
-            }
-            for p in hits
-        ]
+        if method == "dense" or not (scope and scope.docIds):
+            return dense(query_vector, top_k, scope)
+        index = hybrid_index(scope, method == "hybrid_concepts")
+        if index is None:
+            return []
+        ranked = index.rankings(question, query_vector)
+        fused = rrf_scored([ranked["bm25"], ranked["dense"]], index.k)[:top_k]
+        return [dict(index.items[i], score=score) for i, score in fused]
     except Exception as e:
         print(f"[Retriever] Error: {e}")
         return []

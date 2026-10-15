@@ -18,10 +18,18 @@ class QueryRequest(BaseModel):
 class Source(BaseModel):
     docId: str
     page: Optional[int] = None
-    bbox: Optional[list] = None
+    # Passages: [x0, y0, x1, y1]; concepts: {x0, y0, x1, y1}. Both normalised to the page.
+    bbox: Optional[Any] = None
     score: float
     text: Optional[str] = None
     relevance_score: Optional[float] = None  # Added for cross-encoder score
+    kind: Literal["passage", "concept"] = "passage"
+    pdfFingerprint: Optional[str] = None
+    # Concepts only: what the reader sees on the citation and where it lives in the bundle.
+    title: Optional[str] = None
+    type: Optional[str] = None
+    conceptPath: Optional[str] = None
+    verified: bool = False
 
 class QueryResponse(BaseModel):
     answer: str

@@ -7,7 +7,7 @@ import {
 import { downloadBlob } from '@/lib/annotations/export';
 import { loadBundle, saveBundle } from '@/lib/knowledge/knowledge-db';
 import {
-    buildBundle, DOCUMENT_CATEGORIES, KnowledgeServiceError, LOCAL_ACTOR, type DocumentCategory,
+    buildBundle, DOCUMENT_CATEGORIES, indexConcepts, KnowledgeServiceError, LOCAL_ACTOR, type DocumentCategory,
 } from '@/lib/knowledge/knowledge-service';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/Button';
@@ -98,7 +98,12 @@ export function KnowledgePanel({ documentId, fileName, loadSource, onNavigate }:
         let cancelled = false;
         setState({ kind: 'loading' });
         void loadBundle(documentId)
-            .then(bundle => { if (!cancelled) setState(bundle ? { kind: 'ready', bundle } : { kind: 'empty' }); })
+            .then(bundle => {
+                if (cancelled) return;
+                setState(bundle ? { kind: 'ready', bundle } : { kind: 'empty' });
+                // Bundles saved before the assistant could use them, or while it was offline.
+                if (bundle) void indexConcepts(bundle);
+            })
             .catch(() => { if (!cancelled) setState({ kind: 'empty' }); });
         return () => { cancelled = true; abortRef.current?.abort(); };
     }, [documentId]);
@@ -115,6 +120,7 @@ export function KnowledgePanel({ documentId, fileName, loadSource, onNavigate }:
             const previous = await loadBundle(documentId);
             const bundle = previous ? carryVerifications(previous, built) : built;
             await saveBundle(bundle);
+            void indexConcepts(bundle);
             if (!controller.signal.aborted) setState({ kind: 'ready', bundle });
         } catch (error) {
             if (controller.signal.aborted) return;
@@ -138,6 +144,7 @@ export function KnowledgePanel({ documentId, fileName, loadSource, onNavigate }:
         const next = verifyConcept(bundle, path, { by: LOCAL_ACTOR, at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z') });
         setState({ kind: 'ready', bundle: next });
         await saveBundle(next);
+        void indexConcepts(next);
     };
 
     const openPath = (path: string) => {
