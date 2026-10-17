@@ -17,6 +17,8 @@ from pydantic import BaseModel
 from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchValue, PointStruct
 
 import store
+import margin_ml  # noqa: F401
+from ml.retrieval.links import concept_uses
 
 router = APIRouter()
 
@@ -85,7 +87,7 @@ def index_concepts(req: ConceptIndexRequest, encode=None) -> ConceptIndexRespons
             points.append(PointStruct(id=point_id(req.pdfFingerprint, concept.path), vector=list(vector), payload={
                 "docId": req.docId, "pdfFingerprint": req.pdfFingerprint, "page": concept.page,
                 "bbox": concept.bbox, "text": text, "conceptPath": concept.path, "type": concept.type,
-                "title": concept.title, "verified": is_verified}))
+                "title": concept.title, "verified": is_verified, "uses": concept_uses(concept.markdown)}))
         client.upsert(store.CONCEPTS, points=points)
     store.changed()
     return ConceptIndexResponse(pdfFingerprint=req.pdfFingerprint, indexed=len(req.concepts), verified=verified)

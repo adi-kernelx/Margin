@@ -10,12 +10,15 @@ PARAMS = dict(objective="lambdarank", n_estimators=150, learning_rate=0.05, num_
               lambdarank_truncation_level=10, random_state=0, verbose=-1)
 
 
-def train(groups):
+def train(groups, seed=None):
     import lightgbm as lgb
     groups = [g for g in groups if g["features"]]
     x = np.array([row for g in groups for row in g["features"]])
     y = np.array([value for g in groups for value in g["labels"]])
-    return lgb.LGBMRanker(**PARAMS).fit(x, y, group=[len(g["features"]) for g in groups])
+    params = dict(PARAMS)
+    if seed is not None:
+        params["random_state"] = seed
+    return lgb.LGBMRanker(**params).fit(x, y, group=[len(g["features"]) for g in groups])
 
 
 def save(model, path, **meta):

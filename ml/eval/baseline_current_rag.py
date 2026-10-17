@@ -3,7 +3,7 @@
 Exact brute-force cosine stands in for Qdrant's approximate HNSW search.
 Use native PyMuPDF word spans with the imported legacy chunk_spans (no copy).
 Search is scoped to the question's named PDF, not the whole library.
-Retrieve top 8, rerank those 8, report Recall@5 and MRR@10 on those rankings.
+Retrieve top 8, rerank those 8, report Recall@5, MRR@10 and page nDCG@10.
 Both rankings are truncated at 8 by the legacy candidate budget, so ranks 9–10
 cannot score; MRR is not computed from just the 5 displayed/context chunks.
 Native text, rather than legacy OCR input, and exact search are approximations
@@ -22,6 +22,7 @@ import numpy as np
 import pymupdf
 
 from ml.eval.stats import document_bootstrap
+from ml.eval.metrics import METRICS, metrics
 from ml.eval.validate_questions import group_splits, validate_lines
 
 
@@ -61,13 +62,6 @@ def cosine_order(embeddings, query, top_k=8):
     return np.argsort(-scores, kind="stable")[:top_k].tolist()
 
 
-def metrics(ranked_chunks, answer_pages):
-    pages = set(answer_pages)
-    hit = float(any(chunk["page"] in pages for chunk in ranked_chunks[:5]))
-    reciprocal = next((1 / rank for rank, chunk in enumerate(ranked_chunks[:10], 1) if chunk["page"] in pages), 0.0)
-    return {"recall_at_5": hit, "mrr_at_10": reciprocal}
-
-
 def evaluate(questions, chunks_by_file, encode, predict):
     """Model functions are injected to exercise real evaluation without downloads."""
     results = []
@@ -96,7 +90,7 @@ def report_results(results):
         report[split] = {}
         for method in ("vector", "reranked"):
             report[split][method] = {}
-            for metric in ("recall_at_5", "mrr_at_10"):
+            for metric in METRICS:
                 by_file = defaultdict(list)
                 for row in results:
                     if row["split"] == split:
@@ -142,7 +136,7 @@ def main():
               "metrics": report_results(results)}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print("Split  Method     Recall@5 [95% CI]        MRR@10 [95% CI] (8 candidates)")
+    print("Split  Method     Recall@5 / MRR@10 / nDCG@10 [95% CI] (8 candidates)")
     for split, methods in report["metrics"].items():
         for method, values in methods.items():
             parts = []

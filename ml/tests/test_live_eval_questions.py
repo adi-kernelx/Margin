@@ -47,3 +47,28 @@ def test_ranker_development_command_rejects_frozen_read(monkeypatch):
     monkeypatch.setattr(ranker_eval, "load_questions", forbidden)
     with pytest.raises(SystemExit, match="inference-only"):
         ranker_eval.main()
+
+
+def test_cache_required_rejects_missing_cache_before_questions(tmp_path, monkeypatch):
+    from ml.eval import ranker_eval
+
+    monkeypatch.setattr("sys.argv", ["ranker_eval", "--out", "unused.json", "--require-cache",
+                                     "--groups", str(tmp_path / "missing.json")])
+    monkeypatch.setattr(ranker_eval, "load_questions", lambda *args: pytest.fail("Must not read questions"))
+    with pytest.raises(SystemExit, match="existing candidate cache"):
+        ranker_eval.main()
+
+
+@pytest.mark.parametrize("change", ["qid", "file", "answer_pages", "features", "labels"])
+def test_cache_mismatch_is_rejected(change):
+    from ml.eval.ranker_eval import validate_cached_groups
+    from ml.ranking.features import FEATURES
+
+    questions = [{"qid": "q", "file": "train.pdf", "answer_pages": [1]}]
+    group = {"qid": "q", "file": "train.pdf", "answer_pages": [1], "pages": [1],
+             "features": [[0.0] * len(FEATURES)], "labels": [1]}
+    validate_cached_groups([group], questions)
+    group[change] = {"qid": "test-q", "file": "test.pdf", "answer_pages": [2],
+                     "features": [[0.0]], "labels": []}[change]
+    with pytest.raises(ValueError, match="cache"):
+        validate_cached_groups([group], questions)

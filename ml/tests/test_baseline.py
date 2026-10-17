@@ -1,6 +1,7 @@
 """No model downloads: metric, cluster-bootstrap and legacy-import invariants."""
 
 import numpy as np
+import math
 import pytest
 
 from ml.eval.baseline_current_rag import cosine_order, evaluate, load_chunker, metrics, pdf_chunks, report_results
@@ -24,8 +25,9 @@ def test_constant_and_single_document_intervals():
 
 def test_metrics_separate_top5_hit_from_top10_reciprocal_rank():
     chunks = [{"page":i} for i in range(1,11)]
-    assert metrics(chunks,[7]) == {"recall_at_5":0,"mrr_at_10":1/7}
-    assert metrics(chunks,[2,7]) == {"recall_at_5":1,"mrr_at_10":.5}
+    assert metrics(chunks,[7]) == {"recall_at_5":0,"mrr_at_10":1/7,"ndcg_at_10":1/math.log2(8)}
+    assert metrics(chunks,[2,7]) == {"recall_at_5":1,"mrr_at_10":.5,
+                                   "ndcg_at_10":(1/math.log2(3) + 1/math.log2(8)) / (1 + 1/math.log2(3))}
     assert metrics(chunks,[11])["mrr_at_10"] == 0
 
 

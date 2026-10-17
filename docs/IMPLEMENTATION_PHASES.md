@@ -184,6 +184,24 @@ and production build pass. ML5 protocol pre-registered below. nDCG train
 measurement, link expansion and optional current-page distance remain to
 scope with the user; full ML4 demo acceptance is still pending.
 
+**Progress (October 17, ML4.3):** page nDCG@10 implemented once
+for baseline/hybrid/live/ranker evaluation and measured on the same cached
+training candidates, with leave-one-document-out. LambdaRank 0.846
+[0.788, 0.908] vs CE 0.822 [0.750, 0.893]; paired +0.024 [+0.004, +0.044].
+Recall/MRR reproduce ML4.2 exactly; saved artifact unchanged. 350 Python tests
+and production build pass. Frontend randomized quadtree test exposed an
+existing boundary-overlap miss (197 passed / 1 failed); deterministic
+reproduction and seed are recorded in the log. Frozen tests not evaluated.
+ML4.2 committed as `412a30d`; link expansion and optional current-page
+distance remain to scope with the user.
+
+**Annotation-index repair (October 17):** the quadtree failure
+found during ML4.3 is fixed by descending only into children that fully
+contain an annotation, retaining spanning annotations at their parent.
+204 frontend tests (including the original failing seed), core lint and
+the production build pass. Manual eraser/undo verification remains pending;
+see the annotation repair entry in `implementation_log.md`.
+
 - LightGBM ranking (LambdaRank) over passages and concept files.
 - Features: BM25, vector similarity, cross-encoder score (as a feature), term
   and maths-token overlap, block type, is-concept, is-verified, reached by
@@ -194,6 +212,35 @@ scope with the user; full ML4 demo acceptance is still pending.
 
 **Acceptance — demo milestone:** chat answers cite definitions and pages;
 Recall@5 / MRR / nDCG table against all baselines.
+
+**ML4.4 protocol (October 17; fixed before the expansion experiment):**
+Compare `hybrid_concepts` against opt-in `hybrid_concepts_links`. From the
+original fused top eight, expand only result concepts (theorem/lemma/etc.)
+to their directly used definitions/notations in the same PDF and page scope.
+Protect the eight seeds; retain at most four unique dependency targets and
+fill the remaining 24-candidate budget in fused order. New dependencies
+replace tail candidates; no extra CE budget or artificial score boost.
+Cycles never recurse. The existing 27 features and `PARAMS` stay fixed;
+`reached_by_link` is candidate provenance, not an added learned feature in
+this experiment. Report TRAIN-only leave-one-document-out results for
+fused, CE, pointwise LR and LambdaRank, seeds 0/1/2 without best-seed selection.
+Average per-question metrics across seeds before document bootstrapping;
+also report each seed, paired on-minus-off Recall@5/MRR@10/nDCG@10 and
+candidate recall. Primary expansion comparison is paired LambdaRank MRR;
+the CE comparison describes the default live reranker. Keep expansion opt-in
+and the existing saved artifact/defaults during this step, irrespective of
+training results. No test evaluation or LLM generation is authorized here.
+
+**ML4.4 complete (October 17):** opt-in live
+expansion, indexed `uses` metadata, scope/budget/provenance safeguards and
+the paired three-seed evaluator are implemented. 373 Python tests, 204
+frontend tests and production build pass. Approved TRAIN comparison completed
+on 95 questions / 9 documents: expansion added 12 candidates across 7 queries;
+candidate recall stayed 94/95. CE metrics were unchanged. Three-seed mean
+LambdaRank MRR 0.812 off / 0.810 on; paired -0.0016 [-0.0180, +0.0164],
+no demonstrated gain. Expansion stays opt-in; saved artifact/defaults unchanged.
+Seed-0 off reproduces ML4.3 exactly. Next: ML5.1 training-only ablations and
+the inference-only milestone harness, before any frozen read.
 
 ### ML5 — Ablations and error analysis (Nov 3–9)
 

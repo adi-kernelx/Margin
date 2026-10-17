@@ -6,6 +6,7 @@ RETRIEVAL selects the method (ML3.4 compared them on the training questions):
                    fusion (ml/retrieval/hybrid.py); a concept carries its page
                    and region, so it can be cited like a passage
   hybrid           the same without concepts
+  hybrid_concepts_links  opt-in one-hop definitions/notations from result concepts
   dense            Qdrant nearest neighbours over passages, the earlier behaviour
 BM25 needs the whole scoped set, so the hybrid methods read the scoped points
 (with their stored vectors) once and keep the index until the next write.
@@ -20,10 +21,11 @@ import margin_ml  # noqa: F401  (puts ml/ on the path)
 import store
 from embedder import get_embedding
 from ml.retrieval.hybrid import HybridRetriever, cosine_scores, rrf_scored
+from ml.retrieval.links import expand_one_hop
 from schemas import QueryScope
 
 RETRIEVAL = os.getenv("RETRIEVAL", "hybrid_concepts")
-METHODS = ("dense", "hybrid", "hybrid_concepts")
+METHODS = ("dense", "hybrid", "hybrid_concepts", "hybrid_concepts_links")
 DEPTH = 50
 _indexes = {}
 
@@ -47,7 +49,8 @@ def to_item(point, kind):
             "page": payload.get("page", payload.get("pageNumber")), "bbox": payload.get("bbox")}
     if kind == "concept":
         item.update(title=payload.get("title"), type=payload.get("type"),
-                    conceptPath=payload.get("conceptPath"), verified=bool(payload.get("verified")))
+                    conceptPath=payload.get("conceptPath"), verified=bool(payload.get("verified")),
+                    uses=payload.get("uses", []))
     return item
 
 
@@ -86,18 +89,25 @@ def hybrid_index(scope, with_concepts):
     return _indexes[key]
 
 
-def with_signals(index, question, query_vector, top_k):
+def with_signals(index, question, query_vector, top_k, expand_links=False):
     """Fused candidates with their BM25/dense scores and ranks (for the ML4 ranker)."""
     lexical = index.bm25.scores(question)
     cosine = cosine_scores(index.vectors, query_vector)
     ranked = index.rankings(question, query_vector)
     position = {name: {i: r for r, i in enumerate(order, 1)} for name, order in ranked.items()}
-    fused = rrf_scored([ranked["bm25"], ranked["dense"]], index.k)[:top_k]
-    return [dict(index.items[i], score=score, fused_rank=rank, bm25=float(lexical[i]), cosine=float(cosine[i]),
+    fused = rrf_scored([ranked["bm25"], ranked["dense"]], index.k)
+    fused_positions = {i: rank for rank, (i, _) in enumerate(fused, 1)}
+    scores = dict(fused)
+    selected = [i for i, _ in fused[:top_k]]
+    reached = set()
+    if expand_links:
+        selected, reached = expand_one_hop(index.items, selected, top_k)
+    return [dict(index.items[i], score=scores.get(i, 0.0), fused_rank=fused_positions.get(i, len(fused) + 1),
+                 bm25=float(lexical[i]), cosine=float(cosine[i]),
                  bm25_rank=position["bm25"].get(i, index.depth + 1),
                  dense_rank=position["dense"].get(i, index.depth + 1),
-                 last_page=index.last_page.get(index.items[i]["pdfFingerprint"]))
-            for rank, (i, score) in enumerate(fused, 1)]
+                 last_page=index.last_page.get(index.items[i]["pdfFingerprint"]), reached_by_link=i in reached)
+            for i in selected]
 
 
 def dense(query_vector, top_k, scope):
@@ -117,10 +127,10 @@ def retrieve(question: str, top_k: int = 8, scope: QueryScope = None, method: st
     try:
         if method == "dense" or not (scope and scope.docIds):
             return dense(query_vector, top_k, scope)
-        index = hybrid_index(scope, method == "hybrid_concepts")
+        index = hybrid_index(scope, method in ("hybrid_concepts", "hybrid_concepts_links"))
         if index is None:
             return []
-        return with_signals(index, question, query_vector, top_k)
+        return with_signals(index, question, query_vector, top_k, expand_links=method == "hybrid_concepts_links")
     except Exception as e:
         print(f"[Retriever] Error: {e}")
         return []

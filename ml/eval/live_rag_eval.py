@@ -25,7 +25,8 @@ from pathlib import Path
 
 import pymupdf
 
-from ml.eval.baseline_current_rag import ROOT, load_chunker, metrics, pdf_chunks
+from ml.eval.baseline_current_rag import ROOT, load_chunker, pdf_chunks
+from ml.eval.metrics import METRICS, metrics
 from ml.eval.stats import document_bootstrap
 from ml.eval.validate_questions import group_splits, validate_lines
 
@@ -124,7 +125,7 @@ def summarise(results):
     report = {}
     for method in METHODS:
         report[method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric])
@@ -132,7 +133,7 @@ def summarise(results):
     report["paired_vs_" + BASELINE] = {}
     for method in METHODS[1:]:
         report["paired_vs_" + BASELINE][method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric] - row[BASELINE][metric])

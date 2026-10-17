@@ -96,16 +96,17 @@ export class AnnotationQuadtree {
             this.subdivide(node);
         }
 
-        // Try to insert into children
+        // A child may prune queries outside itself, so it must contain the whole annotation.
         if (node.children) {
             for (const child of node.children) {
-                if (this.insertNode(child, annotation, bounds, depth + 1)) {
+                if (this.contains(child.bounds, bounds) && this.insertNode(child, annotation, bounds, depth + 1)) {
                     return true;
                 }
             }
         }
 
-        return false;
+        node.annotations.push(annotation);
+        return true;
     }
 
     private queryNode(node: QuadtreeNode, rect: BoundingBox, found: Annotation[]) {

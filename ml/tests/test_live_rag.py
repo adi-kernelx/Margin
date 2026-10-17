@@ -96,6 +96,40 @@ def test_indexing_replaces_a_documents_concepts(memory):
     points, _ = store.get_qdrant().scroll(store.CONCEPTS, limit=10)
     assert [p.payload["conceptPath"] for p in points] == ["definitions/other.md"]
     assert points[0].payload["verified"] is False
+    assert points[0].payload["uses"] == ["definitions/graph.md"]
+
+
+def test_live_link_expansion_stays_scoped_and_keeps_real_signals(memory, monkeypatch):
+    from ml.retrieval.links import expand_one_hop
+    from functools import partial
+
+    monkeypatch.setattr(retriever, "expand_one_hop", partial(expand_one_hop, seed_count=1))
+    theorem = concepts_api.ConceptIn(path="results/t.md", type="Theorem", title="Graphs vertices edges",
+        page=1, markdown="# Uses\n- [Rare definition](/definitions/rare.md)\n")
+    definition = concepts_api.ConceptIn(path="definitions/rare.md", type="Definition", title="Rare notation",
+        page=3, markdown="A rare symbol.", bbox={"x0": 0.1, "y0": 0.2, "x1": 0.3, "y1": 0.4})
+    concepts_api.index_concepts(concepts_api.ConceptIndexRequest(
+        docId="stable-1", pdfFingerprint="fp-1", concepts=[theorem, definition]), encode)
+    concepts_api.index_concepts(concepts_api.ConceptIndexRequest(
+        docId="doc-2", pdfFingerprint="fp-2", concepts=[definition]), encode)
+    # Force a known fused prefix while retaining real BM25/cosine signals.
+    index = retriever.hybrid_index(QueryScope(docIds=["doc-1"]), True)
+    source = next(i for i, item in enumerate(index.items) if item.get("conceptPath") == "results/t.md")
+    with monkeypatch.context() as forced:
+        forced.setattr(index, "rankings", lambda q, v: {"bm25": [source, 0], "dense": [source, 0]})
+        forced.setattr(retriever, "hybrid_index", lambda scope, with_concepts: index)
+        items = retriever.retrieve("graphs vertices edges", 2, QueryScope(docIds=["doc-1"]), "hybrid_concepts_links")
+    assert len(items) == 2 and items[0]["conceptPath"] == "results/t.md"
+    linked = items[1]
+    assert linked["conceptPath"] == "definitions/rare.md" and linked["reached_by_link"]
+    assert linked["pdfFingerprint"] == "fp-1" and linked["bbox"]["y0"] == 0.2
+    assert linked["last_page"] == 3 and linked["score"] == 0.0
+    assert linked["bm25_rank"] == linked["dense_rank"] == 51
+    query_vector, vector = np.array(encode_one("graphs vertices edges")), np.array(encode_one(linked["text"]))
+    assert linked["cosine"] == pytest.approx(query_vector @ vector / (np.linalg.norm(query_vector) * np.linalg.norm(vector)))
+    scoped = retriever.retrieve("graphs vertices edges", 2, QueryScope(docIds=["doc-1"], pages=[1]),
+                                "hybrid_concepts_links")
+    assert scoped and all(item["page"] == 1 and not item["reached_by_link"] for item in scoped)
 
 
 def test_hybrid_concepts_returns_citable_concepts(memory):

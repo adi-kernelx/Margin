@@ -5067,6 +5067,291 @@ of this step.
 
 ---
 
+## Phase ML4.3: Page nDCG and Cached Training Measurement
+
+**Date:** October 17, 2026
+
+**Goal:** complete the train ranking table with the page nDCG definition
+pre-registered before ML5. ML4.2 checkpoint committed as `412a30d`, subject
+`Complete ML4 ranker evaluation and preregister ML5`. No frozen evaluation or
+frontend edits were made in ML4.3.
+
+### Changes
+
+- `ml/eval/metrics.py` is the shared page metric implementation for the
+  baseline, hybrid, live-service and ranker evaluators. `METRICS` drives
+  their reports and paired bootstrap tables. Recall/MRR definitions are
+  unchanged; the original baseline import of `metrics` remains supported.
+- Page nDCG@10 gives binary gain to each distinct gold page at its first
+  candidate occurrence, discounted by `log2(rank + 1)`. Duplicate passages
+  or concepts earn no second credit and still consume candidate ranks.
+  Ideal DCG contains all gold pages up to ten, including absent candidate
+  pages. Empty gold/candidates return zero; real retrieval evaluation still
+  excludes unanswerable questions. Quote-based 2/1/0 labels remain training
+  targets, not nDCG gains.
+- `ranker_eval --require-cache` refuses missing caches before question/model
+  loading. Cache validation checks exact training qid membership, document,
+  gold pages and row dimensions before fitting. It does not authenticate old
+  feature semantics; changes to feature computation still require rebuilding
+  the cache, as ML4.2 did. No hyperparameters/features were changed here.
+- Tests cover hand-computed scores, repeated pages, missing gold, rank-ten
+  cutoff, more than ten gold pages, zero cases and score bounds; report tests
+  cover document-clustered/paired nDCG; stub cross-validation verifies document
+  separation. Synthetic tests also reject mismatched or missing caches.
+
+### Training results (`ml/results/ranker_train_ndcg.json`)
+
+User approved the CPU run. Same 95 answerable train questions, nine documents,
+24 cached live-service candidates, fixed parameters and leave-one-document-out
+as ML4.2. 95% intervals resample whole documents (2,000 draws, seed 20261006).
+All Recall/MRR values **and their intervals** reproduce ML4.2 exactly.
+
+| Method | Recall@5 | MRR@10 | Page nDCG@10 |
+|---|---|---|---|
+| Fused hybrid + concepts | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] | 0.790 [0.731, 0.854] |
+| Cross-encoder | 0.926 [0.881, 0.978] | 0.787 [0.713, 0.867] | 0.822 [0.750, 0.893] |
+| Pointwise logistic | 0.958 [0.911, 1.000] | 0.805 [0.742, 0.871] | 0.832 [0.767, 0.897] |
+| LambdaRank | 0.968 [0.938, 1.000] | 0.826 [0.770, 0.887] | 0.846 [0.788, 0.908] |
+
+LambdaRank minus CE: nDCG **+0.024 [+0.004, +0.044]**, MRR
+**+0.039 [+0.009, +0.068]**, Recall +0.042 [-0.011, +0.091]. This supports
+MRR and nDCG improvements on the small development comparison, not independent
+generalization or answer-quality claims. Keep the cross-encoder default.
+The same final-training model remains on disk, SHA-256 unchanged from ML4.2.
+No embedder, cross-encoder or LLM loaded in this cached run; no artifact saved.
+Historical result files keep their original two-metric reports rather than
+inventing nDCG values for rankings they did not retain.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.ranker_eval --require-cache --out ml/results/ranker_train_ndcg.json
+```
+
+### Verification and unrelated frontend failure
+
+- Focused ML tests: **34 passed**. Full light suite: **350 passed in 19.11 s**
+  outside the sandbox, avoiding the previously diagnosed asyncio hang.
+- Production build, including `tsc -b`: **passed**, with the existing
+  Browserslist, PDF viewer SVG, mixed import and large-chunk warnings.
+- Frontend suite: **197 passed / 1 failed**. The unchanged
+  `AnnotationQuadtree` randomized linear-scan comparison failed with fast-check
+  seed `-1495291639`. Reproduced deterministically in the ignored diagnostic
+  `ml/out/ml43-quadtree-repro.cjs` (`node ml/out/ml43-quadtree-repro.cjs`).
+  Four zero-size strokes at the origin force subdivision; a fifth spans
+  x=0 to `0.003906250000000001`, y=0. A point query at its right endpoint
+  should return the fifth stroke, but returns none. New insertions descend
+  into the first **intersecting** child even if the annotation extends outside
+  it; query pruning can then skip that child and miss the annotation. This is
+  a pre-existing annotation-index issue, not an ML metric regression. No
+  rerun-to-green, source patch or test weakening was used to hide it.
+- The saved ranker SHA-256 still matches ML4.2. Frozen sets were not evaluated,
+  and unrelated frontend documentation changes remain unstaged.
+
+**Next:** scope one-hop concept-link expansion with the user. The annotation
+quadtree correctness bug was subsequently repaired in the separate step below.
+No UI interaction was performed during ML4.3.
+
+---
+
+## Annotation Index Repair: Preserve Overlaps Across Quadtree Children
+
+**Date:** October 17, 2026
+**Status:** Implemented and automated checks pass; manual acceptance pending.
+
+**Problem:** after subdivision, new annotations were inserted into the first
+child they intersected, even if they extended beyond it. Query pruning could
+then skip that child when searching the annotation's far end. Redistribution
+of existing annotations already used containment, so insertion order affected
+results. ML4.3's randomized test exposed this with a tiny boundary case, but
+ordinary shapes spanning horizontal/vertical quadrant boundaries also fail.
+
+**Fix:** `src/core/annotations/spatial-index.ts` now descends only when the
+child fully contains the annotation's bounds. Otherwise the annotation stays
+at the parent, stored once. Query intersection semantics and maximum depth
+remain unchanged. Keeping spanning annotations at ancestors can require more
+candidate checks; this is necessary to preserve correct overlap results.
+
+**Verification:**
+- Four new deterministic cases failed before the patch and pass afterward:
+  shapes crossing either/both partition axes and the original stroke endpoint
+  at `0.003906250000000001` after four zero-size origin strokes.
+- Tests check insertion before/after subdivision, no false positives,
+  removal/rebuild, and exactly one result for a point on shared child edges.
+- The linear-scan property test runs 200 cases with a fresh seed and 200 with
+  the original failing seed `-1495291639`.
+- All **204 frontend tests in 32 files pass**; **13 quadtree tests pass**.
+  Core lint (`npx eslint src/core --max-warnings 0`) passes. The tests import
+  both modified modules and exercise their real behavior without a browser.
+- Production build (`npm run build`, including `tsc -b`) passes. Existing
+  Browserslist/PDF viewer asset/mixed-import/large-chunk warnings remain.
+  The ignored standalone reproduction now returns the expected annotation.
+- No Python/ML source changes, model evaluation, frozen-test read or commit
+  was performed in this repair step. The repair accompanies the ML4 checkpoint.
+
+**Manual check — pending user results:**
+1. Open a PDF, draw four short strokes near the top-left, then a long
+   horizontal stroke crossing the page's vertical centre line. In whole-stroke
+   eraser mode, erase its far-right end: the long stroke should disappear and
+   the four short strokes should remain.
+2. Undo, then erase the long stroke near its left end: the same entire stroke
+   should disappear. Undo should restore it; redo should remove it again.
+3. Undo, zoom in and repeat at the far-right end: erasing should still find
+   the long stroke. No browser interaction was performed by the assistant.
+
+**Next:** review/manual acceptance, then return to ML4 link-expansion scoping.
+
+---
+
+## Phase ML4.4: Bounded One-Hop Concept-Link Expansion
+
+**Date:** October 17, 2026
+**Status:** Complete; implemented and measured on TRAIN.
+
+### Live retrieval
+
+- `ml/retrieval/links.py` reads the bundle writer's `# Uses` links, accepting
+  local Markdown paths and rejecting external URLs, traversal, query/fragment
+  aliases and backslashes. Duplicate targets are collapsed. Parsing links
+  never reads a target file or makes a network request.
+- `concepts_api` retains these paths in the concept payload's `uses` metadata;
+  embedding text still excludes proof/uses sections, so the original retrieval
+  baseline remains comparable. Existing stored concepts need a Knowledge-panel
+  sync (reopen/rebuild) to acquire this metadata; missing metadata is a no-op.
+- Opt-in `RETRIEVAL=hybrid_concepts_links` shares the live hybrid index and
+  original BM25/cosine/RRF signals. Among the original fused top eight, only
+  result concepts (theorem/lemma/proposition/etc.) expand. At most four directly
+  used definitions/notations are retained, joined by `(pdfFingerprint, path)`
+  inside the already scoped index. Cross-PDF names, absent targets, and targets
+  outside an explicit page scope cannot expand. Added definitions never become
+  seeds, so cycles cannot recurse.
+- The eight seed candidates are protected. Dependency targets are included
+  first, remaining slots filled in original fused order, then output in
+  original order with new items appended. The total CE candidate budget stays
+  24. A new target keeps its actual retrieval scores/ranks (zero fusion score
+  and a missing-rank sentinel when outside a ranking); no untuned boost is
+  added. Its title, page, bbox and verification remain citable.
+- `reached_by_link` records provenance. The existing 27 learned features stay
+  fixed to isolate candidate expansion from a feature-schema change. The old
+  saved ranker remains compatible; its checksum and defaults are unchanged.
+  Learning a new link-provenance feature would require a separately controlled
+  training comparison. Expansion stays opt-in during this step.
+
+### Pre-registered train comparison
+
+The ML4.4 policy and comparison were added to `IMPLEMENTATION_PHASES.md`
+before model evaluation. `ml/eval/link_expansion_eval.py` uses the live `fill`,
+concept indexer, retriever and raw cross-encoder, plus `ranker_eval`'s shared
+feature/label builder and leave-one-document-out fits. It compares expansion
+off/on for fused retrieval, CE, pointwise logistic regression and LambdaRank.
+Hyperparameters stay fixed; only predeclared LambdaRank seeds 0/1/2 vary.
+The original ranker evaluation retains its seed-0 behavior.
+
+Unique candidate texts share a raw CE logit between paired pools; verification
+boosts are not ranker features. Document/fingerprint/path identity, rather
+than text alone, determines which candidates are newly added. The report
+includes each seed and on-minus-off paired Recall@5, MRR@10 and page nDCG@10
+intervals. Seed-mean metrics average each question's outcomes first and then
+resample whole documents (2,000 draws, seed 20261006), not seeds as independent
+data. These means are robustness summaries, not an ensemble deployed live.
+Candidate recall and actual expansion counts are also reported. Primary
+expansion comparison is paired LambdaRank MRR, with CE describing the current
+default reranker. No best-seed selection or test-guided tuning is allowed.
+
+The separate ignored cache hashes relevant source files, selected training
+PDFs/bundles/questions, feature list and expansion policy. Stale caches fail
+instead of silently reusing old candidates. `--require-cache` prevents a fresh
+model/index build. Frozen-test mode is rejected before question loading. This
+tool has no model-save or LLM-generation path.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.link_expansion_eval --out ml/results/link_expansion_train.json
+```
+
+### Training comparison (`ml/results/link_expansion_train.json`)
+
+The user approved the CPU run on October 17. It completed in about 6.5 minutes
+with two-thread limits and cached local models: 95 answerable TRAIN questions,
+nine documents, 24 candidates, leave-one-document-out for seeds 0/1/2. No
+hyperparameter or policy changes were made after observing results. The seed-0
+off report exactly reproduces ML4.3 values **and intervals** for every method.
+The following LambdaRank rows average per-question outcomes across three seeds;
+they therefore differ from the historical single-seed ML4.3 row.
+
+| Method / expansion | Recall@5 | MRR@10 | Page nDCG@10 |
+|---|---|---|---|
+| Fused / off | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] | 0.790 [0.731, 0.854] |
+| Fused / on | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] | 0.790 [0.731, 0.854] |
+| CE / off | 0.926 [0.881, 0.978] | 0.787 [0.713, 0.867] | 0.822 [0.750, 0.893] |
+| CE / on | 0.926 [0.881, 0.978] | 0.787 [0.713, 0.867] | 0.822 [0.750, 0.893] |
+| Pointwise LR / off | 0.958 [0.911, 1.000] | 0.805 [0.742, 0.871] | 0.832 [0.767, 0.897] |
+| Pointwise LR / on | 0.958 [0.911, 1.000] | 0.805 [0.742, 0.871] | 0.832 [0.767, 0.897] |
+| LambdaRank / off | 0.961 [0.924, 1.000] | 0.812 [0.743, 0.884] | 0.838 [0.772, 0.906] |
+| LambdaRank / on | 0.958 [0.911, 1.000] | 0.810 [0.747, 0.884] | 0.838 [0.777, 0.905] |
+
+| Paired expansion on minus off | Recall@5 | MRR@10 | Page nDCG@10 |
+|---|---|---|---|
+| Fused | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] |
+| CE | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] |
+| Pointwise LR | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] |
+| LambdaRank | -0.0035 [-0.0208, +0.0103] | -0.0016 [-0.0180, +0.0164] | -0.0002 [-0.0130, +0.0137] |
+
+All intervals resample complete documents (2,000 draws, seed 20261006).
+
+| LambdaRank seed | Recall off / on | MRR off / on | nDCG off / on |
+|---|---|---|---|
+| 0 | 0.9684 / 0.9579 | 0.8259 / 0.8251 | 0.8461 / 0.8477 |
+| 1 | 0.9579 / 0.9579 | 0.8035 / 0.8020 | 0.8335 / 0.8327 |
+| 2 | 0.9579 / 0.9579 | 0.8063 / 0.8037 | 0.8353 / 0.8338 |
+
+Expansion marked 23 dependency targets across 13 queries; 12 were new
+candidates, across only seven queries (mean 0.126 new candidates/query).
+Candidate recall stayed **94/95 = 0.9895 [0.9688, 1.0000]** in both variants.
+The small coverage limits what this experiment can establish. Zero CE metric
+differences mean no change on these page-based measures, not identical source
+lists or proof of answer-quality equivalence. Learned-model differences can
+also affect queries whose own pool did not change, because their training
+folds contain changed pools from other documents.
+
+**Verdict:** the bounded one-hop policy provides no demonstrated improvement
+on this development comparison. LambdaRank's mean point differences are
+slightly negative and all paired intervals include zero; do not claim either
+a gain or an established harm. Keep expansion **opt-in**, retain the existing
+saved ranker and cross-encoder default, and preserve the frozen on/off variant
+for the pre-registered ML5 ablation. No threshold/seed/policy tuning follows
+these results. LLM answer quality was not measured.
+
+### Verification
+
+Pure-policy tests cover local-path parsing, scope/type checks, duplicate and
+cyclic links, seed protection, budgets, missing metadata and stable ordering.
+In-memory Qdrant tests cover real metadata indexing, session-id/fingerprint
+joining, explicit page scope, citation fields and actual query-time signals.
+Stub evaluation tests check shared raw CE scores, distinct candidate identity,
+question pairing, seed averaging and frozen/cache preflight guards.
+
+Initial focused suite: 52 passed; additional focused suite: 37 passed after
+adding paired-pool/cache cases and refining the live scope test. Frontend:
+204 passed. Final full light Python suite: **373 passed in 18.04 s** outside
+the sandbox (avoiding the known Windows asyncio hang). Production build,
+including TypeScript checking, passed; existing Browserslist, PDF viewer SVG,
+mixed static/dynamic import and large-chunk warnings remain.
+
+Post-run checks passed: aggregate bounds/counts, qid pairing, seed means,
+paired differences, 24-candidate/four-link budgets, cache/report signature
+agreement and saved-model SHA-256. The saved ranker remains
+`7e35f36de053c0b970658c769f789bb40fdc423da879256d38890380b5c5571f`.
+The cache, run log and lightweight verification script stay ignored under
+`ml/out/`. No Ollama, frozen evaluation, UI interaction, artifact overwrite or
+commit occurred. The pre-run 373/204 test suites and build remain valid; no
+implementation code changed during the approved evaluation.
+
+**Next:** ML5.1, training-only ablation setup and the inference-only milestone
+harness. Freeze all model/feature/variant choices and the answer-grading
+protocol before the single frozen read; obtain fresh CPU approval for those
+later runs. Optional current-page distance and a learned link-provenance
+feature are not implemented or silently folded into this result.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026

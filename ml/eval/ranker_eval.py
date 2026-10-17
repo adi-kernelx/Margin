@@ -15,7 +15,8 @@ from pathlib import Path
 
 import numpy as np
 
-from ml.eval.baseline_current_rag import ROOT, metrics
+from ml.eval.baseline_current_rag import ROOT
+from ml.eval.metrics import METRICS, metrics
 from ml.eval.live_rag_eval import CANDIDATES, fill, load_questions
 from ml.eval.stats import document_bootstrap
 from ml.ranking.features import FEATURES, group_features, label, vector
@@ -23,6 +24,14 @@ from ml.ranking.ranker import PARAMS, save, train
 
 METHODS = ("fused", "cross_encoder", "pointwise", "lambdarank")
 BASELINE = "cross_encoder"
+
+
+def candidate_group(question, items):
+    rows = group_features(question["question"], items)
+    return {"qid": question["qid"], "file": question["file"], "answer_pages": question["answer_pages"],
+            "pages": [item["page"] for item in items],
+            "labels": [label(item, question["answer_pages"], question["answer_quote"]) for item in items],
+            "features": [vector(row) for row in rows]}
 
 
 def build_groups(questions):
@@ -35,11 +44,7 @@ def build_groups(questions):
         logits = get_cross_encoder().predict([[q["question"], item["text"]] for item in items]) if items else []
         for item, logit in zip(items, logits):
             item["cross_encoder"] = float(logit)
-        rows = group_features(q["question"], items)
-        groups.append({"qid": q["qid"], "file": q["file"], "answer_pages": q["answer_pages"],
-                       "pages": [item["page"] for item in items],
-                       "labels": [label(item, q["answer_pages"], q["answer_quote"]) for item in items],
-                       "features": [vector(row) for row in rows]})
+        groups.append(candidate_group(q, items))
     return groups
 
 
@@ -48,7 +53,7 @@ def ordered(group, scores):
     return [{"page": group["pages"][i]} for i in order]
 
 
-def cross_validate(groups):
+def cross_validate(groups, seed=None):
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
@@ -58,7 +63,7 @@ def cross_validate(groups):
         fold = [g for g in groups if g["file"] != held_out and g["features"]]
         x = np.array([row for g in fold for row in g["features"]])
         y = np.array([value for g in fold for value in g["labels"]])
-        ranker = train(fold)
+        ranker = train(fold) if seed is None else train(fold, seed=seed)
         gains += ranker.booster_.feature_importance("gain")
         pointwise = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000)).fit(x, y > 0)
         for g in (g for g in groups if g["file"] == held_out):
@@ -79,7 +84,7 @@ def summarise(results):
     report = {}
     for method in METHODS:
         report[method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric])
@@ -87,12 +92,27 @@ def summarise(results):
     report["paired_vs_" + BASELINE] = {}
     for method in (m for m in METHODS if m != BASELINE):
         report["paired_vs_" + BASELINE][method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric] - row[BASELINE][metric])
             report["paired_vs_" + BASELINE][method][metric] = document_bootstrap(by_file)
     return report
+
+
+def validate_cached_groups(groups, questions):
+    """Reject a cache from different questions/splits before fitting models."""
+    expected = {q["qid"]: q for q in questions}
+    if len(groups) != len(expected) or {g["qid"] for g in groups} != set(expected):
+        raise ValueError("Candidate cache does not match the selected training questions")
+    for group in groups:
+        question = expected[group["qid"]]
+        if group["file"] != question["file"] or group["answer_pages"] != question["answer_pages"]:
+            raise ValueError("Candidate cache has different documents or gold pages")
+        size = len(group["pages"])
+        if (len(group["features"]) != size or len(group["labels"]) != size or
+                any(len(row) != len(FEATURES) for row in group["features"])):
+            raise ValueError("Candidate cache has incompatible feature rows")
 
 
 def main():
@@ -101,15 +121,21 @@ def main():
     parser.add_argument("--pdf-dir", type=Path, default=ROOT / "Test PDFs")
     parser.add_argument("--bundles", type=Path, default=ROOT / "ml/out/bundles")
     parser.add_argument("--groups", type=Path, default=ROOT / "ml/out/ranker_groups.json", help="candidate cache")
+    parser.add_argument("--require-cache", action="store_true", help="fail rather than rebuild candidates/load encoders")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--frozen-test-milestone", action="store_true", help="also score the test split")
     parser.add_argument("--save", type=Path, help="train on all scored questions and save the ranker here")
     args = parser.parse_args()
     if args.frozen_test_milestone:
         raise SystemExit("Frozen tests require the ML5 inference-only evaluator; this command fits models")
+    if args.require_cache and not args.groups.is_file():
+        raise SystemExit("--require-cache needs an existing candidate cache; no models were loaded")
     questions, splits = load_questions(args)
+    if not questions:
+        raise SystemExit("No answerable training questions")
     if args.groups.exists() and not args.frozen_test_milestone:
         groups = json.loads(args.groups.read_text(encoding="utf-8"))
+        validate_cached_groups(groups, questions)
     else:
         from embedder import get_embeddings
         fill(sorted({q["file"] for q in questions}), args.pdf_dir, args.bundles, get_embeddings)

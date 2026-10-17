@@ -8,7 +8,7 @@ Methods:
   hybrid           RRF of the two
   hybrid_concepts  RRF over passages plus the PDF's OKF concepts (title,
                    description and text); a concept hit counts at its page
-Recall@5 and MRR@10 by page, 95% intervals resampling whole documents. Only the
+Recall@5, MRR@10 and nDCG@10 by page, with document-bootstrap intervals. Only the
 train split is scored unless --frozen-test-milestone is given.
 
     python -m ml.eval.hybrid_eval --out ml/results/hybrid_retrieval_train.json
@@ -23,7 +23,8 @@ from pathlib import Path
 
 import pymupdf
 
-from ml.eval.baseline_current_rag import EMBEDDER, ROOT, load_chunker, metrics, pdf_chunks
+from ml.eval.baseline_current_rag import EMBEDDER, ROOT, load_chunker, pdf_chunks
+from ml.eval.metrics import METRICS, metrics
 from ml.eval.okf_sample import concepts_of
 from ml.eval.stats import document_bootstrap
 from ml.eval.validate_questions import group_splits, validate_lines
@@ -64,7 +65,7 @@ def summarise(results):
     report = {}
     for method in METHODS:
         report[method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric])
@@ -73,7 +74,7 @@ def summarise(results):
     report["paired_vs_dense"] = {}
     for method in METHODS[1:]:
         report["paired_vs_dense"][method] = {}
-        for metric in ("recall_at_5", "mrr_at_10"):
+        for metric in METRICS:
             by_file = defaultdict(list)
             for row in results:
                 by_file[row["file"]].append(row[method][metric] - row["dense"][metric])
