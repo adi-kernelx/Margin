@@ -89,5 +89,5 @@ def group_features(question, items):
     return rows
 
 
-def vector(row):
-    return [row[name] for name in FEATURES]
+def vector(row, features=FEATURES):
+    return [row[name] for name in features]

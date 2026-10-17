@@ -10,7 +10,14 @@ PARAMS = dict(objective="lambdarank", n_estimators=150, learning_rate=0.05, num_
               lambdarank_truncation_level=10, random_state=0, verbose=-1)
 
 
-def train(groups, seed=None):
+def validate_features(features):
+    features = tuple(features)
+    if not features or features != tuple(name for name in FEATURES if name in features):
+        raise ValueError("Ranker requires an ordered subset of the known features")
+    return features
+
+
+def train(groups, seed=None, features=FEATURES):
     import lightgbm as lgb
     groups = [g for g in groups if g["features"]]
     x = np.array([row for g in groups for row in g["features"]])
@@ -18,26 +25,35 @@ def train(groups, seed=None):
     params = dict(PARAMS)
     if seed is not None:
         params["random_state"] = seed
-    return lgb.LGBMRanker(**params).fit(x, y, group=[len(g["features"]) for g in groups])
+    features = validate_features(features)
+    indices = [FEATURES.index(name) for name in features]
+    model = lgb.LGBMRanker(**params).fit(x[:, indices], y, group=[len(g["features"]) for g in groups])
+    model.margin_features_ = features
+    return model
 
 
 def save(model, path, **meta):
     import joblib
     import lightgbm as lgb
     path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"model": model, "features": list(FEATURES), "lightgbm": lgb.__version__, **meta}, path)
+    features = validate_features(getattr(model, "margin_features_", FEATURES))
+    joblib.dump({**meta, "model": model, "features": list(features), "lightgbm": lgb.__version__}, path)
 
 
 def load(path):
     import joblib
     bundle = joblib.load(path)
-    if bundle["features"] != list(FEATURES):
-        raise ValueError("Ranker was trained with a different feature list")
-    return bundle["model"]
+    features = validate_features(bundle["features"])
+    model = bundle["model"]
+    if getattr(model, "n_features_in_", None) != len(features):
+        raise ValueError("Ranker feature list does not match the model")
+    model.margin_features_ = features
+    return model
 
 
 def score(model, question, items):
     """Ranker scores for candidates carrying retriever signals and a cross_encoder logit."""
     if not items:
         return []
-    return np.asarray(model.predict(np.array([vector(row) for row in group_features(question, items)]))).tolist()
+    features = getattr(model, "margin_features_", FEATURES)
+    return np.asarray(model.predict(np.array([vector(row, features) for row in group_features(question, items)]))).tolist()

@@ -54,3 +54,17 @@ def test_ranker_rejects_other_features(tmp_path):
     joblib.dump({"model": None, "features": ["bm25"]}, path)
     with pytest.raises(ValueError):
         load(path)
+
+
+def test_feature_subset_round_trip_and_scoring(tmp_path):
+    from ml.ranking.ranker import load, save, score, train
+    selected = ("bm25", "cosine")
+    items = [item(bm25=float(i), cosine=i / 6) for i in range(6)]
+    rows = group_features("what is bipartite", items)
+    groups = [{"features": [vector(row) for row in rows], "labels": [0, 0, 0, 0, 1, 2]} for _ in range(30)]
+    path = tmp_path / "subset.joblib"
+    save(train(groups, seed=2, features=selected), path)
+    model = load(path)
+    assert model.margin_features_ == selected and model.n_features_in_ == 2
+    values = score(model, "what is bipartite", items)
+    assert len(values) == 6 and values[-1] > values[0]

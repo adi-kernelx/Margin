@@ -290,6 +290,47 @@ routine is a training-development evaluator, not the ML5 test evaluator.
 **Acceptance:** ablation table with intervals and a written verdict on whether
 OKF helps (reported either way).
 
+**ML5.1 progress (October 17, 2026):** TRAIN-only ablation harness and guarded
+inference-only milestone harness implemented. The fixed 15-variant matrix,
+six feature groups, three seeds, original ML4 primary artifact, statistical
+decision rule and later 100-answer blind grading are specified in
+`docs/ML5_PROTOCOL.md`. 388 Python tests, 204 frontend tests and production
+build pass. Approved TRAIN ablations complete: full ranker three-seed mean
+R@5 0.961, MRR 0.812, nDCG 0.838; CE 0.926 / 0.787 / 0.822. Paired MRR gain
++0.0246 [-0.0014, +0.0506] remains inconclusive. Concepts improve full-ranker
+MRR versus passages only by +0.0395 [+0.0043, +0.0812] on TRAIN; link expansion
+does not demonstrate a gain. Feature-group results and caveats are in the
+implementation log and `ml/results/ml5_train.json`. All 27 variant/seed model
+references and source hashes pass preflight; original ML4 artifact unchanged.
+At the ML5.1 checkpoint, no frozen evidence validation or test inference had
+occurred. The subsequent ML5.2 result is recorded below. Service defaults
+remain unchanged.
+
+**ML5.2 readiness (October 17, 2026):** the ML5.1 protocol/artifact preflight
+and TRAIN aggregate reproduction checks pass. `ml/results/ml5_readiness.json`
+additionally snapshots the 12 eligible TEST PDFs, existing bundle markdown,
+offline MiniLM model revisions/files, runtime package versions, supplemental
+ingestion/schema dependencies and grading protocol document. Question files
+are checked by existence/size only. The design brief (`use=other`) has no
+bundle, consistent with the existing main-only bundle builder; retain that
+passages-only source without rebuilding. The user subsequently approved the
+single frozen inference run.
+
+**ML5.2 complete (October 17, 2026):** the one-time milestone finished in
+23m 30s with no runtime errors/warnings. Original TEST: 65 answerable/15
+unanswerable; independent: 62/16. Both answerable collections share six PDFs.
+Pooled CE R@5/MRR/nDCG 0.9528/0.8311/0.8509; fixed seed-0 ranker
+0.9921/0.8282/0.8551. Paired MRR -0.0029 [-0.0551, +0.0385], with negative
+independent MRR/nDCG point differences: preregistered switch rule fails.
+Keep CE as default. Concepts improve pooled CE MRR versus passages by
++0.0370 [+0.0040, +0.0742]; links have no demonstrated pooled gain. Full
+tables, limitations and verification are in `docs/ML5_RESULTS.md`,
+`ml/results/ml5_frozen.json` and `ml/results/ml5_frozen_analysis.json`.
+The receipt is complete, original model/protocol unchanged, and 50 questions'
+paired contexts are staged for 100 future answers. Do not repeat frozen
+inference. Next: ML5.3 blind answer generation and human grading, with
+separate LLM approval.
+
 ### ML6 — Answerability gate (Nov 10–16) · optional
 
 - Calibrated logistic regression on retrieval features (top scores, gap,

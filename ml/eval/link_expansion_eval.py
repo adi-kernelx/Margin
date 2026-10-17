@@ -32,16 +32,17 @@ def candidate_key(item):
             item.get("text"), repr(item.get("bbox")))
 
 
-def build_groups(questions):
+def build_groups(questions, variants=None):
     import retriever
     from reranker import get_cross_encoder
     from schemas import QueryScope
 
-    groups = {variant: [] for variant in VARIANTS}
+    variants = VARIANTS if variants is None else variants
+    groups = {variant: [] for variant in variants}
     diagnostics = []
     for number, question in enumerate(questions, 1):
         pools = {variant: retriever.retrieve(question["question"], CANDIDATES,
-                 QueryScope(docIds=[question["file"]]), method) for variant, method in VARIANTS.items()}
+                 QueryScope(docIds=[question["file"]]), method) for variant, method in variants.items()}
         # Each unique text gets one CE logit shared between the paired pools.
         texts = list(dict.fromkeys(item["text"] for items in pools.values() for item in items))
         logits = get_cross_encoder().predict([[question["question"], text] for text in texts]) if texts else []
@@ -81,7 +82,7 @@ def paired_results(off, on):
     return report
 
 
-def average_seeds(runs):
+def average_seeds(runs, methods=METHODS):
     """Average per-question outcomes first, then bootstrap whole documents."""
     indexed = [{row["qid"]: row for row in rows} for rows in runs]
     if not indexed or any(set(run) != set(indexed[0]) for run in indexed):
@@ -91,7 +92,7 @@ def average_seeds(runs):
         if any(run[qid]["file"] != first["file"] for run in indexed):
             raise ValueError("Seed document mismatch")
         row = {"qid": qid, "file": first["file"]}
-        for method in METHODS:
+        for method in methods:
             row[method] = {metric: float(np.mean([run[qid][method][metric] for run in indexed])) for metric in METRICS}
         rows.append(row)
     return rows

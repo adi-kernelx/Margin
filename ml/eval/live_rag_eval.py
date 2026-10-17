@@ -58,7 +58,8 @@ def load_questions(args):
         questions, errors = validate_lines(selected, manifest, split, page_texts)
     if errors:
         raise ValueError("Invalid question collection: " + "; ".join(errors))
-    return [q for q in questions if q["answerable"] and q["split"] in splits], splits
+    return [q for q in questions if (q["answerable"] or getattr(args, "include_unanswerable", False))
+            and q["split"] in splits], splits
 
 
 def fill(files, pdf_dir, bundles, encode):

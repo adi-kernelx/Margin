@@ -5352,6 +5352,247 @@ feature are not implemented or silently folded into this result.
 
 ---
 
+## Phase ML5.1 — TRAIN ablations and frozen milestone setup (October 17, 2026)
+
+**Checkpoint:** ML4.3/ML4.4 and the annotation index repair committed as
+`b46c36c` (`Complete ranking metrics and link expansion evaluation`) at the
+user's request. ML5.1 changes remain uncommitted.
+
+**Scope:** implement TRAIN-only leave-one-document-out ablations and prepare
+an inference-only harness for the future one-read milestone. The user
+approved the 10–20 minute TRAIN CPU run with two-thread limits. No approval
+for frozen inference or LLM generation is implied.
+
+### Implementation and safeguards
+
+- `ml5_train` compares 15 fixed variants: fused, cross-encoder and LambdaRank
+  on three candidate pools (concepts, passages only, concepts plus links),
+  plus six feature-group removals. Each learned variant is fitted outside
+  the held PDF for seeds 0/1/2; report every seed and per-question seed means.
+- Ranker save/load supports ordered feature subsets and rejects inconsistent
+  artifact dimensions. Existing full-feature production artifacts retain
+  their schema. Candidate building reuses live service retrieval and one
+  raw CE logit per unique text across pools.
+- Preserve the exact ML4 full-feature seed-0 primary artifact. Fit the other
+  26 final variant/seed models only on answerable TRAIN rows, save separately,
+  and freeze their hashes, source hashes, feature lists and fixed parameters.
+- `milestone_eval` requires explicit preflight or milestone mode. Preflight
+  checks hashes without opening questions. Actual inference claims an
+  exclusive fixed receipt before reading either question collection; failures
+  retain the receipt. Synthetic tests verify read order, refusal to replay,
+  canonical split filtering, namespace isolation and absence of fitting.
+- Reports include exact McNemar per seed, paired document-bootstrap intervals,
+  set-specific and pooled tables, and descriptive question-type breakdowns.
+  PDFs shared across sets remain a single bootstrap cluster. Fractional
+  seed-mean recalls do not receive binary McNemar tests.
+- `docs/ML5_PROTOCOL.md` freezes the later 50-question/100-answer grading
+  sample, randomized presentation and correctness/grounding/abstention
+  rubric. The future milestone stages the selected contexts during its one
+  read so subsequent generation does not reopen questions or repeat retrieval.
+  LLM generation and human grading remain later, separately approved work.
+
+### TRAIN results
+
+The approved run completed in approximately seven minutes with two-thread
+limits, local offline embedder/CE weights and no LLM. It counted 120 TRAIN
+questions (95 answerable, 25 unanswerable), with nine answerable source PDFs.
+The table reports leave-one-document-out seed means. Intervals in the final
+column are paired document-bootstrap MRR differences against CE; absolute
+intervals for every metric, each seed and all type breakdowns are retained in
+`ml/results/ml5_train.json`.
+
+| Variant | Recall@5 | MRR@10 | nDCG@10 | Paired MRR vs CE [95% CI] |
+| --- | ---: | ---: | ---: | --- |
+| Fused + concepts | 0.9368 | 0.7613 | 0.7900 | -0.0259 [-0.0710, +0.0203] |
+| Fused passages | 0.9158 | 0.7457 | 0.7783 | -0.0415 [-0.0758, -0.0073] |
+| Fused + links | 0.9368 | 0.7613 | 0.7900 | -0.0259 [-0.0710, +0.0203] |
+| CE + concepts | 0.9263 | 0.7872 | 0.8220 | reference |
+| CE passages | 0.9158 | 0.7684 | 0.8040 | -0.0188 [-0.0555, +0.0090] |
+| CE + links | 0.9263 | 0.7872 | 0.8220 | 0.0000 [0.0000, 0.0000] |
+| Full ranker + concepts | 0.9614 | 0.8119 | 0.8383 | +0.0246 [-0.0014, +0.0506] |
+| Ranker passages | 0.9333 | 0.7724 | 0.8051 | -0.0149 [-0.0625, +0.0338] |
+| Ranker + links | 0.9579 | 0.8103 | 0.8381 | +0.0231 [-0.0132, +0.0594] |
+| Without CE features | 0.9263 | 0.7958 | 0.8193 | +0.0086 [-0.0462, +0.0613] |
+| Without lexical features | 0.9614 | 0.8152 | 0.8391 | +0.0280 [+0.0018, +0.0549] |
+| Without dense features | 0.9474 | 0.8003 | 0.8286 | +0.0131 [-0.0177, +0.0444] |
+| Without concept features | 0.9544 | 0.8084 | 0.8367 | +0.0211 [-0.0044, +0.0475] |
+| Without context features | 0.9614 | 0.7857 | 0.8201 | -0.0016 [-0.0300, +0.0275] |
+| Without fusion features | 0.9614 | 0.8069 | 0.8365 | +0.0197 [-0.0088, +0.0486] |
+
+Absolute full-ranker 95% intervals: R@5 [0.9236, 1.0000], MRR [0.7435,
+0.8838], nDCG [0.7720, 0.9057]. CE: R@5 [0.8812, 0.9778], MRR [0.7127,
+0.8667], nDCG [0.7502, 0.8930]. The pooled TRAIN full-ranker improvement over
+CE remains inconclusive; keep the live cross-encoder default.
+
+Matched comparisons support a TRAIN benefit from including OKF candidates:
+full-ranker concepts minus passages MRR +0.0395 [+0.0043, +0.0812]. For CE,
+the corresponding +0.0188 [-0.0090, +0.0555] remains inconclusive. Link
+expansion minus full ranker is -0.0016 [-0.0180, +0.0164], reproducing ML4.4;
+leave it opt-in. These are small-data development comparisons across nine
+PDFs and multiple variants, not independent confirmation or causal effects.
+
+Feature removals versus the full ranker use paired outcomes, not differences
+between unrelated interval endpoints:
+
+| Removed group | Paired MRR difference [95% CI] |
+| --- | --- |
+| CE | -0.0160 [-0.0592, +0.0233] |
+| Lexical | +0.0033 [-0.0153, +0.0246] |
+| Dense | -0.0116 [-0.0291, +0.0021] |
+| Concept | -0.0035 [-0.0131, +0.0041] |
+| Context | -0.0262 [-0.0416, -0.0100] |
+| Fusion | -0.0050 [-0.0159, +0.0058] |
+
+Removing lexical features has a slightly higher point estimate than full,
+but its paired interval includes zero. Do not select it as the new primary.
+Removing context features hurts TRAIN MRR; the other group removals remain
+uncertain. Correlated feature groups and multiple comparisons limit claims.
+Full-ranker seed MRR values are 0.8259 / 0.8035 / 0.8063. Recall McNemar exact
+p-values versus CE are 0.2891 / 0.4531 / 0.4531, supporting only; no binary
+McNemar is computed on the fractional seed mean.
+
+### Verification and frozen artifacts
+
+388 Python tests passed (24.96 s), including synthetic ML5 tests; 204 frontend
+tests passed; production build passed. Existing Browserslist, unresolved SVG,
+mixed static/dynamic import and large-chunk warnings remain. No UI was operated.
+Post-run aggregate checks passed for all variant/seed metric bounds, paired
+differences, seed means, 95 qid pairings, three candidate pools, 24-candidate
+budgets, 27 finite feature columns and TRAIN-only provenance. All verified
+features are zero, as previously disclosed. Full seed-0 and CE reproduce
+ML4.3 exactly. All 27 learned variant/seed references (the retained original
+plus 26 new artifacts) and source hashes pass the read-only preflight. The
+original ML4 SHA-256 is unchanged. No failed job or repeat evaluation occurred.
+
+Frozen protocol SHA-256:
+`da6e0c0a658fab4b6224152169d871e463b4c8b6d53c63b9a7cfc50b62ecf619`.
+The protocol, candidate cache, models, log and verification script remain
+ignored locally; the aggregate result contains no question text or evidence
+quotations. No milestone receipt exists, no frozen TEST evidence was opened
+or evaluated, no Ollama was started, and no ML5 commit was made.
+
+**Next:** ML5.2 protocol/artifact preflight review and separate CPU approval
+for the single frozen retrieval milestone. Do not run it automatically.
+
+---
+
+## Phase ML5.2 — Frozen retrieval milestone (October 17, 2026)
+
+**Status:** readiness review and light tests complete. The user approved the
+15–25 minute frozen retrieval workload; the single milestone run completed
+in 23m 30s with two-thread/offline limits. The readiness snapshot matched
+immediately before launch, and the fixed receipt was claimed before the
+question read. Results and integrity checks are recorded below. ML5 changes
+remain uncommitted; no commit was requested here.
+
+### Readiness review
+
+- The existing source/model hash preflight passes. All TRAIN aggregate
+  consistency checks and ML4 seed-0 reproduction still pass. The original
+  ML4 primary artifact and ML5.1 protocol hashes remain unchanged.
+- All 12 eligible TEST PDFs exist. Their bytes and the existing bundle
+  markdown are hashed in `ml/results/ml5_readiness.json`; no question-file
+  content or hash is read. Only question-file existence and byte counts are
+  checked before the milestone.
+- Eleven source PDFs have existing bundles. The design brief is marked
+  `use=other` and has no bundle because `ml.okf.build_all` only builds `main`
+  sources. Preserve that expected passages-only behavior; do not rebuild or
+  modify any retrieval inputs in response to TEST outcomes.
+- The readiness snapshot supplements ML5.1 with hashes of the ingestion
+  chunker, baseline PDF extraction helper, service schema/path helper and
+  written grading protocol. It records installed dependency versions and
+  cached retrieval-model revisions/files without loading either model.
+  These additional files were not included in ML5.1's source-hash list.
+- Offline embedder revision:
+  `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`; CE revision:
+  `c5ee24cb16019beea0893ab7796b1df96625c6b8`. Both have local weights/configs.
+  No downloads, Docker, GPU use, Ollama startup or LLM calls are planned.
+- Reviewed the explicit milestone flag, fixed exclusive receipt, canonical
+  source filtering, saved-model-only inference, paired document reporting,
+  fixed seed-0 decision rule and staging of the predeclared grading sample.
+  Any failure consumes the receipt; no automatic restart or second read.
+
+Verification: 388 Python tests passed (121.07 s), including synthetic
+receipt, split-routing, grading-selection and inference-only tests. No
+production evaluation code changed during this review. The preceding 204
+frontend tests/build remain applicable; there are no frontend edits in ML5.2.
+
+The ignored helper `ml/out/ml52_preflight.py --check` verifies that the
+readiness snapshot still matches immediately before the authorized run.
+The executed command used `ml.eval.milestone_eval` with the frozen ML5.1
+protocol, `--frozen-test-milestone` and `--out ml/results/ml5_frozen.json`.
+It processed both frozen collections once, reported all declared
+variants/seeds, and staged 50 questions' contexts for later generation.
+No model fitting, primary-model replacement, live-default change or LLM
+generation occurred.
+
+### Frozen results and verdict
+
+Original: 80 questions (65 answerable, 15 unanswerable); independent: 78
+(62/16). Retrieval metrics exclude the 31 unanswerable questions. Both sets'
+127 answerable questions cover the same six PDFs; pooled uncertainty uses
+six shared document clusters, not twelve independent ones.
+
+| Set | CE MRR@10 | Full ranker MRR@10 | Paired difference [95% CI] |
+| --- | ---: | ---: | --- |
+| Original TEST | 0.8213 | 0.8454 | +0.0241 [-0.0398, +0.0841] |
+| Independent | 0.8414 | 0.8102 | -0.0312 [-0.0866, +0.0115] |
+| Pooled | 0.8311 | 0.8282 | -0.0029 [-0.0551, +0.0385] |
+
+Pooled Recall@5 improves 0.9528 to 0.9921, paired +0.0394 [+0.0236,
++0.0476]; nDCG improves 0.8509 to 0.8551, paired +0.0042 [-0.0364,
++0.0375]. Exact pooled Recall McNemar p=0.0625 (0 lost, 5 gained), supporting
+only because of within-PDF dependence. Recall improvement does not establish
+earlier answer placement or answer-generation quality.
+
+**Preregistered decision: keep cross-encoder default.** The positive pooled
+MRR lower bound fails; the per-set nonnegative MRR/nDCG check also fails on
+independent questions. The Recall lower-bound guard passes. Full-ranker seed
+0/1/2 pooled MRR values are 0.8282 / 0.8157 / 0.8249, all below CE's 0.8311;
+do not select another seed or variant using TEST.
+
+**OKF verdict:** concepts versus passages improve pooled CE MRR by +0.0370
+[+0.0040, +0.0742] on these six PDFs; for ranker the matched difference is
++0.0346 [-0.0126, +0.1023], uncertain. Links have no demonstrated pooled
+gain: CE unchanged, ranker -0.0001 [-0.0343, +0.0235]. Keep links opt-in.
+Definition-dependent questions (43) show ranker MRR +0.0609 [+0.0246,
++0.1052] versus CE; other types (84) show -0.0355 [-0.1050, +0.0283]. These
+are descriptive, unadjusted comparisons, not grounds for a new routing rule.
+
+Full absolute intervals, all 15 variants, paired feature-group removals,
+per-seed robustness and type breakdowns are in `docs/ML5_RESULTS.md` and the
+aggregate JSONs. The independent CE MRR was higher than the original CE MRR;
+lower wording overlap did not imply uniformly harder questions. Results
+remain limited by six documents, AI authorship and wide intervals.
+
+### Post-run verification
+
+The fixed receipt is complete; exit code 0; 474 retrieval calls and zero
+runtime errors/warning lines. Checks pass for receipt/output/audit/grading
+hashes, frozen retrieval inputs, TEST-only source membership, unique
+namespaced IDs, seed pairing, metric bounds, paired document intervals,
+McNemar discordances and the exact decision rule. Original ML4 artifact and
+ML5.1 protocol hashes remain unchanged. No repeat question-file read or
+model inference was needed for these checks.
+
+`ml/results/ml5_frozen_analysis.json` adds the declared matched ablations
+from the private saved outcomes; it does not modify the receipt-bound report.
+Report SHA-256:
+`af512bac091475f57133599ad79569ce32fab539277d9d0e45da26c4d3ba2e35`.
+Private receipt/audit/grading inputs, run log and verification scripts stay
+ignored. The 50 grading inputs contain 20 answerable plus five unanswerable
+questions from each set, each with both methods' top-eight contexts; no
+answers have been generated yet. Do not rerun the frozen evaluator or refit
+the frozen comparison based on these results. Existing test results remain
+applicable because no production source changed during the run.
+
+**Next after ML5.2:** ML5.3 blind answer generation and human grading from the
+staged inputs, with separate laptop approval before LLM work. Retrieval
+results and the failed switch rule are now documented; stop here for the
+user's next subphase instruction.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
