@@ -43,11 +43,20 @@ def load_questions(args):
         with pymupdf.open(args.pdf_dir / file) as document:
             return [page.get_text() for page in document]
 
-    with args.questions.open(encoding="utf-8") as source:
-        questions, errors = validate_lines(source, manifest, split, page_texts)
+    splits = {"train", "test"} if args.frozen_test_milestone else {"train"}
+    with args.questions.open(encoding="utf-8-sig") as source:
+        selected = []
+        for line in source:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            entry = manifest.get(row.get("file"), {})
+            # Route by the frozen source, never by a question's claimed split.
+            if split.get(entry.get("group")) in splits:
+                selected.append(line)
+        questions, errors = validate_lines(selected, manifest, split, page_texts)
     if errors:
         raise ValueError("Invalid question collection: " + "; ".join(errors))
-    splits = {"train", "test"} if args.frozen_test_milestone else {"train"}
     return [q for q in questions if q["answerable"] and q["split"] in splits], splits
 
 

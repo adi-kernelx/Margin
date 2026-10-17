@@ -19,7 +19,7 @@ from qdrant_client.models import FieldCondition, Filter, MatchAny
 import margin_ml  # noqa: F401  (puts ml/ on the path)
 import store
 from embedder import get_embedding
-from ml.retrieval.hybrid import HybridRetriever, rrf_scored
+from ml.retrieval.hybrid import HybridRetriever, cosine_scores, rrf_scored
 from schemas import QueryScope
 
 RETRIEVAL = os.getenv("RETRIEVAL", "hybrid_concepts")
@@ -75,8 +75,29 @@ def hybrid_index(scope, with_concepts):
             points += [(p, "concept") for p in scroll(store.CONCEPTS, scope_filter(scope, fingerprints))]
         items = [to_item(p, kind) for p, kind in points]
         _indexes.clear()  # one scope at a time is enough for a single reader
-        _indexes[key] = HybridRetriever(items, [p.vector for p, _ in points], depth=DEPTH) if items else None
+        index = HybridRetriever(items, [p.vector for p, _ in points], depth=DEPTH) if items else None
+        if index:
+            index.last_page = {}
+            for item in items:
+                if item["kind"] == "passage" and item["page"]:
+                    fingerprint = item["pdfFingerprint"]
+                    index.last_page[fingerprint] = max(index.last_page.get(fingerprint, 0), item["page"])
+        _indexes[key] = index
     return _indexes[key]
+
+
+def with_signals(index, question, query_vector, top_k):
+    """Fused candidates with their BM25/dense scores and ranks (for the ML4 ranker)."""
+    lexical = index.bm25.scores(question)
+    cosine = cosine_scores(index.vectors, query_vector)
+    ranked = index.rankings(question, query_vector)
+    position = {name: {i: r for r, i in enumerate(order, 1)} for name, order in ranked.items()}
+    fused = rrf_scored([ranked["bm25"], ranked["dense"]], index.k)[:top_k]
+    return [dict(index.items[i], score=score, fused_rank=rank, bm25=float(lexical[i]), cosine=float(cosine[i]),
+                 bm25_rank=position["bm25"].get(i, index.depth + 1),
+                 dense_rank=position["dense"].get(i, index.depth + 1),
+                 last_page=index.last_page.get(index.items[i]["pdfFingerprint"]))
+            for rank, (i, score) in enumerate(fused, 1)]
 
 
 def dense(query_vector, top_k, scope):
@@ -99,9 +120,7 @@ def retrieve(question: str, top_k: int = 8, scope: QueryScope = None, method: st
         index = hybrid_index(scope, method == "hybrid_concepts")
         if index is None:
             return []
-        ranked = index.rankings(question, query_vector)
-        fused = rrf_scored([ranked["bm25"], ranked["dense"]], index.k)[:top_k]
-        return [dict(index.items[i], score=score) for i, score in fused]
+        return with_signals(index, question, query_vector, top_k)
     except Exception as e:
         print(f"[Retriever] Error: {e}")
         return []

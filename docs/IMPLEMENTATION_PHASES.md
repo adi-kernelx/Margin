@@ -173,6 +173,17 @@ works; fusion baseline in the results table.
 
 ### ML4 — Learned ranker and demo (Oct 27–Nov 2)
 
+**Progress (October 17, ML4.2):** corrected page-position run
+complete, 95 answerable train questions / 9 documents, leave-one-document-out,
+24 live-service candidates. LambdaRank Recall@5 0.968 [0.938, 1.000], MRR@10
+0.826 [0.770, 0.887]; cross-encoder 0.926 / 0.787. Paired MRR gain +0.039
+[+0.009, +0.068] is supported on development data; Recall gain +0.042
+[-0.011, +0.091] is inconclusive. Full-training artifact saved and reloaded;
+cross-encoder stays default pending ML5. 332 Python tests, 198 frontend tests
+and production build pass. ML5 protocol pre-registered below. nDCG train
+measurement, link expansion and optional current-page distance remain to
+scope with the user; full ML4 demo acceptance is still pending.
+
 - LightGBM ranking (LambdaRank) over passages and concept files.
 - Features: BM25, vector similarity, cross-encoder score (as a feature), term
   and maths-token overlap, block type, is-concept, is-verified, reached by
@@ -185,6 +196,44 @@ works; fusion baseline in the results table.
 Recall@5 / MRR / nDCG table against all baselines.
 
 ### ML5 — Ablations and error analysis (Nov 3–9)
+
+**Pre-registration (October 17, 2026; before the ML5 frozen read):**
+Compare fused hybrid + concepts, the live cross-encoder, and the frozen ML4
+LambdaRank artifact on identical 24-candidate pools. Freeze the artifact,
+feature definitions, retrieval settings and scoring code before opening either
+test set. Run inference once with `--frozen-test-milestone`; never fit or select
+models using test questions. The existing `ranker_eval` leave-one-document-out
+routine is a training-development evaluator, not the ML5 test evaluator.
+
+- Report the original 80-question test split and independent 78-question set
+  separately and pooled; exclude unanswerable questions from retrieval metrics
+  and report their counts. Preserve question-set identity. Pool by question,
+  clustering both sets' questions from the same PDF together for uncertainty.
+- Metrics: Recall@5 (any answer-page hit), MRR@10 (first answer-page hit),
+  and page nDCG@10. For nDCG, award binary gain to each answer page only at
+  its first occurrence in the ranked candidates, retaining candidate ranks;
+  discount by `log2(rank + 1)`. The ideal ranking contains all gold answer
+  pages up to ten, including pages missing from the candidate pool. This is
+  distinct from the ranker's graded training labels (quote/page/other = 2/1/0).
+- Report 95% document-bootstrap intervals and paired differences using
+  `ml.eval.stats.document_bootstrap` (2,000 resamples, seed 20261006).
+  Report exact two-sided McNemar tests on paired Recall@5 outcomes; these
+  are supporting evidence because questions within a document are dependent.
+- Primary comparison: LambdaRank minus cross-encoder, pooled MRR@10.
+  Change the default to `RERANK=ranker` only if its paired 95% interval is
+  strictly above zero, each set's MRR and nDCG point differences are
+  nonnegative, and the pooled Recall@5 difference's lower 95% bound is at
+  least -0.02. Otherwise keep `cross_encoder` and report an inconclusive or
+  negative outcome. This rule is fixed before test outcomes are available.
+- Select and freeze OKF on/off, link expansion on/off (if implemented), and
+  feature-group ablations on TRAIN only, with leave-one-document-out and the
+  plan's three seeds. Apply all frozen variants in the same milestone run;
+  no test-guided redesign. Report definition-dependent versus other types as
+  descriptive breakdowns. Annotated question types are never model features.
+- Freeze a blind ~100-answer grading protocol before generation: identical
+  questions/settings, hidden method names, randomized presentation and a
+  written correctness/grounding rubric. LLM generation requires separate
+  laptop approval; retrieval metrics do not establish answer quality.
 
 - OKF on/off; link expansion on/off; feature groups.
 - McNemar on Recall@5; bootstrap by document for MRR/nDCG; blind hand-grading

@@ -4946,6 +4946,127 @@ retrieval.
 
 ---
 
+## Phase ML4: Learned Ranker — ML4.2 Training Comparison
+
+**Date:** October 17, 2026
+
+**Goal:** finish the train-only leave-one-document-out comparison after changing
+page position to use the highest indexed passage page, save the full-training
+artifact, and pre-register ML5 before any frozen evaluation.
+
+### Implementation and invariants
+
+- `ml/ranking/features.py`: 27 query-time features covering BM25/cosine
+  scores and ranks, fusion, raw cross-encoder logit and relative signals,
+  concept type/verification, title and question overlap, length and page
+  position. Labels are 2 for an answer-page candidate containing the quote
+  (exact whitespace-normalized match or at least 60% quote-token coverage),
+  1 for another candidate on an answer page, and 0 otherwise.
+- Page position divides by the highest indexed **passage** page for the PDF,
+  not the PDF's unavailable page count or the highest returned candidate page.
+  `retriever.with_signals` computes it over the indexed scope, keyed by PDF
+  fingerprint. A regression checks it still uses page 3 when only page 1 is
+  returned, then updates to page 9 after an index write.
+- `ml/ranking/ranker.py`: LambdaRank with fixed `PARAMS` (150 trees, seven
+  leaves, learning rate 0.05, seed 0); no tuning. Joblib serialization keeps
+  the importable model and feature list; loading rejects a different list.
+- `ranker_eval` uses the service's own `fill`, retriever and cross-encoder
+  over 24 hybrid + concept candidates; pointwise logistic regression is a
+  second learned baseline. Each held-out document is scored only by models
+  fitted on the other eight documents. The final saved artifact is fitted
+  on all training groups, distinct from the out-of-fold scores in the table.
+- `RERANK=ranker` is opt-in. The cross-encoder loads lazily, and missing model
+  or retrieval signals fall back to cross-encoder ordering. Ranking uses the
+  raw CE logit as a feature; the existing confidence score keeps the CE scale
+  and existing verification boost. All training verifications are zero, so
+  this experiment provides no evidence that verification helps.
+- Frozen-data safeguards: `live_rag_eval.load_questions` now routes by the
+  manifest's frozen source split **before** PDF evidence validation; test
+  evidence is no longer validated by a train-only run. Synthetic regression
+  tests cover both modes and a false claimed `split`. `ranker_eval` rejects
+  `--frozen-test-milestone` before loading questions because cross-validation
+  would fit on test questions. ML5 needs a separate inference-only harness.
+- The absent candidate cache was confirmed before the approved rerun, so
+  candidates/features are rebuilt with the corrected page feature. Run uses
+  cached local models, CPU only, with numerical thread limits of two.
+
+### Corrected-feature training results (`ml/results/ranker_train.json`)
+
+95 answerable training questions, nine documents, 24 candidates. 95% percentile
+intervals resample complete documents (2,000 resamples, seed 20261006); paired
+differences use the same question outcomes grouped by document. No parameters
+were tuned. The original and independent frozen sets were not evaluated.
+
+| Method | Recall@5 | MRR@10 |
+|---|---|---|
+| Fused hybrid + concepts | 0.937 [0.898, 0.978] | 0.761 [0.710, 0.821] |
+| Cross-encoder | 0.926 [0.881, 0.978] | 0.787 [0.713, 0.867] |
+| Pointwise logistic regression | 0.958 [0.911, 1.000] | 0.805 [0.742, 0.871] |
+| LambdaRank | 0.968 [0.938, 1.000] | 0.826 [0.770, 0.887] |
+
+| Paired difference from cross-encoder | Recall@5 | MRR@10 |
+|---|---|---|
+| Fused hybrid + concepts | +0.011 [-0.033, +0.053] | -0.026 [-0.071, +0.020] |
+| Pointwise logistic regression | +0.032 [-0.021, +0.082] | +0.018 [-0.022, +0.060] |
+| LambdaRank | +0.042 [-0.011, +0.091] | **+0.039 [+0.009, +0.068]** |
+
+**Verdict:** LambdaRank improves MRR over the live cross-encoder in this
+development comparison; its paired interval excludes zero. Recall's paired
+interval includes zero. Candidate recall is 0.989 (94/95). The corrected run
+is close to the first run: LambdaRank Recall 0.958 -> 0.968, MRR 0.813 -> 0.826;
+pointwise MRR 0.810 -> 0.805. Fused and CE baselines reproduce exactly. This
+is a repeat on the same small development set after a feature correction,
+not independent confirmation. Keep `cross_encoder` as default until ML5.
+
+Top gain features: cross-encoder gap 34.9%, RRF 12.1%, cosine gap 8.6%,
+cross-encoder reciprocal rank 7.5%, relative BM25 7.3%; page position 4.6%.
+These shares describe fitted trees, not causal effects or ablation results.
+
+Saved `ml/models/artifacts/ranker.joblib` (ignored), fitted on all 95 training
+groups. Fresh-process load verifies `LGBMRanker`, 27 features and metadata
+`questions=95`, `splits=[train]`. SHA-256 of this artifact:
+`7e35f36de053c0b970658c769f789bb40fdc423da879256d38890380b5c5571f`.
+The candidate cache and run log remain ignored under `ml/out/`.
+
+```powershell
+.\.venv-ml\Scripts\python.exe -m ml.eval.ranker_eval --out ml/results/ranker_train.json --save ml/models/artifacts/ranker.joblib
+```
+
+### ML5 pre-registration
+
+Recorded in `docs/IMPLEMENTATION_PHASES.md` before test evaluation: fused-only,
+cross-encoder and frozen LambdaRank; Recall@5, MRR@10 and explicitly defined
+page nDCG@10; original and independent test sets separate and pooled;
+document-clustered paired intervals; McNemar supporting analysis; train-only
+ablation selection and blind answer grading with separate LLM-run approval.
+The default-switch rule requires a positive pooled paired MRR lower bound,
+nonnegative MRR/nDCG point differences on each set, and a pooled Recall
+lower bound of at least -0.02. Otherwise keep the cross-encoder.
+
+### Remaining ML4 scope
+
+nDCG implementation and train measurement, one-hop link expansion, and optional
+distance to the reader's current page remain separate work to scope with the
+user. ML4's full demo acceptance is not claimed by this training comparison.
+No UI interaction, frozen model evaluation, LLM generation or commit is part
+of this step.
+
+### Verification
+
+- Full light Python suite: **332 passed in 50.08 s**, including the corrected
+  page feature, ranker serialization, reranking fallback and frozen-data
+  safeguards. The initial sandboxed run hung in the existing stub `/bundle`
+  test; a 30-second faulthandler trace located the wait in Windows asyncio's
+  internal socket-pair creation, before endpoint execution. The complete
+  suite passed outside the sandbox. Pytest temporary files use `ml/out/`
+  because its sandbox default temporary directory was not writable.
+- Frontend: **198 tests passed**; `npm run build` passed (includes `tsc -b`).
+  Build warnings remain: outdated Browserslist data, unresolved PDF viewer
+  SVG references, mixed static/dynamic imports and a large main chunk.
+  No frontend source or dependency changes were made in this step.
+
+---
+
 ## Current Project State
 
 **As of:** October 7, 2026
