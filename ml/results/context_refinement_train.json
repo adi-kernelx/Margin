@@ -1,0 +1,590 @@
+{
+  "questions": 10,
+  "documents": 4,
+  "metrics": {
+    "correctness": {
+      "means": {
+        "full_original": {
+          "value": 1.9,
+          "ci95": [
+            1.7272727272727273,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "previous_original": {
+          "value": 1.9,
+          "ci95": [
+            1.7272727272727273,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "refined_original": {
+          "value": 1.9,
+          "ci95": [
+            1.7272727272727273,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      },
+      "comparisons": {
+        "refined_vs_full": {
+          "value": 0.0,
+          "ci95": [
+            -0.2727272727272727,
+            0.2727272727272727
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        },
+        "refined_vs_previous": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 0
+        },
+        "previous_vs_full": {
+          "value": 0.0,
+          "ci95": [
+            -0.2727272727272727,
+            0.2727272727272727
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        }
+      }
+    },
+    "grounding": {
+      "means": {
+        "full_original": {
+          "value": 1.8,
+          "ci95": [
+            1.4545454545454546,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "previous_original": {
+          "value": 2.0,
+          "ci95": [
+            2.0,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "refined_original": {
+          "value": 1.9,
+          "ci95": [
+            1.7272727272727273,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      },
+      "comparisons": {
+        "refined_vs_full": {
+          "value": 0.1,
+          "ci95": [
+            -0.2727272727272727,
+            0.5454545454545454
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        },
+        "refined_vs_previous": {
+          "value": -0.1,
+          "ci95": [
+            -0.2727272727272727,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        },
+        "previous_vs_full": {
+          "value": 0.2,
+          "ci95": [
+            0.0,
+            0.5454545454545454
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 0
+        }
+      }
+    }
+  },
+  "cohorts": {
+    "new_answerable": {
+      "questions": 2,
+      "documents": 2,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "previous_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "refined_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "refined_vs_previous": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "previous_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "previous_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "refined_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "refined_vs_previous": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "previous_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            }
+          }
+        }
+      }
+    },
+    "previous_development": {
+      "questions": 6,
+      "documents": 3,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "previous_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "refined_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                -0.5,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "refined_vs_previous": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 0
+            },
+            "previous_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                -0.5,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 1.6666666666666667,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "previous_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "refined_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.16666666666666666,
+              "ci95": [
+                -0.5,
+                1.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "refined_vs_previous": {
+              "value": -0.16666666666666666,
+              "ci95": [
+                -0.5,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "previous_vs_full": {
+              "value": 0.3333333333333333,
+              "ci95": [
+                0.0,
+                1.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 0
+            }
+          }
+        }
+      }
+    },
+    "synthetic_unsupported": {
+      "questions": 2,
+      "documents": 2,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "previous_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "refined_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "refined_vs_previous": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "previous_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "previous_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "refined_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "comparisons": {
+            "refined_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "refined_vs_previous": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "previous_vs_full": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "correct_abstention": {
+    "full_original": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    },
+    "previous_original": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    },
+    "refined_original": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    }
+  },
+  "quality_assessed": true,
+  "live_defaults_changed": false,
+  "limitations": "Ten previously reviewed assistant-authored TRAIN cases over four PDFs, including two synthetic unsupported probes. One fresh generation per condition/question, no generation seed, partial blinding/shared authorship and prior familiarity. Four document clusters and multiple unadjusted document-bootstrap intervals make this exploratory. Reference retention is lexical, not semantic support. Order/cache/output lengths affect timing. No independent holdout, noninferiority, population or live-default claim.",
+  "title": "TRAIN original-prompt excerpt refinement",
+  "grading": {
+    "at": "2026-10-18T10:35:14.943897+00:00",
+    "ratings_sha256": "f27ea1dac8c789035a81b12b6f73df7766b4ba81b5d4fb94c2c602dc7025775f",
+    "ratings_count": 30,
+    "packet_sha256": "4ff3df216775dcb2e950b839ca191a887a15636e07d30ba044cfa9109b655b24",
+    "key_sha256": "7cc4f141a1cc1aa18a883fbc12ba6df244d9f7b6cc7a1d4354c1ee84e4b36bec",
+    "rubric_sha256": "c5561d040bc06a437a4fe05cc3af92a60336e22f858e4c0ccacb10c68e9eefb4",
+    "reviewer": "assistant",
+    "human_validation": false,
+    "methodology": "All ratings saved before plan/key access; prior familiarity, shared authorship and partial blinding"
+  },
+  "packet_id": "6b9968b2010024faa375a79c1d161e58c26f98ef0bfa9534d18c0423d92b4912",
+  "regressions": {
+    "correctness": {
+      "refined_vs_full": 1,
+      "refined_vs_previous": 0
+    },
+    "grounding": {
+      "refined_vs_full": 1,
+      "refined_vs_previous": 1
+    }
+  },
+  "unsupported_errors": 0,
+  "additional_reference_losses": 0,
+  "decision": "hold_refinement",
+  "runtime_report_sha256": "91d4a7513077db117966dff58635888f462694c2c25add811d3cc095b10c9db6",
+  "grading_receipt_sha256": "55601a5d5814238fdad34242f89afaf47713e101de02fa2354134e2309030d9a"
+}

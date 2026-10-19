@@ -1,0 +1,58 @@
+{
+  "status": "generation_complete_grading_pending",
+  "questions": 6,
+  "documents": 3,
+  "answers": 12,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "timing": {
+    "full": {
+      "requests": 6,
+      "means": {
+        "first_text_seconds": 59.468261766667034,
+        "wall_seconds": 69.24914978333338,
+        "prompt_seconds": 59.38428283333333,
+        "output_seconds": 9.780379166666666,
+        "prompt_tokens": 1780.6666666666667,
+        "output_tokens": 77.66666666666667
+      },
+      "length_stops": 0
+    },
+    "bounded": {
+      "requests": 6,
+      "means": {
+        "first_text_seconds": 6.79069993333322,
+        "wall_seconds": 16.196601566666914,
+        "prompt_seconds": 5.003961833333333,
+        "output_seconds": 9.405051833333333,
+        "prompt_tokens": 787,
+        "output_tokens": 85.16666666666667
+      },
+      "length_stops": 0
+    }
+  },
+  "complete_reference_questions": {
+    "raw": 6,
+    "full": 6,
+    "bounded": 6
+  },
+  "reference_questions_lost_by_large_budget": 0,
+  "reference_questions_lost_by_smaller_budget": 0,
+  "quality_assessed": false,
+  "live_defaults_changed": false,
+  "limitations": "Six answerable AI-authored TRAIN questions over three PDFs; exact individual-quote retention is a conservative evidence proxy, not semantic answer correctness. No negatives, representative traffic, independent authorship or default-switch claim. Cache/order and output lengths affect timing.",
+  "plan_sha256": "8757b3e7a937083793693a1822df8ae74396555ccf5de319b7b4c37007bc6485",
+  "journal_sha256": "04907660b2e462b42f75d7d10e3ac7038e72d348a5a734e7aec982e2beaf61a4",
+  "packet_sha256": "9ce4791bf8d43fdce92783e9561016d3c6be703991b532c93b486b2cf422ab73",
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "recorded_at": "2026-10-18T06:23:34.352845+00:00"
+}

@@ -1,0 +1,647 @@
+{
+  "packet_id": "11888ec0ba0eb5e6a56632c40e257d8db8c683c4015b046dffa0efdfe23fd1cf",
+  "answers": 100,
+  "pooled": {
+    "questions": 50,
+    "documents": 6,
+    "methods": {
+      "cross_encoder": {
+        "correctness": {
+          "value": 1.76,
+          "ci95": [
+            1.608695652173913,
+            1.9
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "grounding": {
+          "value": 1.5,
+          "ci95": [
+            1.3636363636363635,
+            1.607843137254902
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "abstained": {
+          "value": 0.2,
+          "ci95": [
+            0.09302325581395349,
+            0.29310344827586204
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "correct_abstention_unanswerable": {
+          "value": 0.9,
+          "ci95": [
+            0.7272727272727273,
+            1.0
+          ],
+          "documents": 5,
+          "questions": 10
+        },
+        "correct_abstention_count": 9,
+        "answerable_abstention_count": 0,
+        "unanswerable_questions": 10,
+        "answerable_questions": 40
+      },
+      "ranker_full": {
+        "correctness": {
+          "value": 1.8,
+          "ci95": [
+            1.5208333333333333,
+            1.9791666666666667
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "grounding": {
+          "value": 1.58,
+          "ci95": [
+            1.3683941997851772,
+            1.737714676034348
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "abstained": {
+          "value": 0.2,
+          "ci95": [
+            0.09302325581395349,
+            0.29310344827586204
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "correct_abstention_unanswerable": {
+          "value": 0.9,
+          "ci95": [
+            0.7272727272727273,
+            1.0
+          ],
+          "documents": 5,
+          "questions": 10
+        },
+        "correct_abstention_count": 9,
+        "answerable_abstention_count": 0,
+        "unanswerable_questions": 10,
+        "answerable_questions": 40
+      }
+    },
+    "paired": {
+      "correctness": {
+        "value": 0.04,
+        "ci95": [
+          -0.2,
+          0.27450980392156865
+        ],
+        "documents": 6,
+        "questions": 50
+      },
+      "grounding": {
+        "value": 0.08,
+        "ci95": [
+          -0.06666666666666667,
+          0.2667073170731705
+        ],
+        "documents": 6,
+        "questions": 50
+      },
+      "abstained": {
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "documents": 6,
+        "questions": 50
+      },
+      "correct_abstention": {
+        "value": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "documents": 5,
+        "questions": 10
+      }
+    }
+  },
+  "sets": {
+    "original": {
+      "questions": 25,
+      "documents": 6,
+      "methods": {
+        "cross_encoder": {
+          "correctness": {
+            "value": 1.8,
+            "ci95": [
+              1.7083333333333333,
+              1.9166666666666667
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "grounding": {
+            "value": 1.44,
+            "ci95": [
+              1.2758620689655173,
+              1.5909090909090908
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.041666666666666664,
+              0.3225806451612903
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.8,
+            "ci95": [
+              0.5,
+              1.0
+            ],
+            "documents": 3,
+            "questions": 5
+          },
+          "correct_abstention_count": 4,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 5,
+          "answerable_questions": 20
+        },
+        "ranker_full": {
+          "correctness": {
+            "value": 1.76,
+            "ci95": [
+              1.5767857142857142,
+              1.9545454545454546
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "grounding": {
+            "value": 1.56,
+            "ci95": [
+              1.4285714285714286,
+              1.72
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.041666666666666664,
+              0.3225806451612903
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.8,
+            "ci95": [
+              0.5,
+              1.0
+            ],
+            "documents": 3,
+            "questions": 5
+          },
+          "correct_abstention_count": 4,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 5,
+          "answerable_questions": 20
+        }
+      },
+      "paired": {
+        "correctness": {
+          "value": -0.04,
+          "ci95": [
+            -0.21052631578947367,
+            0.1252083333333322
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "grounding": {
+          "value": 0.12,
+          "ci95": [
+            -0.09090909090909091,
+            0.4230769230769231
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "abstained": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "correct_abstention": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 3,
+          "questions": 5
+        }
+      }
+    },
+    "independent": {
+      "questions": 25,
+      "documents": 6,
+      "methods": {
+        "cross_encoder": {
+          "correctness": {
+            "value": 1.72,
+            "ci95": [
+              1.48,
+              1.9230769230769231
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "grounding": {
+            "value": 1.56,
+            "ci95": [
+              1.3478260869565217,
+              1.75
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.08695652173913043,
+              0.2857142857142857
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "correct_abstention_unanswerable": {
+            "value": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "documents": 4,
+            "questions": 5
+          },
+          "correct_abstention_count": 5,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 5,
+          "answerable_questions": 20
+        },
+        "ranker_full": {
+          "correctness": {
+            "value": 1.84,
+            "ci95": [
+              1.4285714285714286,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "grounding": {
+            "value": 1.6,
+            "ci95": [
+              1.2608695652173914,
+              1.8333333333333333
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.08695652173913043,
+              0.2857142857142857
+            ],
+            "documents": 6,
+            "questions": 25
+          },
+          "correct_abstention_unanswerable": {
+            "value": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "documents": 4,
+            "questions": 5
+          },
+          "correct_abstention_count": 5,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 5,
+          "answerable_questions": 20
+        }
+      },
+      "paired": {
+        "correctness": {
+          "value": 0.12,
+          "ci95": [
+            -0.18181818181818182,
+            0.4001851851851842
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "grounding": {
+          "value": 0.04,
+          "ci95": [
+            -0.09523809523809523,
+            0.15384615384615385
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "abstained": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 6,
+          "questions": 25
+        },
+        "correct_abstention": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 5
+        }
+      }
+    }
+  },
+  "answerability": {
+    "answerable": {
+      "questions": 40,
+      "documents": 6,
+      "methods": {
+        "cross_encoder": {
+          "correctness": {
+            "value": 1.725,
+            "ci95": [
+              1.5135135135135136,
+              1.9069767441860466
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "grounding": {
+            "value": 1.4,
+            "ci95": [
+              1.2564102564102564,
+              1.527916666666666
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "abstained": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "correct_abstention_unanswerable": null,
+          "correct_abstention_count": 0,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 0,
+          "answerable_questions": 40
+        },
+        "ranker_full": {
+          "correctness": {
+            "value": 1.775,
+            "ci95": [
+              1.435897435897436,
+              1.976204318936877
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "grounding": {
+            "value": 1.5,
+            "ci95": [
+              1.278968023255814,
+              1.6858333333333326
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "abstained": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 40
+          },
+          "correct_abstention_unanswerable": null,
+          "correct_abstention_count": 0,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 0,
+          "answerable_questions": 40
+        }
+      },
+      "paired": {
+        "correctness": {
+          "value": 0.05,
+          "ci95": [
+            -0.24390243902439024,
+            0.34303571428571333
+          ],
+          "documents": 6,
+          "questions": 40
+        },
+        "grounding": {
+          "value": 0.1,
+          "ci95": [
+            -0.07692307692307693,
+            0.3333333333333333
+          ],
+          "documents": 6,
+          "questions": 40
+        },
+        "abstained": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 6,
+          "questions": 40
+        },
+        "correct_abstention": null
+      }
+    },
+    "unanswerable": {
+      "questions": 10,
+      "documents": 5,
+      "methods": {
+        "cross_encoder": {
+          "correctness": {
+            "value": 1.9,
+            "ci95": [
+              1.7272727272727273,
+              2.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "grounding": {
+            "value": 1.9,
+            "ci95": [
+              1.7272727272727273,
+              2.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "abstained": {
+            "value": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.9,
+            "ci95": [
+              0.7272727272727273,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_count": 9,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 10,
+          "answerable_questions": 0
+        },
+        "ranker_full": {
+          "correctness": {
+            "value": 1.9,
+            "ci95": [
+              1.7272727272727273,
+              2.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "grounding": {
+            "value": 1.9,
+            "ci95": [
+              1.7272727272727273,
+              2.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "abstained": {
+            "value": 1.0,
+            "ci95": [
+              1.0,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.9,
+            "ci95": [
+              0.7272727272727273,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_count": 9,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 10,
+          "answerable_questions": 0
+        }
+      },
+      "paired": {
+        "correctness": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 5,
+          "questions": 10
+        },
+        "grounding": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 5,
+          "questions": 10
+        },
+        "abstained": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 5,
+          "questions": 10
+        },
+        "correct_abstention": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 5,
+          "questions": 10
+        }
+      }
+    }
+  },
+  "limitations": "Small selected sample over six source PDFs; one assistant reviewer, partial blinding, AI-authored questions, no independent human validation. Mixed resource settings, days and cache states limit timing comparisons. Document-bootstrap intervals are descriptive; frozen retrieval decision unchanged.",
+  "retrieval_decision_changed": false,
+  "title": "ML5.3 saved-context answer evaluation",
+  "grading": {
+    "at": "2026-10-19T16:14:37.881947+00:00",
+    "ratings_count": 100,
+    "ratings_sha256": "2a862c1f38178e36c6ac2cb4fe1b6512f43d36d717dff6bcbadad2b1c4e0cdb8",
+    "packet_sha256": "cc8222b4c327c9acb25e9edd3ecbe9954bfc24f2c6f09f92ff8e6a36a1215d2a",
+    "key_sha256": "a612d93645a372801a845474f346966789c0ff66fab4d39f9117c10d5aab67b3",
+    "rubric_sha256": "c5561d040bc06a437a4fe05cc3af92a60336e22f858e4c0ccacb10c68e9eefb4",
+    "review_preparation_sha256": "b19bfb99a6bc86b024e499fe4890c826cf7a70d0deda635686f7b9d1ab5e02c9",
+    "reviewer": "assistant",
+    "human_validation": false,
+    "methodology": "Complete ratings saved before grading-time plan/key disclosure; one assistant reviewer, partial blinding and no independent human validation"
+  },
+  "ratings_sha256": "2a862c1f38178e36c6ac2cb4fe1b6512f43d36d717dff6bcbadad2b1c4e0cdb8",
+  "grading_receipt_sha256": "2b0067fc38aab346711287950532c3bb977d91ed314d7a1a9ac69e713a5355cc",
+  "administrative_interrupted_requests": 2,
+  "administrative_retry_requests": 2,
+  "input_question_files_reopened": false,
+  "retrieval_repeated": false,
+  "live_defaults_changed": false,
+  "generation_report_sha256": "4b6d98ebdcf9957041cec4c5a04401dad33ff7a63010dd2b13b74f65f8eb72c9"
+}

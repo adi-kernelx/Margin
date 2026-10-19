@@ -1,0 +1,457 @@
+{
+  "questions": 18,
+  "documents": 6,
+  "metrics": {
+    "correctness": {
+      "full": {
+        "value": 1.8333333333333333,
+        "ci95": [
+          1.6111111111111112,
+          2.0
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "bounded": {
+        "value": 1.8333333333333333,
+        "ci95": [
+          1.6111111111111112,
+          2.0
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "bounded_minus_full": {
+        "value": 0.0,
+        "ci95": [
+          -0.16666666666666666,
+          0.16666666666666666
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "regressions": 1
+    },
+    "grounding": {
+      "full": {
+        "value": 1.7777777777777777,
+        "ci95": [
+          1.5555555555555556,
+          1.9444444444444444
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "bounded": {
+        "value": 1.8888888888888888,
+        "ci95": [
+          1.6666666666666667,
+          2.0
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "bounded_minus_full": {
+        "value": 0.1111111111111111,
+        "ci95": [
+          0.0,
+          0.2222222222222222
+        ],
+        "documents": 6,
+        "questions": 18
+      },
+      "regressions": 0
+    }
+  },
+  "quality_assessed": true,
+  "live_defaults_changed": false,
+  "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim.",
+  "cohorts": {
+    "fresh_answerable": {
+      "questions": 8,
+      "documents": 6,
+      "metrics": {
+        "correctness": {
+          "full": {
+            "value": 1.75,
+            "ci95": [
+              1.3333333333333333,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "bounded": {
+            "value": 1.75,
+            "ci95": [
+              1.3333333333333333,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "regressions": 0
+        },
+        "grounding": {
+          "full": {
+            "value": 1.625,
+            "ci95": [
+              1.2222222222222223,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "bounded": {
+            "value": 1.75,
+            "ci95": [
+              1.3333333333333333,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "bounded_minus_full": {
+            "value": 0.125,
+            "ci95": [
+              0.0,
+              0.42857142857142855
+            ],
+            "documents": 6,
+            "questions": 8
+          },
+          "regressions": 0
+        }
+      },
+      "quality_assessed": true,
+      "live_defaults_changed": false,
+      "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim."
+    },
+    "previous_sentinel": {
+      "questions": 4,
+      "documents": 4,
+      "metrics": {
+        "correctness": {
+          "full": {
+            "value": 1.75,
+            "ci95": [
+              1.25,
+              2.0
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "bounded": {
+            "value": 1.75,
+            "ci95": [
+              1.25,
+              2.0
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              -0.75,
+              0.75
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "regressions": 1
+        },
+        "grounding": {
+          "full": {
+            "value": 1.75,
+            "ci95": [
+              1.25,
+              2.0
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "bounded": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "bounded_minus_full": {
+            "value": 0.25,
+            "ci95": [
+              0.0,
+              0.75
+            ],
+            "documents": 4,
+            "questions": 4
+          },
+          "regressions": 0
+        }
+      },
+      "quality_assessed": true,
+      "live_defaults_changed": false,
+      "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim."
+    },
+    "synthetic_unsupported": {
+      "questions": 6,
+      "documents": 6,
+      "metrics": {
+        "correctness": {
+          "full": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "regressions": 0
+        },
+        "grounding": {
+          "full": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "regressions": 0
+        }
+      },
+      "quality_assessed": true,
+      "live_defaults_changed": false,
+      "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim."
+    }
+  },
+  "answerability": {
+    "answerable": {
+      "questions": 12,
+      "documents": 6,
+      "metrics": {
+        "correctness": {
+          "full": {
+            "value": 1.75,
+            "ci95": [
+              1.4166666666666667,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "bounded": {
+            "value": 1.75,
+            "ci95": [
+              1.4166666666666667,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              -0.25,
+              0.25
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "regressions": 1
+        },
+        "grounding": {
+          "full": {
+            "value": 1.6666666666666667,
+            "ci95": [
+              1.3333333333333333,
+              1.9166666666666667
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "bounded": {
+            "value": 1.8333333333333333,
+            "ci95": [
+              1.5,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "bounded_minus_full": {
+            "value": 0.16666666666666666,
+            "ci95": [
+              0.0,
+              0.3333333333333333
+            ],
+            "documents": 6,
+            "questions": 12
+          },
+          "regressions": 0
+        }
+      },
+      "quality_assessed": true,
+      "live_defaults_changed": false,
+      "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim."
+    },
+    "unsupported": {
+      "questions": 6,
+      "documents": 6,
+      "metrics": {
+        "correctness": {
+          "full": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "regressions": 0
+        },
+        "grounding": {
+          "full": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded": {
+            "value": 2.0,
+            "ci95": [
+              2.0,
+              2.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "bounded_minus_full": {
+            "value": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ],
+            "documents": 6,
+            "questions": 6
+          },
+          "regressions": 0
+        }
+      },
+      "quality_assessed": true,
+      "live_defaults_changed": false,
+      "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim."
+    }
+  },
+  "correct_abstention": {
+    "full": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 6,
+      "questions": 6
+    },
+    "bounded": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 6,
+      "questions": 6
+    }
+  },
+  "unsupported_errors": 0,
+  "title": "TRAIN same-page evidence coherence",
+  "grading": {
+    "at": "2026-10-18T11:08:50.478070+00:00",
+    "ratings_count": 36,
+    "ratings_sha256": "f9cb5d1faea4d5b10f113cefd9afc8249c7e055a5aba9ca083b35af580d7ef7d",
+    "packet_sha256": "74cab9730e31958c4242d3be97d4265194b12472886ae31bb0edfa1dcdba0b9b",
+    "key_sha256": "e6ff839868d4b37780aa2bbf039bc9e5250564a51a7351b69129d06b00f163a9",
+    "rubric_sha256": "c5561d040bc06a437a4fe05cc3af92a60336e22f858e4c0ccacb10c68e9eefb4",
+    "reviewer": "assistant",
+    "human_validation": false,
+    "methodology": "All ratings saved before grading-time study/plan/key disclosure; prior familiarity, partial blinding and shared authorship"
+  },
+  "packet_id": "dc7a24c83e633eb87b1c1f608093e6114defd921b66aaf8e8cf9e34422457250",
+  "additional_reference_losses": 0,
+  "decision": "defer_coherent_selector",
+  "stopping_rule": "One bounded comparison; report accept-for-consideration or defer, no automatic further tuning or live change",
+  "runtime_report_sha256": "ffc86fdc764f5454a597bed14cc43993b05f62c6e6b6a8119f5cb149ba83f404",
+  "grading_receipt_sha256": "53158da1125155e352f6e5e371c90d67e3beac6e72310f95f10169b5bfd4bdd8"
+}

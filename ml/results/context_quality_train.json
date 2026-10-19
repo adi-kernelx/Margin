@@ -1,0 +1,93 @@
+{
+  "questions": 6,
+  "documents": 3,
+  "metrics": {
+    "correctness": {
+      "full": {
+        "value": 1.8333333333333333,
+        "ci95": [
+          1.5,
+          2.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "bounded": {
+        "value": 1.6666666666666667,
+        "ci95": [
+          1.0,
+          2.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "bounded_minus_full": {
+        "value": -0.16666666666666666,
+        "ci95": [
+          -0.5,
+          0.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "regressions": 1
+    },
+    "grounding": {
+      "full": {
+        "value": 1.6666666666666667,
+        "ci95": [
+          1.0,
+          2.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "bounded": {
+        "value": 1.5,
+        "ci95": [
+          0.5,
+          2.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "bounded_minus_full": {
+        "value": -0.16666666666666666,
+        "ci95": [
+          -0.5,
+          0.0
+        ],
+        "documents": 3,
+        "questions": 6
+      },
+      "regressions": 1
+    }
+  },
+  "quality_assessed": true,
+  "live_defaults_changed": false,
+  "limitations": "Small AI-authored answerable TRAIN screen; single grader, only three document clusters. Bootstrap intervals are exploratory; no noninferiority or production-default claim. The assistant reviewer also prepared the source-linked questions; context lengths and study design were visible. No independent human or interrater validation. Citation-only errors affect grounding; wrong central claims affect correctness as well. A partial substantive answer with hedging is distinguished from an explicit refusal with an incorrect central claim.",
+  "title": "TRAIN context-budget quality screen",
+  "scored_at": "2026-10-18T06:39:46.908904+00:00",
+  "packet_id": "2ec06c172335259b0f3128152e0d33a38ddc292fbc86f3564710a7347b5f6244",
+  "ratings_sha256": "2afb0621f081ce1749d261be215bda0195634231fe2835d1a667b707d0bb60a8",
+  "grading_receipt_sha256": "a0865e84f77407865c063e1aaa333977fdebc7faafa2302088b5c5d7551155d9",
+  "runtime_report_sha256": "840d927f67e7046e3c920d16425c078f709626f0635c874150dd2bd594789629",
+  "grading": {
+    "reviewer": "assistant",
+    "human_validation": false,
+    "source_author_independence": false,
+    "method_identity_handling": "Budget key not opened during the review; all ratings saved before key access. Context lengths and study design were visible, so blinding is partial.",
+    "rubric_source_sha256": "4b21955bf5b253357f9898b40705082604d847f50d8ceedc18a96e14af50f344"
+  },
+  "decision": {
+    "candidate": {
+      "max_contexts": 3,
+      "max_context_text_utf8_bytes": 4000
+    },
+    "status": "hold",
+    "distinct_questions_with_regression": 1,
+    "additional_reference_losses": 0,
+    "live_default_switch": false,
+    "reason": "At least one paired answer regressed; the predeclared screen does not permit adoption."
+  }
+}

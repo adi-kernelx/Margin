@@ -1,0 +1,83 @@
+{
+  "title": "ML5.3 generation completion",
+  "completed": 100,
+  "initial_retained": 12,
+  "new_completed": 88,
+  "planned_questions": 50,
+  "planned_answers": 100,
+  "successful_requests": 100,
+  "interrupted_requests": 2,
+  "administrative_retries": 2,
+  "retained_answer_prefix_preserved": true,
+  "original_failed_attempt_preserved": true,
+  "both_failed_histories_preserved": true,
+  "isolated_worker_answers": 70,
+  "four_thread_worker_answers": 62,
+  "canonical_plan_sha256": "4b1d94ebad28332c3745c21b3b921da9f6cf775bc5e40c48ec8f5c62c9aadad4",
+  "plan_file_sha256": "5d31b064302e2d78313b888a820da0d91c94a45cf2d1e077bd639e57255da396",
+  "journal_sha256": "966cc2e8b191309e60b25cb6e26cae70545015322b9b986a4baa0981a5b1de7e",
+  "packet_sha256": "cc8222b4c327c9acb25e9edd3ecbe9954bfc24f2c6f09f92ff8e6a36a1215d2a",
+  "options_for_final_62": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 4,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "thread_counts": {
+    "2": 2,
+    "3": 36,
+    "4": 62
+  },
+  "request_seconds_total": 13674.453421699995,
+  "request_seconds_mean": 136.74453421699994,
+  "request_seconds_median": 117.91494820000025,
+  "request_seconds_min": 28.92409449999832,
+  "request_seconds_max": 396.8274715000007,
+  "thread_request_seconds_mean": {
+    "2": 177.40502125000057,
+    "3": 164.18719287777796,
+    "4": 119.49845863870947
+  },
+  "stop_reasons": {
+    "stop": 100
+  },
+  "isolated_continuation_seconds": 7958.118978,
+  "resource_monitor": {
+    "guarded_continuation": {
+      "at": "2026-10-19T13:19:31.197304+00:00",
+      "peak_memory_percent": 80.1876401097207,
+      "min_available_bytes": 3263787008,
+      "peak_total_cpu_percent": 83.3,
+      "emergency_stopped": true,
+      "model_unload_requested": true
+    },
+    "isolated_three_thread_workers": {
+      "workers": 8,
+      "peak_memory_percent": 74.57412612311553,
+      "min_available_bytes": 4188528640,
+      "peak_total_cpu_percent": 100.0,
+      "emergency_stopped": false,
+      "model_unloaded_after_every_answer": true
+    },
+    "isolated_four_thread_workers": {
+      "at": "2026-10-19T16:03:51.962060+00:00",
+      "workers": 62,
+      "peak_memory_percent": 79.66832660011019,
+      "min_available_bytes": 3349336064,
+      "peak_total_cpu_percent": 100.0,
+      "emergency_stopped": false,
+      "model_unloaded_after_every_answer": true,
+      "model_cpu_ceiling_percent": 50,
+      "ram_stop_percent": 85
+    }
+  },
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "frozen_question_files_reopened": false,
+  "retrieval_repeated": false,
+  "limitations": "Different prompts, output lengths, priority, cache states and days; two administrative interruptions/retries; final seventy workers unloaded after every answer; user requested four threads, 85% RAM stop and 50% model CPU affinity ceiling after A038. No controlled speed comparison or guarantee against hardware faults."
+}

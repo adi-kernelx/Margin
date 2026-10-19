@@ -1,0 +1,56 @@
+{
+  "status": "two_retained_answers_complete",
+  "recorded_at": "2026-10-17T18:52:37.603222+00:00",
+  "completed": 2,
+  "remaining": 98,
+  "plan_file_sha256": "5d31b064302e2d78313b888a820da0d91c94a45cf2d1e077bd639e57255da396",
+  "canonical_plan_sha256": "4b1d94ebad28332c3745c21b3b921da9f6cf775bc5e40c48ec8f5c62c9aadad4",
+  "journal_sha256": "3729aadca61044aa91363fe9353a8025d2c0be393c5f3421cec61399f05ac5ea",
+  "model_identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 2,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "samples": [
+    {
+      "retained_answer_number": 1,
+      "wall_seconds": 124.83356360000107,
+      "load_seconds": 11.7725496,
+      "prompt_characters": 3943,
+      "prompt_tokens": 1868,
+      "output_tokens": 61,
+      "stop_reason": "stop"
+    },
+    {
+      "retained_answer_number": 2,
+      "wall_seconds": 229.97647890000007,
+      "load_seconds": 0.0176793,
+      "prompt_characters": 14616,
+      "prompt_tokens": 3828,
+      "output_tokens": 63,
+      "stop_reason": "stop"
+    }
+  ],
+  "observed_wall_seconds": 354.81004250000115,
+  "observed_mean_seconds": 177.40502125000057,
+  "remaining_hours_at_sample_mean": 4.8293589118055715,
+  "remaining_hours_at_prompt_character_ratio": 7.261024135633716,
+  "timing_limitations": "Only two samples; prompt character scaling is a rough heuristic, not a fitted speed model. Cold loading, output length and concurrent laptop work vary.",
+  "cpu_observation": {
+    "size_vram": 0,
+    "context_length": 32768,
+    "source": "Ollama /api/ps during approved batch"
+  },
+  "generation_failures": 0,
+  "no_regeneration": true,
+  "human_grading": "pending",
+  "frozen_question_files_reopened": false,
+  "retrieval_repeated": false
+}

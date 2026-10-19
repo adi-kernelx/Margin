@@ -2,6 +2,12 @@
 
 **Revised:** October 6, 2026
 
+**Latest ML status, October 19, 2026:** ML5.1–ML5.4 are complete. Final
+synthesis retains hybrid + OKF concepts + cross-encoder, opt-in links/ranker
+and deferred context changes. All 100 planned answers were assistant-reviewed.
+Recommended next: ML7 write-up; ML6 answerability gate remains optional.
+See `docs/ML5_SYNTHESIS.md` and `ml/results/ml5_closeout.json`.
+
 This replaces the original plan in this file (Firestore data model, S3
 presigned saves, an Express API). That architecture was deleted in September
 2026 (`ca823f9`, `e1f242c`). Margin is now a local-first, single-user reader.
@@ -330,6 +336,386 @@ The receipt is complete, original model/protocol unchanged, and 50 questions'
 paired contexts are staged for 100 future answers. Do not repeat frozen
 inference. Next: ML5.3 blind answer generation and human grading, with
 separate LLM approval.
+
+**ML5.3 setup (October 18, 2026):** ML5.1/ML5.2 checkpoint committed as
+`3f5d0f3`. Generation, checkpoint/resume, blind packet export, an offline
+grading page and complete-ratings scoring are implemented. The original
+50 saved questions resolve to six PDFs; 100 prompts were sealed without
+reopening question files or repeating retrieval. Model digest and generation
+sources are pinned. The pre-generation runtime clarification fixes a 32K
+context window, two CPU threads and zero GPU layers, retaining the frozen
+QA prompt, system message, temperature 0.1 and 512-token output cap; see
+`docs/ML5_GRADING.md`. Manual grading-page checks remain pending with Aditya.
+
+**ML5.3 timing progress (October 18, 2026):** after manual Ollama startup, a
+wrapper/referenced-manifest identity mismatch was diagnosed and strictly
+fixed before generation; unused preparation archived, prompts/settings
+unchanged. The approved first two retained answers completed in 124.8 s and
+230.0 s, without failures or retries, and the batch paused at 2/100. Runtime
+confirmed CPU-only and the 32K window. Remaining 98 are roughly 5–8 hours or
+longer on two threads, superseding the initial 1–3 hour forecast; a next
+ten-answer batch is roughly 30–60 minutes. See `docs/ML5_GENERATION_TIMING.md`
+and the numerical timing/preparation-v2 reports. At that checkpoint no further
+generation was authorized; all grading remained pending. Next within ML5.3: approved
+remaining batches and human grading. Next subphase afterward: ML5.4 synthesis
+of retrieval and completed human grading.
+
+**ML5.3 CPU amendment (October 18, 2026):** Aditya requested three threads
+for future answers. A separate resource adapter and immutable amendment bind
+the unchanged sealed plan, original two-answer journal prefix and adapter
+source. Later answer events record effective options and amendment hash;
+the two saved answers retain two-thread provenance. At configuration time no
+additional generation had started and three-thread speed was unmeasured.
+Use `ml.eval.answer_generation_resources` for subsequent
+approved batches and disclose the mixed thread settings in the final report.
+
+**ML5.3 ten-answer batch (October 18, 2026):** the explicitly approved batch
+finished in 26m 57s on three CPU threads, then paused at 12/100. Mean request
+161.7 s, median 108.5 s, range 28.9–306.4 s. All ten stopped normally; no
+failures, retries, duplicate answers or frozen-question/retrieval reruns.
+Plan, original journal prefix and amendment integrity checks passed. The
+remaining 88 would take roughly four hours at this mean, with substantial
+workload uncertainty; no further generation is authorized. See
+`ml/results/ml5_generation_batch10.json`. Aditya raised interactive latency:
+the live client also waits for a full answer, though its runtime options are
+not explicitly identical to evaluation. Recommended next is a separate
+TRAIN-only latency investigation before more generation; no optimizations
+or quality grading have been performed. ML5.3 remains incomplete, and ML5.4
+follows completed generation and blind human grading.
+
+**ML5.3 latency investigation setup (October 18, 2026):** Aditya requested
+the next latency step. Added a separate four-request streaming timing probe
+using fresh diagnostic prompts from two manifest-validated TRAIN concept
+bundles. It compares 18K versus 4K context-text byte budgets at fixed 32K
+allocation, three CPU threads and a 128-token cap, collecting first visible
+text plus separate server loading/prompt/output timings. No frozen questions
+are read, retrieval/model fitting occurs or production defaults change. The
+12-answer grading checkpoint and its sealed sources remain intact. Prepared
+plan/integrity checks passed without model loading; full Python suite 421
+passed. See `docs/ML5_LATENCY.md`. Next: workload approval for roughly 10–20
+minutes, then measure before choosing any live optimization. This setup
+does not establish an answer-quality or latency improvement.
+
+**ML5.3 latency probe completed (October 18, 2026):** the approved four
+TRAIN-only requests finished in roughly 4m 15s, all on three CPU threads.
+Full-context mean first text 96.6 s / total 110.0 s; bounded-context 7.7 s /
+17.3 s. Prompt processing used 85.8% of full-context request time, identifying
+the main delay in these stress cases. All four outputs hit the 128-token cap;
+quality/completeness is unassessed, cache/order effects are uncontrolled, and
+these are not representative live-app timings. No default switch or general
+speedup claim. Four unique attempts and recomputed metrics/hashes verified;
+the 12-answer grading checkpoint is unchanged. See `docs/ML5_LATENCY.md` and
+`ml/results/llm_latency_train.json`. Next: a TRAIN-only context-budget quality
+comparison and separately scoped live-streaming work; no further model run
+is approved. Remaining 88 grading answers/human grading are still pending.
+
+**ML5.3 context-quality setup (October 18, 2026):** Aditya requested the next
+quality step. Prepared six fresh AI-authored, answerable TRAIN questions over
+three PDFs, with seven native page/quote checks and one two-reference question.
+The separate screen will call actual in-memory service retrieval/CE reranking,
+compare 18K/8-item versus 4K/3-item packing, audit reference retention and
+generate twelve blind answers at the same 512-token cap on three CPU threads.
+Native extraction expands typographic ligatures; exact checks retain case,
+punctuation and math. No models have run for this screen. The 12-answer frozen
+grading checkpoint and completed latency results are unchanged. No quality
+or default-switch claim; see `docs/ML5_CONTEXT_QUALITY.md`. Next: approve the
+20–40 minute CPU workload, then blind grading of twelve answers before any
+live budget decision. Live streaming remains separately scoped.
+
+**ML5.3 context-quality generation complete (October 18, 2026):** the approved
+TRAIN retrieval/generation workload finished in 12m 23s after a transient
+metadata-only preflight timeout resolved. Twelve unique answers completed;
+all stopped normally, none hit the 512-token cap, no failed/retried generation.
+All required quotes were retained for 6/6 questions by raw retrieval and both
+budgets. Larger versus smaller budget mean first text 59.5/6.8 s and total
+request 69.2/16.2 s. These selected TRAIN/cache-sensitive timings do not prove
+equal accuracy or representative latency. Report metrics/hashes, twelve-row
+blind packet/parser compatibility and protected experiment hashes verified.
+Frozen generation remains unchanged at 12/100. **Next: Aditya's manual page
+checks and blind ratings of the twelve TRAIN answers**, then aggregate paired
+scoring before any budget decision. No further model workload, live default
+change or streaming implementation is authorized by this run.
+
+**ML5.3 context-quality review complete (October 18, 2026):** Aditya delegated
+the answer review to the assistant. All twelve source/context-grounded ratings
+were saved and hash-sealed before reading the private budget key. The neutral
+result title is retained; methodology records the assistant reviewer, shared
+question authorship, partial blinding and lack of independent human validation.
+Correctness larger/smaller 1.833/1.667; grounding 1.667/1.500 (0–2 scale).
+Both paired differences are -0.167, document-bootstrap 95% CI [-0.500, 0.000].
+One paired question regressed on both metrics despite full quote retention,
+so the predeclared screen holds the smaller budget. No significant population
+difference or safe replacement is established from three clusters. Saved
+aggregate result `ml/results/context_quality_train.json`; metrics/receipt/
+parser/protected-source checks passed. No new model work, user/UI grading,
+source changes or commits. **Next: revise experimental packing/grounding and
+broaden TRAIN checks; no live budget change.** The separate frozen experiment
+remains at 12/100; future answer reviews may use the user's assistant-grading
+delegation with explicit methodology/protocol amendments as needed.
+
+**ML5.3 context-selection/citation revision prepared (October 18, 2026):**
+implemented a separate query-aware excerpt selector (six sources / 4K UTF-8
+bytes, repetition removal and complementary coverage) plus a source-only
+grounding prompt; existing live and sealed experiment sources are unchanged.
+Prepared ten TRAIN cases across four PDFs: six known development cases, two
+new answerable cases and two synthetic unsupported probes. Reuse cached CE
+contexts for the first six; retrieve four new queries with the actual service
+and compare twenty newly generated answers against the larger/original-prompt
+variant. The combined change cannot isolate packing from prompting. Three
+new literal native-reference claims and both whole-source nonce-absence
+checks pass. Full Python suite: **446 passed**, one understood Windows core
+discovery fallback warning. See `docs/ML5_CONTEXT_REVISION.md`. **Next: approve
+roughly 20–40 minutes of three-thread CPU retrieval/generation, then assistant
+review and paired TRAIN scoring.** No grading is required from Aditya; no
+new model workload has started, improvement is unverified, and frozen ML5
+generation stays at 12/100. Do not change live defaults from this preparation.
+
+**ML5.3 context-selection/citation recheck completed (October 18, 2026):**
+the authorized twenty-answer TRAIN comparison completed in 20m 13s, with
+no failed/retried requests or length stops. All references retained for 8/8
+answerable cases; both variants correctly abstained on 2/2 synthetic probes.
+Revision versus larger/original-prompt correctness 1.50/1.80 and grounding
+1.40/1.80 (0–2). Paired differences -0.30 [-0.444, -0.111] and -0.40
+[-0.600, -0.125], with three/four paired regressions respectively. Exploratory
+document-bootstrap intervals use four clusters and assistant review with
+partial blinding/shared authorship; no population claim. Mean request time
+26.6 versus 70.8 s does not justify quality loss. **Hold the revision; live
+defaults unchanged.** Complete ratings were sealed before key access; runtime,
+paired scores, parser compatibility and all 22 protected file hashes verified.
+See `docs/ML5_CONTEXT_REVISION_RESULTS.md`. No user grading remains for this
+TRAIN screen. **Next: isolate packing and prompt changes on cached TRAIN
+contexts under a new fixed comparison and separate CPU approval.** The frozen
+ML5 experiment remains paused at 12/100; no further generation is approved.
+
+**ML5.3 cached packing/prompt factorial prepared (October 18, 2026):**
+added an isolated four-condition diagnostic on the same ten previously
+reviewed TRAIN cases: full/selected cached context crossed with original/
+grounded prompts. Forty fresh answers are planned in counterbalanced
+four-condition question blocks; exact saved context text and sealed prompt
+functions are reused. No retrieval, encoder loading, fitting or new question
+source is needed. Paired conditional effects, main effects and interaction
+will use whole-document bootstrap intervals; all cases remain development
+data and conclusions are exploratory. Assistant review is delegated, with
+complete ratings sealed before scorer plan/key access; no manual grading
+from Aditya. Full model-free suite **464 passed in 75.54 s, no warnings**,
+including eighteen new synthetic tests. See `docs/ML5_CONTEXT_FACTORIAL.md`.
+**Next: explicit approval for roughly 25–50 minutes of three-thread CPU LLM
+generation, then forty-answer review and factorial scoring.** No new model
+request has started; live defaults and previous/frozen experiments remain
+unchanged. This preparation does not establish which component caused the
+earlier regressions.
+
+**ML5.3 packing/prompt factorial completed (October 18, 2026):** the approved
+forty-request cached TRAIN comparison completed in 22m 41s with no failures,
+retries or length stops. Correctness/grounding means: full/original 1.90/1.80,
+full/grounded 1.60/1.50, selected/original 1.80/1.90, selected/grounded
+1.60/1.40. Grounded prompt at full context: both differences -0.30
+[-0.444, -0.111]; packing at original prompt: correctness -0.10
+[-0.400, 0.200], grounding +0.10 [-0.333, 0.500]. Main effects/interaction
+and historical cohorts are reported separately; average prompt-effect
+intervals include/touch zero. Four clusters, selected/previously seen cases,
+single assistant reviewer and multiple unadjusted contrasts make this
+exploratory. All conditions abstained correctly on 2/2 synthetic probes;
+both context packets retained references for 8/8 answerable cases. All three
+candidates fail the individual-regression gate and remain on hold. Mean
+request times full/original 49.2 s versus selected/original 21.1 s do not
+justify adoption. Forty ratings sealed before plan/key disclosure, all
+metrics/gates/parser checks and 34 protected file hashes verified; 464-test
+Python suite unchanged and six parser tests passed. No live/default/frozen
+change, UI work or commit. See `docs/ML5_CONTEXT_FACTORIAL_RESULTS.md`.
+**Next: refine excerpt selection using the original prompt, then recheck
+TRAIN under a separately fixed/approved workload.** No manual grading is
+pending. Frozen ML5 generation remains at 12/100.
+
+**ML5.3 original-prompt excerpt refinement prepared (October 18, 2026):**
+added a separate focused selector: queried concept definitions first,
+qualification-preserving adjacent units, complementary query coverage,
+conservative duplication and early stopping instead of budget filling. Hard
+limits four sources / 4K text bytes; original QA/system prompts unchanged.
+The three-way cached TRAIN design generates thirty fresh answers on the same
+ten development cases: full comparator, previous selector and refined
+selector, all under the original prompt. No retrieval or encoder work. All
+cases are previously seen; grading/intervals remain exploratory and assistant
+review is delegated. Full model-free suite **487 passed in 27.17 s, no
+warnings**, including twenty-three new synthetic tests. Title cleanup and
+broader-window dedup edge cases were fixed before model work. See
+`docs/ML5_CONTEXT_REFINEMENT.md`. **Next: seal/check inputs, request approval
+for roughly 15–30 minutes of three-thread CPU generation, then review/score
+all thirty answers.** No model request has started; prior and frozen
+experiments/live defaults remain unchanged. No manual grading is required
+from Aditya.
+
+**ML5.3 original-prompt excerpt refinement completed (October 18, 2026):**
+all thirty approved answers generated and assistant-reviewed; **hold** the
+refined selector. Full / previous / refined correctness is **1.9 / 1.9 / 1.9**;
+grounding **1.8 / 2.0 / 1.9**. Refined-minus-full correctness is **0.000
+[-0.273, 0.273]**, grounding **+0.100 [-0.273, 0.545]**; refined-minus-previous
+grounding **-0.100 [-0.273, 0.000]**. One refined correctness/grounding
+regression versus full and one grounding regression versus previous fail the
+predeclared gate despite equal mean correctness. Every condition retained
+references for 8/8 answerable cases and abstained correctly on 2/2 synthetic
+probes. Mean request time **30.8 / 13.1 / 5.1 s**, first text **26.4 / 9.2 /
+1.9 s**; these are cached-context development timings, not live guarantees.
+All thirty attempts completed normally in 8m 11s. Ratings were sealed before
+grading-time condition disclosure; four document clusters, prior familiarity,
+partial blinding and no human validation limit inference. Verification:
+487 pre-seal Python tests, six parser tests, actual packet/rating parser and
+all 44 protected hashes pass. See `docs/ML5_CONTEXT_REFINEMENT_RESULTS.md`.
+No live change or commit; frozen generation remains 12/100.
+**Next: diagnose coherent same-page excerpt merging while keeping the original
+prompt, then validate a fixed comparison on a broader TRAIN sample under
+separate workload approval.** No manual grading is pending.
+
+**ML5 scope / same-page coherence prepared (October 18, 2026):** Aditya asked
+how much ML5 remains and requested the broader TRAIN merge check. ML5.1 and
+ML5.2 are complete. Original ML5.3 still requires **88/100 frozen answers to
+generate and all 100 to review**; ML5.4 synthesis follows. The last frozen
+batch suggests roughly four hours of remaining generation, with uncertainty;
+small-context TRAIN timings do not replace that estimate. Recent TRAIN
+optimization studies are additional scope. This next comparison is bounded:
+report consider/defer and return to original closeout, with no automatic
+further tuning cycle or live change.
+
+Added a separate common-source same-page merger and fixed **18 cases / six
+TRAIN PDFs / 36 fresh answers**, all with original QA/system prompts. Four
+cached sentinels, eight new answerable prompts and six synthetic unsupported
+probes; twelve answerable cases reported separately. Same-document/page
+containment, whole-unit order, qualifications and hard UTF-8 budgets protect
+provenance; ambiguous/disjoint cases fall back. Four context pools reused;
+fourteen fresh service retrievals use a TRAIN-only in-memory index. No frozen
+question read or default change. **511 model-free tests passed in 30.76 s,
+no warnings**, including twenty-four new checks. Native references, study seal
+and all **54 protected files** validate. See `docs/ML5_CONTEXT_COHERENCE.md`.
+**Next: workload approval for roughly 25–50 minutes (potentially longer), then
+run and assistant-review the 36 answers.** No encoder or LLM has loaded for
+this comparison; no manual grading is required from Aditya.
+
+**ML5.3 bounded same-page coherence check completed (October 18, 2026):**
+all **36 approved answers / 18 TRAIN cases / six PDFs** generated and reviewed;
+**defer the selector and end the current optional tuning cycle**. Full/coherent
+correctness **1.833 / 1.833**, paired **0.000 [-0.167, 0.167]**; grounding
+**1.778 / 1.889**, paired **+0.111 [0.000, 0.222]**. On twelve answerable cases,
+correctness **1.750 / 1.750**, grounding **1.667 / 1.833**. One correctness
+regression fails the gate; the classification remains incomplete despite
+coherent evidence. Both conditions also return wrong mathematical formulas.
+All 6/6 unsupported probes are correctly refused; complete native-reference
+matches are 8/12 in raw/full/coherent alike (four extraction/layout mismatches,
+zero additional packing loss). Mean request time **30.2 / 6.3 s**, first text
+**24.9 / 2.2 s**; these exclude retrieval and are not live guarantees.
+Indexing/retrieval plus generation **12m 59s**, generation **10m 58s**, no failed
+or retried attempt. Ratings sealed before grading-time disclosure; exploratory
+intervals and review limitations retained. **511 Python tests**, six parser
+tests, actual packet/rating parser and all **54 protected hashes** pass.
+See `docs/ML5_CONTEXT_COHERENCE_RESULTS.md`. No live change or commit.
+**Next: original ML5 closeout—88 remaining frozen answers (roughly four hours
+at their last measured rate), review of all 100, then ML5.4 synthesis.** No
+automatic context-tuning iteration or further model workload. A decision to
+defer the expensive frozen answer study must label that part incomplete;
+ML5.1/ML5.2 are already complete. No manual grading is required from Aditya.
+
+**ML5.3 original answer-study completion resumed (October 19, 2026):** Aditya
+approved the remaining 88 answers and delegated review of all 100. A metadata
+connection refusal was resolved by manual Ollama startup. The user then
+reported 87% RAM and prior shutdowns under load; the verified model runner
+was stopped during A013, preserving all twelve earlier outputs. Original
+started/failed events and state remain intact. No output from that attempt
+was saved or quality-reviewed.
+
+After Aditya closed Claude and explicitly requested unattended continuation,
+available RAM was approximately 7.35 GiB / 15.34 GiB. A tested resource-only
+recovery retains the exact original plan, profile and successful prefix in
+`ml/out/ml53_completion/resumed/`, with an explicit administrative A013 retry
+and original failure history preserved. Prompts, model, 32K allocation, 512
+cap and existing two/three-thread provenance are unchanged. The new runner
+reserves model memory before loading, waits between answers for headroom,
+checks RAM during work, can stop the verified model runner above 80% use,
+sets Below Normal priority and unloads the model on exit. These sampled
+controls are not a guarantee against hardware/thermal/power faults.
+**516 model-free tests passed in 122.37 s, no warnings.** See
+`docs/ML53_MEMORY_RECOVERY.md` and `docs/ML53_ASSISTANT_REVIEW.md`. The first
+resumed output reached 13/100 at about 6m 37s, with observed RAM peak 72.2%;
+generation remains in progress and may exceed the earlier four-hour estimate.
+**Next: complete the approved original 100 outputs, review all opaque answers,
+seal ratings before disclosure, then report ML5.3.** No further TRAIN tuning,
+automatic ML5.4/ML6 work, live change or commit is included.
+
+**ML5.3 resource follow-up (October 19, 2026):** the first guarded continuation
+saved 30/100 outputs before the 80% memory guard interrupted A031 at 80.19%.
+Both interrupted histories and all completed outputs remain intact; no answer
+has been viewed or graded. Available memory returned to about 7.5 GiB after
+unloading. A manually diagnosed resource-only amendment uses a fresh Python
+worker and unloaded model for each remaining answer, a 4 GiB preload reserve,
+the same 80% guard, and immediate unloading/worker exit between requests.
+**32 focused model-free tests passed in 3.38 s.** The initial sandbox temporary
+directory restriction was resolved by using a dedicated workspace test folder.
+The remaining 70 approved outputs are now running under
+`docs/ML53_ISOLATED_RECOVERY.md`; inference settings and the frozen sample are
+unchanged. No automatic retry follows another failure. ML5.3 is still incomplete.
+
+**ML5.3 explicit resource update (October 19, 2026):** Aditya requested four
+threads, an 85% RAM threshold and 50% CPU limit. Eight isolated answers completed
+before a clean pause at 38/100; no additional request failed. A separate sealed
+adapter preserves all 38 outputs and both earlier failure histories. The final
+62 use four threads, 85% sampled RAM stop, unloaded waiting at total CPU >=50%,
+and six-of-twelve CPU affinity for the model, inherited before startup and
+restored on the daemon after unloading. Other apps can make total CPU exceed
+50%; the RAM guard is sampled. **40 focused tests passed in 3.77 s**; a lightweight
+Windows probe verified affinity inheritance/restoration without model loading.
+See `docs/ML53_RESOURCE_AMENDMENT.md`. The final continuation is running under
+`ml/out/ml53_resource_completion/resumed/`; ML5.3 is not yet complete.
+
+**ML5.3 completed (October 19, 2026):** all 100 planned outputs and ratings
+are verified across 50 paired questions / six PDFs. Original twelve outputs
+are unchanged; both interrupted request histories and administrative retries
+are preserved. Ratings and a receipt were sealed before grading-time method
+disclosure. One assistant reviewer, partial blinding, no human validation.
+Pooled CE/ranker correctness **1.760 / 1.800**, difference **+0.040
+[-0.200, 0.275]**; grounding **1.500 / 1.580**, difference **+0.080
+[-0.067, 0.267]**. Both correctly abstain on 9/10 unsupported questions;
+neither abstains on an answerable question. No reliable method gain follows.
+Keep the preregistered ML5.2 decision: cross-encoder default, selector deferred.
+
+Successful thread counts are 2/36/62 at two/three/four threads. Final 62 use
+fresh workers, unload after every answer, 85% sampled RAM stop and a 50%
+model CPU affinity ceiling. Peak RAM **79.67%**; whole-laptop CPU reached
+100%, so a 50% total-system cap was not achieved. Model unloaded at finish.
+The completion verifier validates all outputs/ratings and 64 prior immutable
+checkpoints; focused resource suite 40 passed, actual viewer parser and six
+session tests passed. See `docs/ML53_COMPLETION_RESULTS.md` and aggregate
+reports `ml/results/ml5_answer_grading.json` / `ml/results/ml53_generation_complete.json`.
+**Next: ML5.4 synthesis and final ML5 decision log, separately requested.**
+No further TRAIN tuning, model workload, default change or commit is included.
+Earlier progress notes above are historical checkpoints.
+
+**ML5.4 synthesis completed (October 19, 2026):** consolidated TRAIN
+ablations, both frozen retrieval collections, all 100 answer ratings and
+optional TRAIN latency/context studies. Tables come from saved aggregate
+JSON; no model, question-file read, retrieval or regrading. Recorded exact
+metrics, the recomputed failed switch checks, final decisions and hashes of
+17 preserved inputs in `ml/results/ml5_closeout.json`. The report and decision
+log are `docs/ML5_SYNTHESIS.md`.
+
+**Final ML5 verdict:** OKF concepts help pooled CE MRR on the six studied
+TEST PDFs, **+0.0370 [0.0040, 0.0742]**, without a universal/all-metric claim.
+Full-ranker primary MRR difference is **-0.0029 [-0.0551, 0.0385]**; retain
+cross-encoder. Links show no pooled gain. Optional prompt/context candidates
+remain deferred after correctness regressions. Answer quality differences
+remain uncertain; the pretrained local LLM was not trained in ML5. Resource,
+latency, citation and mathematical limitations remain documented.
+
+**ML5 is complete, with the user's delegated-review amendment.** No deployment
+readiness or independent human validation follows. Recommended next is
+**ML7 write-up** (cards, results and README); **ML6 remains optional** and
+requires its own TRAIN calibration/validation plan, without reopening the
+consumed frozen tests. Neither next phase nor a commit is included here.
+Earlier ML5 progress/next-step statements are historical checkpoints.
+
+Closeout verification: **532 Python tests passed in 78.02 s**, six grading
+session tests and actual packet parser passed; 17 source hashes, 42 numeric
+table rows and all 64 prior immutable checkpoints validate. Initial sandbox
+socket-pair stalls were resolved using local test socket permissions. One
+investigated joblib warning reflects missing `wmic` physical-core lookup,
+falling back to logical cores; it does not affect the saved results.
 
 ### ML6 — Answerability gate (Nov 10–16) · optional
 

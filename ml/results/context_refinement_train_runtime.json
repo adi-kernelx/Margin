@@ -1,0 +1,102 @@
+{
+  "status": "generation_complete_grading_pending",
+  "questions": 10,
+  "answers": 30,
+  "documents": 4,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "timing": {
+    "full_original": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 26.405200819999664,
+        "wall_seconds": 30.77138761999995,
+        "prompt_seconds": 25.8944277,
+        "output_seconds": 4.3660645,
+        "prompt_tokens": 1730.5,
+        "output_tokens": 57.3
+      },
+      "length_stops": 0
+    },
+    "refined_original": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 1.8710319699996034,
+        "wall_seconds": 5.147158210000271,
+        "prompt_seconds": 1.8483484000000001,
+        "output_seconds": 3.2760247,
+        "prompt_tokens": 336.5,
+        "output_tokens": 51.2
+      },
+      "length_stops": 0
+    },
+    "previous_original": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 9.179783949998818,
+        "wall_seconds": 13.08220121999948,
+        "prompt_seconds": 9.1544244999,
+        "output_seconds": 3.9023044998,
+        "prompt_tokens": 788.8,
+        "output_tokens": 57.6
+      },
+      "length_stops": 0
+    }
+  },
+  "answerable_questions": 8,
+  "unsupported_probes": 2,
+  "complete_reference_questions": {
+    "full_original": 8,
+    "previous_original": 8,
+    "refined_original": 8
+  },
+  "additional_reference_losses": {
+    "previous_original": 0,
+    "refined_original": 0
+  },
+  "citation_syntax": {
+    "full_original": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 3,
+      "semantic_support_assessed": false
+    },
+    "refined_original": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 2,
+      "semantic_support_assessed": false
+    },
+    "previous_original": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 3,
+      "semantic_support_assessed": false
+    }
+  },
+  "quality_assessed": false,
+  "live_defaults_changed": false,
+  "limitations": "Ten previously reviewed assistant-authored TRAIN cases over four PDFs, including two synthetic unsupported probes. One fresh generation per condition/question, no generation seed, partial blinding/shared authorship and prior familiarity. Four document clusters and multiple unadjusted document-bootstrap intervals make this exploratory. Reference retention is lexical, not semantic support. Order/cache/output lengths affect timing. No independent holdout, noninferiority, population or live-default claim.",
+  "context_text_bytes": {
+    "full_original": {
+      "mean": 5114.5
+    },
+    "previous_original": {
+      "mean": 1978
+    },
+    "refined_original": {
+      "mean": 377.1
+    }
+  },
+  "plan_sha256": "16eb97d868e5ecd5b2a7f2e26944bab1cae635c04daf73222cd1717038ef23ad",
+  "journal_sha256": "2cc6f7ec850d9278fb883db26871239965faff51d89c3c2c27d8aeb1398ec45e",
+  "packet_sha256": "4ff3df216775dcb2e950b839ca191a887a15636e07d30ba044cfa9109b655b24",
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "recorded_at": "2026-10-18T10:33:40.096421+00:00"
+}

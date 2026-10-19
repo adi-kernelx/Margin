@@ -1,0 +1,1065 @@
+{
+  "questions": 10,
+  "documents": 4,
+  "metrics": {
+    "correctness": {
+      "means": {
+        "full_original": {
+          "value": 1.9,
+          "ci95": [
+            1.7272727272727273,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "full_grounded": {
+          "value": 1.6,
+          "ci95": [
+            1.4,
+            1.875
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "selected_original": {
+          "value": 1.8,
+          "ci95": [
+            1.6,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "selected_grounded": {
+          "value": 1.6,
+          "ci95": [
+            1.4,
+            1.875
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      },
+      "effects": {
+        "packing_at_original_prompt": {
+          "value": -0.1,
+          "ci95": [
+            -0.4,
+            0.2
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 2
+        },
+        "packing_at_grounded_prompt": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 0
+        },
+        "prompt_at_full_context": {
+          "value": -0.3,
+          "ci95": [
+            -0.4444444444444444,
+            -0.1111111111111111
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 3
+        },
+        "prompt_at_selected_context": {
+          "value": -0.2,
+          "ci95": [
+            -0.6,
+            0.25
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 2
+        },
+        "combined_vs_full_original": {
+          "value": -0.3,
+          "ci95": [
+            -0.4444444444444444,
+            -0.1111111111111111
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 3
+        },
+        "packing_main_effect": {
+          "value": -0.05,
+          "ci95": [
+            -0.2,
+            0.1
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "prompt_main_effect": {
+          "value": -0.25,
+          "ci95": [
+            -0.5,
+            0.0625
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "interaction": {
+          "value": 0.1,
+          "ci95": [
+            -0.2,
+            0.4
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      }
+    },
+    "grounding": {
+      "means": {
+        "full_original": {
+          "value": 1.8,
+          "ci95": [
+            1.4545454545454546,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "full_grounded": {
+          "value": 1.5,
+          "ci95": [
+            1.1666666666666667,
+            1.875
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "selected_original": {
+          "value": 1.9,
+          "ci95": [
+            1.6666666666666667,
+            2.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "selected_grounded": {
+          "value": 1.4,
+          "ci95": [
+            1.0909090909090908,
+            1.7777777777777777
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      },
+      "effects": {
+        "packing_at_original_prompt": {
+          "value": 0.1,
+          "ci95": [
+            -0.3333333333333333,
+            0.5
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        },
+        "packing_at_grounded_prompt": {
+          "value": -0.1,
+          "ci95": [
+            -0.2727272727272727,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 1
+        },
+        "prompt_at_full_context": {
+          "value": -0.3,
+          "ci95": [
+            -0.4444444444444444,
+            -0.1111111111111111
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 3
+        },
+        "prompt_at_selected_context": {
+          "value": -0.5,
+          "ci95": [
+            -0.9090909090909091,
+            0.1111111111111111
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 5
+        },
+        "combined_vs_full_original": {
+          "value": -0.4,
+          "ci95": [
+            -0.6,
+            -0.125
+          ],
+          "documents": 4,
+          "questions": 10,
+          "regressions": 4
+        },
+        "packing_main_effect": {
+          "value": 0.0,
+          "ci95": [
+            -0.2,
+            0.22727272727272727
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "prompt_main_effect": {
+          "value": -0.4,
+          "ci95": [
+            -0.625,
+            0.0
+          ],
+          "documents": 4,
+          "questions": 10
+        },
+        "interaction": {
+          "value": -0.2,
+          "ci95": [
+            -0.5454545454545454,
+            0.25
+          ],
+          "documents": 4,
+          "questions": 10
+        }
+      }
+    }
+  },
+  "cohorts": {
+    "new_answerable": {
+      "questions": 2,
+      "documents": 2,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "full_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_at_grounded_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_full_context": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "prompt_at_selected_context": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "combined_vs_full_original": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "packing_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "prompt_main_effect": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "interaction": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "full_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_at_grounded_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_full_context": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "prompt_at_selected_context": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "combined_vs_full_original": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 1
+            },
+            "packing_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "prompt_main_effect": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "interaction": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          }
+        }
+      }
+    },
+    "previous_development": {
+      "questions": 6,
+      "documents": 3,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "full_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "selected_original": {
+              "value": 1.6666666666666667,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "selected_grounded": {
+              "value": 1.5,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": -0.16666666666666666,
+              "ci95": [
+                -0.5,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 2
+            },
+            "packing_at_grounded_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 0
+            },
+            "prompt_at_full_context": {
+              "value": -0.3333333333333333,
+              "ci95": [
+                -0.5,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 2
+            },
+            "prompt_at_selected_context": {
+              "value": -0.16666666666666666,
+              "ci95": [
+                -1.0,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "combined_vs_full_original": {
+              "value": -0.3333333333333333,
+              "ci95": [
+                -0.5,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 2
+            },
+            "packing_main_effect": {
+              "value": -0.08333333333333333,
+              "ci95": [
+                -0.25,
+                0.25
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "prompt_main_effect": {
+              "value": -0.25,
+              "ci95": [
+                -0.75,
+                0.25
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "interaction": {
+              "value": 0.16666666666666666,
+              "ci95": [
+                -0.5,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 1.6666666666666667,
+              "ci95": [
+                1.0,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "full_grounded": {
+              "value": 1.3333333333333333,
+              "ci95": [
+                0.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "selected_original": {
+              "value": 1.8333333333333333,
+              "ci95": [
+                1.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "selected_grounded": {
+              "value": 1.1666666666666667,
+              "ci95": [
+                0.5,
+                2.0
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": 0.16666666666666666,
+              "ci95": [
+                -0.5,
+                1.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "packing_at_grounded_prompt": {
+              "value": -0.16666666666666666,
+              "ci95": [
+                -0.5,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 1
+            },
+            "prompt_at_full_context": {
+              "value": -0.3333333333333333,
+              "ci95": [
+                -0.5,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 2
+            },
+            "prompt_at_selected_context": {
+              "value": -0.6666666666666666,
+              "ci95": [
+                -1.5,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 4
+            },
+            "combined_vs_full_original": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.0
+              ],
+              "documents": 3,
+              "questions": 6,
+              "regressions": 3
+            },
+            "packing_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                -0.25,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "prompt_main_effect": {
+              "value": -0.5,
+              "ci95": [
+                -1.0,
+                0.25
+              ],
+              "documents": 3,
+              "questions": 6
+            },
+            "interaction": {
+              "value": -0.3333333333333333,
+              "ci95": [
+                -1.0,
+                0.5
+              ],
+              "documents": 3,
+              "questions": 6
+            }
+          }
+        }
+      }
+    },
+    "synthetic_unsupported": {
+      "questions": 2,
+      "documents": 2,
+      "metrics": {
+        "correctness": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "full_grounded": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_grounded": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_at_grounded_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_full_context": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_selected_context": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "combined_vs_full_original": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "prompt_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "interaction": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          }
+        },
+        "grounding": {
+          "means": {
+            "full_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "full_grounded": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_original": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "selected_grounded": {
+              "value": 2.0,
+              "ci95": [
+                2.0,
+                2.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          },
+          "effects": {
+            "packing_at_original_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_at_grounded_prompt": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_full_context": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "prompt_at_selected_context": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "combined_vs_full_original": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2,
+              "regressions": 0
+            },
+            "packing_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "prompt_main_effect": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            },
+            "interaction": {
+              "value": 0.0,
+              "ci95": [
+                0.0,
+                0.0
+              ],
+              "documents": 2,
+              "questions": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "correct_abstention": {
+    "full_original": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    },
+    "full_grounded": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    },
+    "selected_original": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    },
+    "selected_grounded": {
+      "value": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "documents": 2,
+      "questions": 2
+    }
+  },
+  "candidate_checks": {
+    "full_grounded": {
+      "regressions_against_full_original": {
+        "correctness": 3,
+        "grounding": 3
+      },
+      "unsupported_errors": 0,
+      "additional_reference_losses": 0,
+      "status": "hold"
+    },
+    "selected_original": {
+      "regressions_against_full_original": {
+        "correctness": 2,
+        "grounding": 1
+      },
+      "unsupported_errors": 0,
+      "additional_reference_losses": 0,
+      "status": "hold"
+    },
+    "selected_grounded": {
+      "regressions_against_full_original": {
+        "correctness": 3,
+        "grounding": 4
+      },
+      "unsupported_errors": 0,
+      "additional_reference_losses": 0,
+      "status": "hold"
+    }
+  },
+  "title": "TRAIN packing and prompt factorial comparison",
+  "quality_assessed": true,
+  "decision": "diagnostic_only_no_live_change",
+  "live_defaults_changed": false,
+  "limitations": "Diagnostic 2x2 study of ten previously reviewed, assistant-authored TRAIN cases over four PDFs, including two synthetic unsupported probes. No independent holdout or representative traffic. One fresh generation per condition/question, no generation seed, limited reviewer independence and partial blinding. Document-bootstrap intervals use few clusters and multiple exploratory contrasts without multiplicity correction. Counterbalanced order does not eliminate cache, carryover or output-length effects. No automatic live change or population claim.",
+  "packet_id": "081c70028e12688511aa7e70bf39a980cf44da77859ffb7572536291d79ea85f",
+  "grading": {
+    "at": "2026-10-18T08:44:15.431482+00:00",
+    "ratings_sha256": "4c3120184aecab7ff80b2e62bb32e58d2d6b6087ca2a9d7746df836d2a0bea14",
+    "ratings_count": 40,
+    "packet_sha256": "a6ed7d26287117d8142c5cb42ce447ddebaea6e78ee6c5e7c62fe6b2c367c42d",
+    "key_sha256": "8dfaf56734b3f387dc2558ad86f1a7c033a24bce27c37ede1bea31f53600c8e0",
+    "rubric_sha256": "c5561d040bc06a437a4fe05cc3af92a60336e22f858e4c0ccacb10c68e9eefb4",
+    "reviewer": "assistant",
+    "human_validation": false,
+    "methodology": "Complete ratings saved before plan/key access; partial blinding, all cases previously seen, shared authorship"
+  },
+  "grading_receipt_sha256": "f96d847b4e48eabdf2ec34b3a76ec3046864b041d749c23e8c08609d4828c094",
+  "runtime_report_sha256": "964e0a684db429c67f422d9f436752c5eecd24e2ff09428f1170e63a87bf269d",
+  "plan_sha256": "f92eba66e44002dd94f79fcb7ddc5335f0ea3dac96ecc48fb9ad664ce665c05b"
+}

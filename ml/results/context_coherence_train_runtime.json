@@ -1,0 +1,76 @@
+{
+  "status": "generation_complete_grading_pending",
+  "questions": 18,
+  "documents": 6,
+  "answers": 36,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "timing": {
+    "full": {
+      "requests": 18,
+      "means": {
+        "first_text_seconds": 24.943158533333595,
+        "wall_seconds": 30.217346966666607,
+        "prompt_seconds": 24.76160211111111,
+        "output_seconds": 5.274162888888889,
+        "prompt_tokens": 1580.4444444444443,
+        "output_tokens": 63.94444444444444
+      },
+      "length_stops": 0
+    },
+    "bounded": {
+      "requests": 18,
+      "means": {
+        "first_text_seconds": 2.2369504277776286,
+        "wall_seconds": 6.312079572222299,
+        "prompt_seconds": 2.2155372222222223,
+        "output_seconds": 4.0751144443888885,
+        "prompt_tokens": 348.22222222222223,
+        "output_tokens": 54
+      },
+      "length_stops": 0
+    }
+  },
+  "complete_reference_questions": {
+    "raw": 8,
+    "full": 8,
+    "bounded": 8
+  },
+  "reference_questions_lost_by_large_budget": 0,
+  "reference_questions_lost_by_smaller_budget": 0,
+  "quality_assessed": false,
+  "live_defaults_changed": false,
+  "limitations": "Eighteen assistant-authored TRAIN cases over six PDFs: four previously reviewed sentinels, eight fresh answerable prompts and six synthetic unsupported probes. Fresh means new to this screen, not independent authorship or a holdout. One output per condition, partial blinding, shared authorship and six document clusters limit inference. Document-bootstrap intervals are exploratory. Quote retention is lexical; timing includes cache/order effects. No live-default or population claim.",
+  "answerable_questions": 12,
+  "unsupported_probes": 6,
+  "variant_labels": {
+    "full": "full_original",
+    "bounded": "coherent_original"
+  },
+  "citation_syntax": {
+    "full": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 7,
+      "semantic_support_assessed": false
+    },
+    "bounded": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 6,
+      "semantic_support_assessed": false
+    }
+  },
+  "plan_sha256": "81487c75b7db9c45dd75cf5795de1d7f5e07bd0444587459288ea3becc32fe19",
+  "journal_sha256": "0f5a76feae5ffc43471880fbc368314627e1b4f4b012cdc54eca2d61849f9e7c",
+  "packet_sha256": "74cab9730e31958c4242d3be97d4265194b12472886ae31bb0edfa1dcdba0b9b",
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "recorded_at": "2026-10-18T11:05:35.482046+00:00"
+}

@@ -7,13 +7,19 @@ why it has this shape, what each roadmap phase delivered, and what remains
 unreliable without reading the Git history first.
 
 **Rebuild started:** September 2, 2026  
-**Last updated:** October 6, 2026  
+**Last updated:** October 19, 2026
 **Roadmap position:** Weeks 1–8 implemented (8R manual acceptance pending);
-Weeks 9–17 replaced by the ML track ML1–ML7, ML1 in progress  
+ML5 complete; recommended next is ML7 write-up (ML6 answerability is optional).
 **Working branch:** `phase-0-demolition` (the name is historical; the branch now
 contains the rebuild through ML1)  
 **Primary stack:** React 19, TypeScript, Vite, PDF.js, pdf-lib, IndexedDB,
 Vitest; ML: Python, PyMuPDF, pytest
+
+**Latest ML status:** ML5.1–ML5.4 completed October 19. Final synthesis and
+decision log retain hybrid + concepts + cross-encoder; ranker/links stay
+opt-in and context changes deferred. Recommended next: ML7 write-up; optional
+ML6 needs a separate decision. Earlier snapshots below are historical.
+See `docs/ML5_SYNTHESIS.md` and `ml/results/ml5_closeout.json`.
 
 ---
 
@@ -5592,6 +5598,1250 @@ results and the failed switch rule are now documented; stop here for the
 user's next subphase instruction.
 
 ---
+
+## Phase ML5.3 — Blind generation and grading setup (October 18, 2026)
+
+**Checkpoint:** at the user's request, completed ML5.1/ML5.2 code, numerical
+results and documentation committed as `3f5d0f3` (`Complete ML5 ablations and
+frozen retrieval evaluation`). The 19 explicit staged paths excluded PDFs,
+private artifacts, question/label files and unrelated frontend documents.
+
+**Status:** implementation and preparation complete; two approved retained
+answers generated and saved, 98 remaining, human grading pending. The user
+manually started Ollama after the setup checks. No Ollama CLI or server
+startup was performed by the assistant. Model loading/generation occurred
+only for the explicitly approved two-answer timing batch.
+
+### Implementation
+
+- `answer_generation` validates the completed milestone and saved-input hash,
+  retains the 50-question balanced sample and resolves each source PDF from
+  saved contexts. It reads neither frozen question file and performs no
+  retrieval or fitting. A sealed private plan holds the 100 frozen QA prompts.
+- CE/ranker records are created per saved question, shuffled with seed
+  20261018 and assigned opaque A001–A100 IDs before any answer is generated.
+  Gold evidence/answerability is held for grading and never added to prompts.
+- Local-only native Ollama requests pin model digest, server version and
+  options, with identity checks before every answer. CPU threads=2,
+  GPU layers=0, temperature=0.1 and output cap=512. No conversation history
+  or tools enter the two-message request.
+- Before generation, runtime context was explicitly fixed to 32,768 tokens
+  for both methods. Prompt lengths are 3,943–27,171 characters; max UTF-8
+  system+prompt bytes 27,752, below the conservative byte/token bound with
+  1,024-token overhead/output allowance. This setting was unspecified in the
+  earlier protocol. It accommodates the saved inputs without changing them;
+  it does not claim the live app uses that same window. The clarification
+  is documented before any generation in `docs/ML5_GRADING.md`.
+- An exclusive lock and fsync-backed journal preserve completed answers.
+  Normal batch limits pause between requests; resume skips completed IDs.
+  Failed/uncertain requests, changed model/server identity, altered journals
+  or stale locks stop for diagnosis, with no automatic answer replacement.
+  Length-limited responses are retained rather than regenerated for quality.
+- Only after all 100 answers complete are a sanitized blinded packet and
+  private key written. The offline grading page renders text without HTML
+  interpretation, blocks network access, validates packet hashes and ratings,
+  saves completed judgments locally and imports/exports partial backups.
+  Drafts survive in-tab navigation but enter exports only after saving.
+- `answer_grading` requires complete, unique human ratings before method
+  comparisons, rejects original question-file paths, and reports paired
+  correctness/grounding/abstention with shared-PDF document bootstrap, by set,
+  pooled and by answerability. Notes, raw answers and quotes are excluded
+  from its aggregate output. It never changes the retrieval decision.
+
+### Preparation and verification
+
+The sealed plan contains 100 answers for 50 questions across six PDFs,
+40 answerable plus ten unanswerable. Plan SHA-256:
+`15b53958dc914caafea38f8dcf2f2b8729bdbaba3dd09e934377d01dfb8a50ff`.
+`ml/results/ml5_generation_preparation.json` records numerical/hash metadata;
+the actual plan, prompts, future answers/key/ratings remain ignored. No
+generation state or answer journal exists. A clearly synthetic practice
+packet is ignored under `ml/out/` for user-only manual grading-page checks.
+
+The user subsequently approved the first two retained answers. The initial
+metadata check returned WinError 10013 (sandbox socket permissions), which
+alone could not establish server availability. Retrying metadata outside the
+sandbox returned WinError 10061 (connection refused) at localhost:11434,
+confirming no server was accepting that connection. No generation was
+attempted and no journal/state was created. Await manual Ollama startup;
+the two-answer approval persists and must not be requested again.
+
+After the user manually started Ollama, metadata was reachable but the
+identity check rejected the prepared wrapper-file digest. Diagnosis proved
+that the local wrapper references a cached manifest whose SHA-256 equals
+the server-advertised digest, with identical model/system/template/license
+layer metadata and config. This was a preparation identity assumption, not
+a different model. Added strict reference-hash/equivalence checks and two
+regression tests (14 focused tests passed in 2.76 s). No generation attempt
+had occurred at that point.
+
+Preserved the unused plan/seal under the ignored
+`grading/unused_wrapper_digest_preparation/` directory, then resealed after
+the fix. All 100 prompts, contexts, IDs/order, model name, system message and
+generation options compare exactly equal to the unused plan. The corrected
+plan file SHA-256 is
+`5d31b064302e2d78313b888a820da0d91c94a45cf2d1e077bd639e57255da396`;
+`ml/results/ml5_generation_preparation_v2.json` records the correction and
+superseded plan hash. Both the wrapper hash and effective referenced digest
+are pinned. The corrected preflight passes against manually started Ollama
+0.40.4. The approved two-answer timing batch is now running outside the
+sandbox for localhost access, with the sealed two-thread/CPU-only settings.
+
+### Retained timing batch completed
+
+The batch completed with exit code 0 and paused between requests at 2/100.
+Exactly two started/complete pairs, no failure or unresolved attempt, no
+duplicate answers and no remaining lock. Source/input/plan/journal checks
+pass. No blind packet/key was prematurely exported. Runtime metadata
+confirmed CPU-only (`size_vram=0`) and context length 32,768.
+
+First answer: 124.8 s (11.8 s load), 1,868 prompt tokens, 61 output tokens.
+Second: 230.0 s (0.02 s load), 3,828 prompt tokens, 63 output tokens. Both
+stopped normally, below the output cap. Total 354.8 s (5.9 minutes), with
+content not inspected or graded. They count toward the same 100 and remain
+saved for later batches.
+
+Remaining-time estimate now supersedes the setup guide's 1–3 hour forecast.
+The two-answer mean implies 4.8 hours for 98; scaling by prompt characters
+implies 7.3 hours. The sample averaged 9,280 characters versus 13,952 for
+remaining prompts. These are rough extrapolations from two short-output
+answers, not a fitted performance model. Plan roughly 5–8 hours or longer
+for all remaining answers, or 30–60 minutes for a next batch of ten.
+No additional generation has been approved or started.
+
+`ml/results/ml5_generation_timing.json` records only numeric/hash/runtime
+metadata; `docs/ML5_GENERATION_TIMING.md` records observations without
+changing the source-frozen generation guide. Post-fix full light suite:
+402 Python tests passed (60.18 s); 14 focused generation/grading tests also
+passed. The earlier 13 Node session/204 frontend tests and build remain
+applicable: only Python identity handling changed. No frozen question files
+were reopened, retrieval repeated, model retrained, UI operated or additional
+commit made.
+
+Verification so far: 397-test Python suite passed (59.92 s); the expanded
+12-test focused generation/grading suite passed (2.83 s), including three
+additional provenance guards; 13 Node session tests passed, executing the
+actual inline grading script without a browser; 204 frontend tests passed;
+production build passed (existing Browserslist, unresolved SVG,
+mixed-import and large-chunk warnings remain). Final combined Python suite:
+400 passed (56.65 s). No UI was operated; the manual checklist in
+`docs/ML5_GRADING.md` remains pending.
+
+### User-requested three-thread amendment (October 18, 2026)
+
+Aditya requested three CPU threads. Added a separate resource adapter rather
+than rewriting the sealed generation sources/plan or migrating answer IDs.
+The immutable local amendment binds the adapter source, original plan and
+original journal prefix. Only `num_thread` changes; every subsequent completed
+answer records effective options and amendment hash. Both retrieval methods
+use the same amended settings. The two original two-thread answers, plan,
+preparation seal and journal bytes remain unchanged. Mixed thread settings
+must be disclosed in final quality results; numerical output identity and
+speedup have not been established.
+
+The metadata-only configure/check commands succeeded with threads=3 and two
+retained answers. No Ollama contact, model loading, generation, retrieval or
+frozen-question read occurred. Generation remains paused at 2/100. Use
+`python -m ml.eval.answer_generation_resources --run --limit 10` for the next
+approved batch. Retain provisional timing allowances until measured at three
+threads. Focused synthetic generation/grading/resource tests: 19 passed.
+Full light Python regression suite: 407 passed in 61.20 seconds. One nonfatal
+joblib Windows physical-core discovery warning fell back to logical cores;
+the Ollama request thread count is explicitly pinned independently. Local
+amendment/plan/journal checks and `git diff --check` also passed. No frontend
+source changed, so earlier frontend checks remain applicable.
+
+### Approved ten-answer batch and interactive latency concern
+
+Aditya approved the next ten retained answers on three CPU threads. Exactly
+ten completed in 1,617.4 seconds (26m 57s), then paused cleanly at 12/100,
+leaving 88 unstarted. Mean request time 161.7 s, median 108.5 s, range
+28.9–306.4 s. Prompts contained 1,757–6,288 tokens and outputs 12–223 tokens;
+all ten stopped normally below the output cap. Total loading time was 8.2 s.
+No failures, retries or repeated answers occurred. No content was graded.
+
+The metadata-only post-run checks verified the sealed plan, original
+two-thread journal prefix, immutable amendment, every new answer's effective
+options/amendment hash, completed-state journal hash, unique attempts and
+removed lock. No blind packet/key is exported before 100 answers. Saved
+aggregate metadata: `ml/results/ml5_generation_batch10.json`. The adapter and
+sealed sources did not change; the earlier 407-test regression suite remains
+applicable. No frozen questions were reopened, retrieval rerun or commit made.
+
+At the ten-answer mean the remaining 88 take roughly four hours; character
+scaling gives 3.9 hours. These are uncertain point extrapolations, not intervals
+or a controlled demonstration of three-thread speedup. Different prompts,
+output lengths, cache reuse and other laptop work prevent that conclusion.
+
+During the run Aditya flagged that minute-scale LLM answers are poor user
+experience. Read-only inspection confirmed the live client also blocks until
+the full response, while the sidebar shows an elapsed-time ticker. Evaluation
+excludes retrieval/reranking and explicitly pins context/thread options that
+the live client leaves to the server; it is not an exact end-to-end benchmark.
+The current journal lacks separate prompt/output durations and time to first
+token, so the main bottleneck has not been isolated. Recommended next is a
+separate TRAIN-only latency investigation, followed by context-budget and
+streaming work if approved. No optimizations were made mid-experiment. Live
+prompt/client changes would need explicit provenance handling because the
+current generation plan seals those sources. No further generation is running
+or approved.
+
+### Separate TRAIN latency investigation setup
+
+Aditya asked to proceed with the latency investigation. Implemented
+`ml/eval/llm_latency.py` without changing any source sealed by ML5 retrieval
+or answer generation. Its four-request plan uses two long-context TRAIN
+stress cases, validating manifest groups/frozen split before reading cached
+concept bundles. Fresh generic questions avoid opening either original
+question file. Context construction and QA formatting call the service's
+actual functions; no retriever, embedder, cross-encoder, classifier or LLM
+loads during preparation.
+
+The diagnostic pairs compare 18,000 versus 4,000 UTF-8 text bytes, with at
+most eight versus three contexts. Actual item counts are 5/2 and 7/3. Both
+use three CPU threads, no GPU, the same 32K allocation, temperature 0.1 and
+128-token output cap. Ordering reverses for the second case, but cache reuse
+and selection remain limitations. First non-whitespace streamed text is
+timed at the client; terminal metrics retain loading, prompt processing,
+output generation and token counts. Length stops are retained, incomplete
+attempts cannot auto-retry, clean checkpoints resume unstarted requests, and
+public output omits prompts/answers/document identities. This is no answer
+quality or end-to-end UI benchmark and makes no default-switch claim.
+
+Preparation sealed all four prompts, sources, model identity and snapshots
+of the unchanged 12-answer grading checkpoint. Plan file SHA-256:
+`22f6dae2b457a0259aa070dc8e77aca034d0e61517d684939d5033bbff3a5dee`.
+The metadata-only check passed. Fourteen new synthetic tests are included;
+full Python regression suite: 421 passed in 30.39 seconds, no warnings.
+No frontend source changed or UI was operated. No LLM timing probe has run,
+and no generation result, optimization or quality improvement is claimed.
+See `docs/ML5_LATENCY.md` for fixed design, limits and approval estimate.
+
+### Approved TRAIN latency probe completed
+
+Aditya explicitly approved the prepared four-request probe. It completed in
+roughly 4m 15s with fixed three-thread, zero-GPU options and unchanged local
+model/Ollama 0.40.4 identity. No failures, retries or repeated requests occurred.
+
+| Case / variant | First text | Request total | Prompt processing | Output generation |
+| --- | ---: | ---: | ---: | ---: |
+| C01 full | 124.6 s | 138.7 s | 120.3 s | 14.1 s |
+| C01 bounded | 1.2 s | 10.3 s | 1.1 s | 9.2 s |
+| C02 bounded | 14.1 s | 24.3 s | 14.1 s | 10.1 s |
+| C02 full | 68.5 s | 81.2 s | 68.5 s | 12.7 s |
+
+Means full versus bounded: first text 96.6 versus 7.7 s, request total 110.0
+versus 17.3 s, prompt processing 94.4 versus 7.6 s, output generation 13.4
+versus 9.6 s. Prompt processing is 85.8% of full-context request time in these
+stress cases; initial model loading was only 4.36 s. Output throughput was
+9.1–14.0 tokens/s. This identifies the main observed delay, but does not show
+that a smaller context budget retains sufficient evidence or answer quality.
+
+All four outputs stopped at the 128-token cap; reported request totals are
+not completion times for finished answers. No output was quality-graded or
+retried. In particular, the 1.2 s first-text sample followed a shared-prefix
+full prompt; cache reuse is uncontrolled. Two stress-selected TRAIN cases
+do not support representative latency, confidence intervals or a general
+speedup claim. Streaming alone does not remove the measured pre-text wait.
+
+Post-run read-only checks verified four unique completed attempts, complete
+state, report/journal hashes, recomputed sample/mean metrics, removed lock,
+and unchanged hashes/count for the paused 12-answer grading experiment.
+No frozen questions were read, retrieval run, models fitted, live defaults
+changed, UI operated or commit made. The earlier 421-test suite applies;
+only result/documentation files changed after that suite. Public metrics:
+`ml/results/llm_latency_train.json`, SHA-256
+`87ee884c7fbe6767382496ca371449bb6468f4b043bf5ff0a81abb241ff4c879`.
+Full interpretation and limitations: `docs/ML5_LATENCY.md`.
+
+### TRAIN context-budget quality screen setup
+
+Aditya asked for the next quality step. Implemented `ml/eval/context_quality.py`
+as a separate TRAIN screen, preserving every previously sealed source and
+protected experiment. Six new source-linked, answerable questions over three
+TRAIN PDFs include seven native evidence checks and one two-definition
+comparison. No original question file or frozen grading input is read.
+The compiled question/reference fixture remains ignored under
+`ml/out/context_quality/`; source code contains the fresh question prompts
+and source identifiers, without PDF evidence quotations.
+
+One initial literal reference check failed because native PDF text retained
+a typographic `fi` ligature while the cached description used separate letters.
+Preparation stopped before saving any study or loading models. PyMuPDF's
+explicit ligature-expansion extraction setting resolves the representation;
+case, punctuation and math remain unchanged. All seven native reference checks
+now pass. Private study file SHA-256:
+`785b4538d30fe47772ad7c9194bb19abf4b89842ca448b4437a70174dd6924a4`.
+
+The approved future run will use the service's actual in-memory fill,
+hybrid+concept retrieval and CE reranker, with 24 candidates/top eight, then
+compare 18,000-byte/eight-item versus 4,000-byte/three-item packing. Both
+use the same model/Ollama identity, three CPU threads, no GPU, 32K allocation,
+temperature 0.1 and 512-token output cap. Gold references never guide retrieval
+or packing. The audit separates raw retrieval misses from each budget's quote
+retention losses. All twelve answers must be retained before blind export;
+human grading uses the unchanged offline page and existing 0/1/2 rubric.
+Only complete ratings unlock aggregate paired/document-bootstrap scoring.
+Three clusters, easy AI-authored questions, answerable-only data and inferred
+budget identities from context length limit conclusions. No automatic default
+switch or noninferiority claim is allowed, even if this small screen passes.
+
+Public runtime output contains aggregates only, with no per-answer budget
+assignments that would unblind grading. Source/reference text, raw answers,
+method key and ratings stay ignored. Protected hashes cover the original
+12-answer grading checkpoint and completed latency probe. Duplicate or
+interrupted retrieval, failed/uncertain requests and report overwrites block
+automatic CPU retries. No models have run, live settings changed, UI operated
+or commit made for this screen. See `docs/ML5_CONTEXT_QUALITY.md` for the fixed
+design, workload estimate, limitations and pending user-only grading checklist.
+Final regression suite after the extraction change: 431 Python tests passed
+in 69.41 seconds. Ten new synthetic tests cover evidence retention, scoped
+contexts, private/blind exports, aggregate reports, retry protection, scoring,
+TRAIN gating and native-reference validation. Sealed-study and protected
+experiment checks passed. No UI test was performed or claimed.
+
+### Approved TRAIN context-quality generation completed
+
+Aditya approved the separate retrieval plus twelve-answer workload. The first
+attempt timed out on the initial Ollama `/api/tags` metadata request, before
+any encoder loading, retrieval receipt or generation. A read-only diagnostic
+action hit an automatic approval-review deadline and did not execute. Its
+allowed smaller retry confirmed Ollama 0.40.4 was responding; full model/version
+validation passed. The existing server was not started/restarted by the
+assistant. The successful run used a separate log, and no generation attempt
+was repeated.
+
+The active run completed in 742.8 seconds (12m 23s): retrieval/model setup
+229.6 seconds, generation 513.2 seconds. Exactly twelve unique answers were
+saved, with twelve started/complete event pairs, no failures or unresolved
+attempts and no duplicates/retries. All stopped normally; none hit the fixed
+512-token cap. Three CPU threads, no GPU and frozen model/version/settings
+were retained.
+
+| Mean over six answers per budget | Larger budget | Smaller budget |
+| --- | ---: | ---: |
+| First visible text | 59.5 s | 6.8 s |
+| Request total | 69.2 s | 16.2 s |
+| Prompt processing | 59.4 s | 5.0 s |
+| Output generation | 9.8 s | 9.4 s |
+
+All complete source references were retained for 6/6 questions by raw CE
+retrieval, the larger budget and the smaller budget. No additional lexical
+quote loss was observed, but semantic correctness/grounding remains ungraded.
+Six easy, AI-authored answerable TRAIN questions, three document clusters,
+cache/order effects and differing output lengths prevent a general quality
+or speedup claim. No production budget switch was made.
+
+Post-run verification recomputed runtime evidence/timing aggregates from the
+saved plan/journal and matched state/report/packet/key hashes. No lock remains.
+The real inline grading parser accepted all twelve opaque answers, six unique
+questions and canonical packet hash in a Node VM without a browser. All ten
+protected experiment hashes still match, including original frozen generation
+at 12/100 and the completed latency probe. No frozen questions were read,
+model fitted, source changed, UI operated or commit made. The earlier 431-test
+suite remains applicable. Runtime report:
+`ml/results/context_quality_train_runtime.json`, SHA-256
+`840d927f67e7046e3c920d16425c078f709626f0635c874150dd2bd594789629`.
+The blind packet/key and raw answers remain ignored under
+`ml/out/context_quality/`. No human ratings or final quality report exist yet.
+
+### Delegated TRAIN answer review and paired scoring completed
+
+Aditya explicitly delegated answer grading to the assistant and asked not to
+be included in the manual rating workflow. Results keep a neutral title;
+methodology/report metadata truthfully record the assistant reviewer rather
+than implying human validation. This supersedes the manual TRAIN grading step
+above. No UI was operated; current file-based review needs no user interaction.
+
+All twelve answers were reviewed against their exact supplied contexts and
+native-verified references. Ratings distinguish requested-answer correctness
+from citation-attribution faults, partial substantive answers from explicit
+refusals, and cosmetic repeated citations from actual support errors. The
+complete private rating file and rationales were validated and hash-sealed
+before opening the private budget mapping. The assistant also authored the
+TRAIN question fixture, and context sizes/design were visible, so independence
+and blinding are limited. No interrater or independent human claim is made.
+
+| Score (0–2) | Larger mean [95% CI] | Smaller mean [95% CI] | Paired smaller minus larger [95% CI] |
+| --- | --- | --- | --- |
+| Correctness | 1.833 [1.500, 2.000] | 1.667 [1.000, 2.000] | -0.167 [-0.500, 0.000] |
+| Grounding | 1.667 [1.000, 2.000] | 1.500 [0.500, 2.000] | -0.167 [-0.500, 0.000] |
+
+One comparison question worsened from partial correctness/grounding to an
+incorrect central claim and explicit answerable-question refusal. Another
+question had wrong citation attribution under both budgets. Both variants
+still retained every reference quote for 6/6 questions. Therefore lexical
+evidence coverage is insufficient to establish answer quality. The predeclared
+any-regression screen holds the three-item/4K-byte proposal. These paired
+intervals use three document clusters, include zero and do not establish a
+significant population effect or noninferiority.
+
+Saved public aggregates: `ml/results/context_quality_train.json`, SHA-256
+`0bc80a5b21334b363217374158aeaf3746e25982efb9e2d081ff598e138d80f9`.
+Private ratings/notes `ml/out/context_quality/ratings.assistant.json`, SHA-256
+`2afb0621f081ce1749d261be215bda0195634231fe2835d1a667b707d0bb60a8`;
+private `grading_receipt.json` seals ratings, packet and rubric provenance.
+An ignored export script calls the unchanged paired scoring function and adds
+review provenance/hold decision to the neutral aggregate report. Recomputed
+metrics match exactly; the actual inline grading parser accepted all twelve
+ratings. Source/protected-state checks pass; ratings were not edited after
+unblinding. No implementation/model/default changed, model loaded, answer
+regenerated, frozen question opened or commit made. The prior 431-test suite
+remains applicable; this step added data/documents, not production code.
+
+**Next within ML5.3:** revise the experimental context-packing/grounding
+approach, preserving complementary source content with runtime query/candidate
+information rather than gold labels, and broaden TRAIN checks before adoption.
+No further LLM workload is approved. Scope streaming separately. Later finish
+the remaining frozen answers; the user's assistant-grading delegation can
+apply to future reviews with an explicit procedure amendment before reviewing
+the original frozen sample. Do not require Aditya to grade these twelve
+answers again. After completed generation/review, run
+the aggregate scorer. **Next subphase after completed ML5.3:** ML5.4 synthesis
+and final ML5 decision log. Do not start ML6 or alter the frozen retrieval
+comparison automatically.
+
+---
+
+### TRAIN context selection and citation revision prepared (October 18, 2026)
+
+Aditya requested improved selection/citation grounding followed by TRAIN
+rechecking, with answer review delegated to the assistant. Added isolated
+experimental modules `ml/retrieval/context_packing.py`,
+`ml/eval/grounded_prompt.py` and `ml/eval/context_revision.py`; no live prompt,
+client, reranker, frozen protocol or previous experiment source was edited.
+The deterministic selector uses query coverage, concept-title/definition cues,
+CE-order prior and complementary coverage, removes repeated substrings and
+packs up to six sources / 4K UTF-8 text bytes. It preserves source text and
+counts omission markers. No gold reference influences selection. Grounded
+prompting permits direct comparisons of explicit facts and requests citations
+to the actual supporting excerpt for each claim. Citation syntax diagnostics
+do not establish semantic support and never repair or retry answers.
+
+The separate fixed comparison has ten TRAIN cases / four PDFs: six previously
+reviewed development cases, two new answerable cases and two synthetic
+unsupported administrative probes. New references use literal native-verified
+concept blockquote claims. Plot tick-label order caused the initial slide
+check to reject correctly; extracting each complete bullet claim avoids the
+plot-label artifact while retaining exact matching. All three new reference
+claims and both whole-source nonce-absence checks pass. Neither original
+question file nor frozen inputs were opened. Existing six full top-eight CE
+context pools are reused (their cap was not reached); only four new queries
+need actual CPU service retrieval/CE reranking on a three-PDF in-memory index.
+
+Compare twenty new paired answers: original prompt / eight items / 18K bytes
+versus new prompt / selected excerpts / six sources / 4K bytes, fixed model,
+Ollama version, three CPU threads, 32K allocation and 512-token output cap.
+Packing and prompting change together; their effects cannot be separated.
+The runner seals source/model/prior checkpoints, stops uncertain or failed
+attempts without retry, saves a mixed blind packet and requires every rating
+before a receipt is written and the method key is accessed. The assistant
+will review; method metadata records this truthfully under a neutral title,
+with partial blinding/shared authorship/prior familiarity limitations.
+Document-bootstrap intervals, separate cohorts and correct-abstention counts
+are exploratory. Empty negative references are excluded from coverage counts.
+Any paired regression, extra quote loss or failed unsupported probe blocks
+consideration; passing never changes live defaults automatically.
+
+Verification: **446 Python tests passed in 64.38 seconds**, including fifteen
+new synthetic tests. One existing ranker serialization test emitted a Windows
+`loky` physical-core detection warning because its helper executable was
+missing, then fell back to logical-core discovery. This does not affect the
+three-thread model configuration; the eventual model workload will also set
+explicit OMP/MKL/OpenBLAS/loky limits. No frontend source/UI changed or tested;
+no models loaded, new LLM requests run, frozen answers altered or commit made.
+Full protocol: `docs/ML5_CONTEXT_REVISION.md`.
+
+**Next:** CPU approval for roughly 20–40 minutes (potentially longer), then
+execute the paired TRAIN check and assistant review all twenty answers. The
+user's original brief explicitly requires workload approval before encoder,
+cross-encoder or LLM evaluation. No further model workload is approved yet.
+Frozen ML5 generation remains paused at 12/100; no user grading is required
+for the new TRAIN comparison.
+
+### TRAIN context-selection/citation recheck completed (October 18, 2026)
+
+Aditya explicitly approved the prepared twenty-answer recheck. The workload
+completed on three CPU threads in **20m 13s** (approximately 3m 58s for model/
+in-memory retrieval preparation and 16m 14s for generation). It reused six
+saved TRAIN context pools and ran four new actual service retrieval/CE queries
+across three indexed TRAIN PDFs. All twenty unique attempts completed once;
+no failed/retried request, length stop, server startup, model fitting, frozen
+question read or live change. Model digest/Ollama version stayed pinned.
+
+Every reference retained for **8/8 answerable cases** under raw retrieval and
+both variants. Both methods correctly abstained on **2/2 synthetic unsupported
+probes**. Their degenerate bootstrap interval is not a false-answer guarantee.
+Mean first visible text larger/revision **63.9/22.7 s**, total **70.8/26.6 s**;
+prompt processing **63.8/21.8 s**, output **6.9/3.9 s**, prompt tokens
+**1,730.5/813.1**, output tokens **54.8/36.4**. Cache/order and shorter output
+limit timing interpretation; these are selected TRAIN measurements.
+
+All twenty answers were reviewed by the assistant against their references
+and actual supplied contexts. Complete opaque-ID ratings were saved and
+validated; a hash receipt was written before opening the private method key.
+The neutral report records assistant provenance and no human validation.
+Prior-case familiarity, shared authorship and visible context differences
+limit independence/blinding. Ratings were not changed after unblinding.
+
+| Metric (0–2) | Larger/original mean [95% CI] | Revision mean [95% CI] | Paired revision minus larger [95% CI] | Regressions |
+| --- | --- | --- | --- | ---: |
+| Correctness | 1.800 [1.455, 2.000] | 1.500 [1.167, 1.875] | -0.300 [-0.444, -0.111] | 3/10 |
+| Grounding | 1.800 [1.455, 2.000] | 1.400 [1.091, 1.778] | -0.400 [-0.600, -0.125] | 4/10 |
+
+Four document clusters and selected development questions make these
+bootstrap intervals exploratory even though the paired intervals exclude
+zero. Six prior-development cases had correctness 1.667/1.500 and grounding
+1.667/1.333; the two new answerable cases had 2.000/1.000 on both metrics.
+Both unsupported probes scored 2.000 under both methods. Packing and prompt
+changes are coupled, so individual effects cannot be inferred.
+
+Generated failures included contradictory refusal, an inaccurate supporting
+quotation, replacing a requested numeric fact with a citation label, and a
+muddled definition relation. The earlier comparison question still failed
+under both variants. Citation numbers were all in range; syntax validation
+did not detect semantic failures. Full private rationales document partial
+credit, mixed versus complete abstentions and redundant-citation treatment.
+No source content loss or output truncation explains these failures.
+
+**Decision: hold the revision.** Its three correctness/four grounding
+regressions fail the predeclared screen despite faster generation. No live
+defaults change. Full results/methodology: `docs/ML5_CONTEXT_REVISION_RESULTS.md`.
+Public quality report `ml/results/context_revision_train.json`, SHA-256
+`a56703616c84934a22a8a917105fb9db3d111a2fd10773584a9e7a2ba895cb62`;
+runtime report `ml/results/context_revision_train_runtime.json`, SHA-256
+`ed03944e4c520b2417a8491a2830956cf73d2c32ccc6847473a96750f6202da3`.
+Private ratings SHA-256
+`474792aecccc8d36e5b2186c976e34b8bfbc50aaf9482a2cdbfce3db8cb75cf7`;
+review receipt SHA-256
+`19a5e672b6aa0380a8862afdaed41841d34c46b85774b46653c46080b619eb50`.
+
+Verification recomputed and matched runtime/paired metrics, checked twenty
+unique durable attempt pairs, complete state, removed lock, hashes and all
+22 protected checkpoints. The actual offline parser validated twenty opaque
+answers, ten questions, canonical hash and all saved ratings in Node; six
+non-UI parser tests passed. The 446-test Python suite remains applicable:
+no implementation source changed after it. No UI operation or commit made.
+
+**Next within ML5.3:** isolate packing-only from prompt-only changes on cached
+TRAIN contexts, focusing on refusal and evidence-to-citation assignment,
+before another combined revision. Fix the new plan before generation and
+request separate CPU approval; the twenty-answer authorization is consumed.
+No user grading is pending. Frozen generation remains paused at 12/100;
+later resume that work only on a separately authorized workload. Do not start
+ML6 or alter the frozen retrieval comparison automatically.
+
+### Cached TRAIN packing/prompt factorial prepared (October 18, 2026)
+
+Aditya requested the next diagnostic after the combined context/prompt
+revision failed its quality screen. Added `ml/eval/context_factorial.py` and
+eighteen synthetic tests, plus the fixed protocol in
+`docs/ML5_CONTEXT_FACTORIAL.md`. No existing sealed implementation changed.
+
+The design crosses two exact saved context packets (full eight-item/18K
+comparator and selected six-source/4K excerpts) with the existing original
+and grounded prompt functions. Forty fresh outputs cover ten previously
+reviewed TRAIN cases / four PDFs; older generated answers are protected and
+not mixed into the new treatment comparison. TRAIN file membership precedes
+cached plan access; old study/plan/state/source hashes must match. No PDF
+extraction, embedder/CE loading, retrieval or fitting is required. Neither
+original frozen question file is opened. Only manually started Ollama will
+receive requests, after separate workload approval.
+
+Each question forms a four-condition block. A fixed seed permutes questions,
+method identities and the ten order assignments; eight core blocks balance
+condition positions/directed predecessors, with two extra blocks leaving each
+condition in each slot two or three times overall. Cache/carryover and output
+length remain timing limitations. Resource settings match the previous run:
+same model digest/version/system, three CPU threads, zero GPU, temperature
+0.1, 32K context and 512-token output cap. No generation seed or deterministic
+reproducibility claim is introduced.
+
+The scorer reports means, four conditional contrasts, combined-versus-full
+replication, both main effects and their interaction, all paired by question
+before document bootstrap. Four document clusters, multiple unadjusted
+contrasts, one draw per cell and shared/previously seen question authorship
+make this diagnostic; no independent holdout or automatic default decision.
+Historical cohorts and two-probe correct abstention are separate, and empty
+negative references cannot inflate coverage. Candidate checks count paired
+regressions, extra quote loss and unsupported answers against the fresh
+full/original comparator. No live promotion is automatic even if a condition
+passes the small screen.
+
+The assistant will review every answer, save all ratings, then the scorer
+writes a hash receipt before accessing the condition-bearing plan/private key.
+The title stays neutral and methodology records assistant review, partial
+blinding and no human validation. No user grading or UI work is pending.
+Exclusive artifacts, a generation lock and durable attempt journals preserve
+completed answers and prevent automatic retries of uncertain/failed requests.
+
+Verification: **464 model-free Python tests passed in 75.54 seconds, no
+warnings**, including eighteen new synthetic cases for four-way exact-input
+reuse, counterbalanced positions, metadata/budget corruption, effects and
+interaction, unsupported counts, source/plan/protected integrity, failed-run
+handling and complete ratings before method disclosure. No implementation
+source changed after this suite. Unrelated frontend/docs edits were preserved;
+no model workload, commit, production change or frozen generation occurred.
+
+**Next:** seal/check the prepared forty-request plan, request approval for
+roughly 25–50 minutes of three-thread CPU LLM generation (possibly longer),
+then run it and assistant review/score all forty answers. The original brief
+requires approval before this model workload. Existing frozen generation
+remains at 12/100 and prior reports/ratings stay unchanged. Public aggregate
+outputs, only after completion, will be
+`ml/results/context_factorial_train_runtime.json` and
+`ml/results/context_factorial_train.json`; raw material stays ignored under
+`ml/out/context_factorial/`.
+
+### Cached TRAIN packing/prompt factorial completed (October 18, 2026)
+
+Aditya explicitly approved all forty requests. Cached-context generation
+completed in **22m 41s**, with forty unique started/complete pairs and no
+failures, retries, unresolved attempts or length stops. Model/version and
+three-thread CPU/zero-GPU/32K/512-token settings stayed fixed. No encoder,
+retrieval, PDF extraction, model fitting, original frozen question read or
+Ollama startup was performed. All cases are previously seen TRAIN data.
+
+The assistant reviewed all forty opaque answers using actual contexts and
+references. Complete ratings were saved/validated, then a hash receipt was
+written before the scorer accessed the condition-bearing plan/private key.
+Ratings were not edited afterward. Neutral result title; methodology records
+assistant review, shared authorship, prior familiarity, partial blinding and
+no human validation. No grading is required from Aditya for this comparison.
+
+| Condition | Correctness [95% CI] | Grounding [95% CI] | Mean request time |
+| --- | --- | --- | ---: |
+| Full/original | 1.900 [1.727, 2.000] | 1.800 [1.455, 2.000] | 49.2 s |
+| Full/grounded | 1.600 [1.400, 1.875] | 1.500 [1.167, 1.875] | 47.8 s |
+| Selected/original | 1.800 [1.600, 2.000] | 1.900 [1.667, 2.000] | 21.1 s |
+| Selected/grounded | 1.600 [1.400, 1.875] | 1.400 [1.091, 1.778] | 17.9 s |
+
+| Paired effect | Correctness [95% CI] | Grounding [95% CI] |
+| --- | --- | --- |
+| Packing at original prompt | -0.100 [-0.400, 0.200] | +0.100 [-0.333, 0.500] |
+| Packing at grounded prompt | 0.000 [0.000, 0.000] | -0.100 [-0.273, 0.000] |
+| Prompt at full context | -0.300 [-0.444, -0.111] | -0.300 [-0.444, -0.111] |
+| Prompt at selected context | -0.200 [-0.600, 0.250] | -0.500 [-0.909, 0.111] |
+| Combined versus full/original | -0.300 [-0.444, -0.111] | -0.400 [-0.600, -0.125] |
+| Packing main effect | -0.050 [-0.200, 0.100] | 0.000 [-0.200, 0.227] |
+| Prompt main effect | -0.250 [-0.500, 0.063] | -0.400 [-0.625, 0.000] |
+| Interaction | +0.100 [-0.200, 0.400] | -0.200 [-0.545, 0.250] |
+
+Whole-document bootstrap uses four source clusters and 2,000 resamples.
+One draw per cell, selected cases, multiple unadjusted contrasts and a single
+reviewer limit conclusions. The prompt package appears more problematic in
+this diagnostic, but averaged prompt intervals include/touch zero; no
+population-level causal claim or proof of packing noninferiority. Interaction
+intervals include zero, not proof it is absent. Prompt changes include source
+formatting as well as wording. Do not compare latency directly across batches.
+
+All four conditions abstained correctly on **2/2 synthetic probes**; the
+degenerate interval is not a false-answer guarantee. Both context packets
+retained every required quote for **8/8 answerable questions**. No invalid
+citation numbers, despite false attribution and uncited facts. The legacy
+`new_answerable` report cohort is historical; those two cases are also
+previously seen here. Their correctness/grounding was 2.000/2.000 under both
+original-prompt conditions, 1.500/1.500 under both grounded conditions.
+
+The selected/original candidate had two correctness regressions (incomplete
+classification, unsupported extra characterization) and one grounding
+regression. Full/grounded had three correctness/three grounding regressions;
+selected/grounded three/four, all relative to fresh full/original. Every
+candidate therefore fails the individual-regression screen. **Hold all three;
+live settings unchanged.** Prefer the original prompt as the development
+basis. Full failure/rubric details and timing limitations are in
+`docs/ML5_CONTEXT_FACTORIAL_RESULTS.md`; private rationales remain ignored.
+
+Verification recomputed/matched runtime, paired effects, interaction,
+cohorts, candidate gates and abstention results; checked forty durable attempt
+pairs, complete state, removed lock, all export/journal/ratings/receipt hashes
+and **34 protected checkpoint files**. The actual offline parser accepted
+forty opaque answers, ten questions and all ratings in Node; six non-UI parser
+tests passed. The prior **464-test Python suite** remains applicable: no
+implementation source changed afterward. No UI operation or commit made.
+
+Public runtime report SHA-256:
+`964e0a684db429c67f422d9f436752c5eecd24e2ff09428f1170e63a87bf269d`;
+quality report `ml/results/context_factorial_train.json`, SHA-256
+`7a81c3e66a30b7ac478bcaaa2c9529f47f47cf0c0a02adf9758e9cb939bdeb99`.
+Private ratings SHA-256
+`4c3120184aecab7ff80b2e62bb32e58d2d6b6087ca2a9d7746df836d2a0bea14`;
+review receipt SHA-256
+`f96d847b4e48eabdf2ec34b3a76ec3046864b041d749c23e8c08609d4828c094`.
+Artifacts remain under ignored `ml/out/context_factorial/`; previous/frozen
+answers, reports and source seals all match. Frozen generation remains 12/100.
+
+**Next within ML5.3:** refine excerpt selection with the original prompt,
+targeting a smaller relevant/complementary evidence set and the packing-only
+failure cases, then recheck on TRAIN with a fixed plan and separate CPU
+approval. The forty-request authorization is consumed; no further model job
+is approved. No user grading is pending. Do not start ML6, change live
+defaults or resume remaining frozen answers automatically.
+
+### Original-prompt excerpt refinement prepared (October 18, 2026)
+
+Aditya requested refining selection while preserving the original prompt,
+followed by another TRAIN check. Added `ml/retrieval/focused_contexts.py`,
+`ml/eval/context_refinement.py`, twenty-three synthetic tests and the fixed
+protocol `docs/ML5_CONTEXT_REFINEMENT.md`. Existing selector, prompt, service,
+model and sealed experiment sources were not edited.
+
+The new selector prioritizes explicitly queried concept titles and their
+earliest defining units, keeps relevant qualifications/negation or definition
+neighbors, then adds only complementary query coverage at a fixed score
+threshold. It uses native question/candidate text, token-frequency weighting,
+modest plural normalization and a CE-order tie-breaking prior; no gold labels,
+answer pages or generated outputs guide selection. Selected evidence stays
+in selection order instead of restoring CE order. Hard caps: four sources /
+4K UTF-8 text bytes, counting omission markers; neighbor windows are at most
+1,400 bytes, except a longer atomic sentence can use the total budget. Whole
+over-budget units are ineligible. Heuristic sentence/bullet boundaries and
+lexical coverage are not semantic relevance guarantees.
+
+Collapse duplicate units/repeated title prefixes while retaining a final
+ambiguous prefix so a definition subject is never stripped just for matching
+its title. Midword-ellipsis metadata fragments are skipped; complete body
+statements remain. Stop when no complementary evidence remains rather than
+filling the budget. With no lexical match, use the first eligible CE source
+unit; this is not a calibrated answerability gate. Two synthetic tests caught
+subject removal in initial title cleanup and code review identified overly
+symmetric containment deduplication dropping broader windows with new facts.
+Both fixes have regression coverage and preceded plan sealing/model work.
+
+The cached three-way comparison will generate thirty fresh answers on ten
+previously reviewed TRAIN cases / four PDFs: exact full comparator, exact old
+selector packet, new selector from the same full pool. All use the unchanged
+original QA/system prompt. Old generated answers are protected, not reused.
+No index, retrieval, PDF extraction, embedder/CE loading or fitting is needed;
+neither original frozen question source is opened. Seed 20261021 permutes
+questions/condition identities/order assignments; three-condition blocks place
+each condition in each slot three or four times across ten questions.
+
+Use the same model/version, three CPU threads, no GPU, temperature 0.1,
+32K allocation and 512-token cap, with no generation seed introduced. Save
+all answers once and stop uncertain/failed attempts without automatic retry.
+The assistant reviews all thirty, saving complete ratings before a receipt
+and plan/key access. Neutral title with truthful review methodology; partial
+blinding, shared authorship and previously seen questions limit independence.
+Paired refined-minus-full, refined-minus-old and old-minus-full differences
+use document-bootstrap 95% intervals; four clusters and multiple unadjusted
+contrasts remain exploratory. Complete quote audit excludes negative empty
+references. Any refined regression versus either fresh comparator, additional
+quote loss versus full, or failed unsupported probe blocks acceptance; no
+automatic live change even if the small screen passes.
+
+Verification: **487 model-free Python tests passed in 27.17 seconds, no
+warnings**, including twenty-three new selector/runner cases. Coverage includes
+UTF-8/atomic budgets, qualifiers, duplicate/new facts, no oracle leakage,
+original prompt/exact comparator reuse, three-way counterbalancing, metadata,
+source/protected integrity, failed attempts, complete-before-disclosure
+scoring and unsupported errors even without paired regressions. No relevant
+implementation changed after this suite. Unrelated frontend/docs preserved;
+no model request, live change, UI operation or commit made in preparation.
+
+**Next:** seal/check the prepared plan, request approval for roughly 15–30
+minutes (potentially longer) of three-thread CPU LLM generation, then review
+and score all thirty answers. The original brief requires workload approval.
+No grading is required from Aditya. Previous reports/answers and frozen ML5
+generation at 12/100 remain unchanged. Private artifacts will stay ignored
+under `ml/out/context_refinement/`; public aggregate reports after completion
+will be `ml/results/context_refinement_train_runtime.json` and
+`ml/results/context_refinement_train.json`.
+
+### Original-prompt excerpt refinement completed (October 18, 2026)
+
+Aditya approved all thirty requests. The sealed three-condition TRAIN run
+finished in **8m 11s** active generation on three CPU threads / zero GPU, with
+thirty unique normal completions and no failed, unresolved, duplicate, retried
+or length-stopped request. Original QA/system prompts and model/version were
+unchanged. No retrieval, encoder loading, fitting, PDF extraction, frozen
+question read or Ollama startup occurred. Prior experiments and live settings
+remain intact; frozen generation stays paused at 12/100.
+
+The assistant reviewed all thirty opaque answers, saved/validated the complete
+ratings, then the scorer wrote a hash receipt before grading-time plan/key
+disclosure. Ratings were not edited afterward. Review metadata truthfully
+records assistant review, no human validation, prior familiarity, shared
+authorship and partial blinding. No manual grading is pending from Aditya.
+
+| Original-prompt condition | Correctness [95% CI] | Grounding [95% CI] | Mean request time |
+| --- | --- | --- | ---: |
+| Full | 1.900 [1.727, 2.000] | 1.800 [1.455, 2.000] | 30.8 s |
+| Previous excerpts | 1.900 [1.727, 2.000] | 2.000 [2.000, 2.000] | 13.1 s |
+| Refined excerpts | 1.900 [1.727, 2.000] | 1.900 [1.727, 2.000] | 5.1 s |
+
+Paired refined-minus-full correctness **0.000 [-0.273, 0.273]**, grounding
+**+0.100 [-0.273, 0.545]**; refined-minus-previous correctness **0.000
+[0.000, 0.000]**, grounding **-0.100 [-0.273, 0.000]**. Previous-minus-full
+correctness **0.000 [-0.273, 0.273]**, grounding **+0.200 [0.000, 0.545]**.
+Whole-document 2,000-resample intervals remain exploratory: four PDFs, ten
+previously seen cases, single outputs, one reviewer and unadjusted contrasts
+cannot establish generalization, noninferiority or a population gain.
+
+**Decision: hold_refinement.** The necessary-versus-sufficient case is incomplete
+under both excerpt conditions. The refined answer additionally misattributes
+its first claim and ends with a contradictory refusal. It scores 1/1 versus
+fresh full 2/2 and previous 1/2: one correctness/grounding regression versus
+full, zero correctness / one grounding regression versus previous. All needed
+statements remain in the refined packet, split across two same-page sources;
+fragmentation is a diagnostic hypothesis, not an established cause. Full
+contexts also have a mixed definition-comparison refusal and unrelated citation
+bundling. Those offsets explain equal correctness means without a gate pass.
+
+All three conditions retained every reference on **8/8 answerable cases** and
+correctly abstained on **2/2 synthetic unsupported probes**. No additional
+reference loss or out-of-range citation mention occurred. Correct page/title
+attribution was accepted without requiring bracket syntax; citations to
+unrelated evidence lost grounding. Incomplete classification with a supported
+assertion loses correctness while retaining grounding. Full private rationales
+were saved before disclosure; interpretation remains reviewer-sensitive.
+
+Mean first-text latency full/previous/refined **26.4 / 9.2 / 1.9 s**; server
+prompt time **25.9 / 9.2 / 1.8 s**; output time **4.4 / 3.9 / 3.3 s**.
+Mean prompt tokens **1,730.5 / 788.8 / 336.5** and output tokens **57.3 /
+57.6 / 51.2**. Mean context text bytes **5,114.5 / 1,978.0 / 377.1**.
+Counterbalanced order does not remove cache, output-length or load effects.
+This is within-batch cached-context timing, not live end-to-end performance.
+
+Verification: **487 Python tests in 27.17 s, no warnings** before sealing;
+implementation unchanged afterward. Six non-UI parser tests pass; actual
+offline parser validates thirty opaque answers / ten questions, canonical
+packet hash and all ratings in Node. Recomputed runtime, paired/cohort metrics,
+abstentions and decision match reports. All source/model/plan/journal/packet/
+key/ratings/receipt hashes and **44 protected files** match, state is complete,
+lock removed, final model-free `--check` passes. No UI operation or commit.
+
+Full results, limitations and artifact hashes:
+`docs/ML5_CONTEXT_REFINEMENT_RESULTS.md`. Public aggregates:
+`ml/results/context_refinement_train_runtime.json` (immutable pre-review
+snapshot) and `ml/results/context_refinement_train.json` (completed review).
+Private raw artifacts remain ignored under `ml/out/context_refinement/`.
+
+**Next:** diagnose merging adjacent/overlapping same-page excerpts into coherent
+evidence blocks while preserving qualifiers/within-page order and the original
+prompt, then validate a fixed generic comparison on a broader TRAIN sample
+under separate workload approval. Do not promote the candidate, change frozen
+retrieval, start ML6 or resume frozen generation automatically.
+
+### Same-page coherence / bounded broader TRAIN check prepared (October 18, 2026)
+
+Aditya asked how much ML5 remains after the extended latency/quality work and
+requested same-page evidence merging followed by broader TRAIN validation.
+Clarified scope: ML5.1 ablations and ML5.2 frozen retrieval are complete;
+original ML5.3 remains at **12/100 generated, 88 unstarted, all 100 unreviewed**.
+Its sealed paired sample is exported only after completion. At the last frozen
+batch mean, the remaining generation is roughly four hours, with substantial
+uncertainty. Later small-context TRAIN timings do not alter the frozen plan or
+justify a faster frozen estimate. ML5.4 final synthesis follows that answer
+study. Assistant review is delegated; no manual grading is required from Aditya.
+
+Recent TRAIN context optimizations are additional scope, not a requirement to
+keep tuning until every sampled answer is perfect. This follow-up fixes one
+candidate and one broader comparison. After its result, recommend considering
+or deferring it and return to original ML5 closeout. No automatic new tuning
+cycle, live promotion, ML6 start or remaining frozen-generation run.
+
+Added `ml/retrieval/coherent_contexts.py`, separate from all sealed/live sources.
+Start from unchanged focused selection. Consolidate only when an actual common
+candidate from the same explicit document and positive integer page contains
+every selected unit. Whitespace-only matching preserves case/math/negation.
+Keep original within-source unit order and any single intervening unit; never
+concatenate disjoint passages based only on a shared page. Keep up to one
+preceding / two following qualification units within 1,400 bytes, use the
+containing source's actual metadata, and preserve four-source / 4K global text
+limits. Missing/conflicting identity, distant evidence, alignment failure or
+extra bytes preserve the original focused output. Long atomic fallback remains
+intact. This is a lexical heuristic, not a support guarantee.
+
+On model-free cached preparation checks, all prior 8/8 answerable references
+remain present. The problematic necessary/insufficient/convex-exception packet
+now forms one source containing all three statements in original order. This
+verifies packing behavior only; no answer-quality improvement is claimed.
+
+New runner `ml/eval/context_coherence.py` and fixed protocol
+`docs/ML5_CONTEXT_COHERENCE.md` specify **18 TRAIN questions over six PDFs**:
+four known answerable sentinels, eight new answerable prompts and six new
+synthetic unsupported probes, exactly two answerable and one unsupported case
+per source. The two added TRAIN PDFs broaden coverage to networking and
+steepest descent. Canonical protocol/manifest/frozen-group checks precede any
+PDF/bundle read; native page/quote checks and full-source nonce absence pass.
+No original frozen question file was opened, even for TRAIN filtering.
+
+Compare original-prompt full top-eight/18K packets versus merged focused
+four-source/4K packets, **36 fresh LLM answers**. Reuse four exact cached pools;
+fourteen fresh queries will use actual service hybrid-concepts retrieval/CE
+reranking against an in-memory TRAIN-only index. No ranker fitting or existing
+answer reuse. Fixed question-block shuffle and nine blocks per condition-first
+order; same model/version, temperature 0.1, 512-token cap, 32K allocation,
+three CPU threads and zero GPU. Retrieval-start exclusivity and sealed
+generation/journal handling prevent silent retries after interruption.
+
+All thirty-six opaque answers must be reviewed and ratings saved before a
+receipt and grading-time study/plan/key disclosure. Neutral title, truthful
+assistant-review methodology, no human validation, partial blinding, shared
+authorship and prior familiarity. Report document-bootstrap intervals,
+answerability strata and cohorts separately; new prompts are development
+data, not independent holdouts. Any candidate regression, additional reference
+loss versus full or failed unsupported probe defers the selector. A small
+screen pass still makes no live or population guarantee.
+
+Verification: full model-free Python suite **511 passed in 30.76 seconds, no
+warnings**, including **24 new synthetic checks**. Initial tmp_path setup was
+blocked by the external sandbox temp directory; a workspace basetemp resolved
+that environment issue. Tests cover provenance, disjoint/distant units,
+negation/case, qualifier/order/budget behavior, no oracle input, balanced
+original-prompt pairs, private-data-free runtime, protected/failed attempts,
+interrupted retrieval, complete-before-disclosure review, separate denominators,
+source seals, frozen ratings-path rejection and unsupported errors even with
+zero paired regressions. No implementation changed after full validation.
+
+Prepared and checked eighteen native-verified cases, four cached pools and
+**54 protected checkpoint/report files**. Study file SHA-256:
+`0a6810478394eeb96205dd4cfe09b9680927b3eb993a2496ac400dfb73c70930`.
+Private artifacts stay ignored under `ml/out/context_coherence/`; planned
+public aggregates are `ml/results/context_coherence_train_runtime.json` and
+`ml/results/context_coherence_train.json`. No retrieval-start marker, answer
+journal, encoder/LLM load, Ollama startup, UI operation, live change or commit.
+
+**Next:** obtain the original brief's required approval for roughly 25–50
+minutes (potentially longer) of three-thread CPU indexing/retrieval and 36
+fresh answers, then assistant-review and score all outputs. No further workload
+is authorized by the preceding completed thirty-answer experiment. Complete
+this bounded comparison before recommending original ML5 closeout work.
+
+### Bounded same-page coherence check completed (October 18, 2026)
+
+Aditya approved the complete 36-answer broader TRAIN workload. All requests
+finished normally: **18 cases / six PDFs**, with four cached sentinels,
+eight new answerable prompts and six unsupported probes. Four pools reused;
+fourteen fresh queries used actual hybrid-concepts service retrieval/CE
+reranking against a TRAIN-only in-memory index. Original QA/system prompts,
+model/version and generation settings remained fixed: three CPU threads,
+zero GPU, temperature 0.1, 32K allocation and 512-token cap. No original frozen
+question read, frozen inference, fitting, persistent index replacement or
+Ollama startup. All 54 prior checkpoint/report hashes remain intact.
+
+| All 18 cases | Full [95% CI] | Coherent [95% CI] | Paired coherent-minus-full [95% CI] |
+| --- | --- | --- | --- |
+| Correctness | 1.833 [1.611, 2.000] | 1.833 [1.611, 2.000] | 0.000 [-0.167, 0.167] |
+| Grounding | 1.778 [1.556, 1.944] | 1.889 [1.667, 2.000] | +0.111 [0.000, 0.222] |
+
+On **twelve answerable cases**, correctness full/coherent **1.750 / 1.750**,
+paired **0.000 [-0.250, 0.250]**; grounding **1.667 / 1.833**, paired **+0.167
+[0.000, 0.333]**. Known-sentinel correctness **1.750 / 1.750**, grounding
+**1.750 / 2.000**; new-answerable correctness **1.750 / 1.750**, grounding
+**1.625 / 1.750**. Both conditions correctly refuse **6/6 synthetic unsupported
+probes**. Document-bootstrap intervals use six whole-source clusters and remain
+exploratory; equal means are not equivalence, grounding intervals touch zero,
+and a few synthetic refusals do not establish false-answer risk.
+
+**Decision: defer_coherent_selector; end this optional tuning cycle.** One
+correctness regression (zero grounding regressions) fails the fixed gate.
+The necessary-versus-sufficient answer is still incomplete, even though the
+merged source now contains necessity, insufficiency and the convex exception
+coherently. Its supported-but-incomplete assertion scores 1/2 versus full 2/2.
+Full context separately fails a definition comparison via a contradictory
+absence claim and loses citation grounding on a true statement cited to the
+wrong source. Those offsets explain equal correctness averages.
+
+The new condition-number case produces wrong central formulas in both
+conditions, scoring 0/0. Some concept math has garbled extraction order or
+superscripts; fuller context includes a clearer relation but still yields an
+incorrect model answer. No repair, regeneration, exclusion or extra tuning
+was performed. This is a recorded extraction/model limitation.
+
+Native complete-reference matching is **8/12 raw, 8/12 full, 8/12 coherent**,
+with zero additional losses from packing. All four misses are fresh pruning,
+protocol-definition, cable-access and condition-number cases: native line
+order/bullets/math differ from service word/column/concept assembly. Three
+are answered factually correctly from relevant alternative supplied text;
+math is not. Literal mismatch is not proof of absent semantic evidence.
+No denominator inflation or gold repair; all cases retained. Citation syntax
+has zero out-of-range mentions, but semantic attribution is separately graded.
+
+The assistant reviewed all thirty-six opaque outputs, saved/validated every
+rating, then the scorer wrote a hash receipt before grading-time study/plan/key
+disclosure. Ratings unchanged afterward. Neutral result title; truthful
+assistant-review metadata, no human validation, partial blinding, common
+authorship and prior familiarity. No manual grading is pending from Aditya.
+Private rationales explain concise-answer credit, incomplete classification,
+mixed refusals and factual versus citation-support distinctions.
+
+Indexing/retrieval plus generation took **12m 59s**, generation **10m 58s**;
+all 36 unique started/complete pairs, no failures, unresolved attempts,
+duplicates, retries or length stops. Mean full/coherent first text **24.9 /
+2.2 s**, request **30.2 / 6.3 s**, server prompt **24.8 / 2.2 s**, output
+**5.3 / 4.1 s**; prompt tokens **1,580.4 / 348.2**, output tokens **63.9 / 54.0**.
+Question-block order is balanced nine each first; cache, carryover, output
+length and load still limit timing. Per-request timing excludes retrieval and
+cannot replace the original frozen-workload estimate or guarantee live latency.
+
+Verification: **511 model-free Python tests in 30.76 s, no warnings** before
+sealing; no implementation changed afterward. Six non-UI parser tests pass;
+actual parser validates all 36 answers, 18 questions, canonical packet hash
+and complete ratings in Node. Recomputed runtime, paired/cohort/answerability
+metrics, abstentions and decision match reports. State complete, lock removed,
+study/source/model/plan/journal/packet/key/ratings/receipt hashes and all **54
+protected files** verified. Original frozen generation is exactly **12/100**;
+live defaults/unrelated work preserved. No UI operation or commit.
+
+Detailed results and artifact hashes: `docs/ML5_CONTEXT_COHERENCE_RESULTS.md`.
+Public aggregates `ml/results/context_coherence_train_runtime.json` (immutable
+pre-review snapshot) and `ml/results/context_coherence_train.json` (completed
+review/defer decision). Raw private artifacts remain ignored under
+`ml/out/context_coherence/`.
+
+**Next: original ML5 closeout, no further automatic context tuning.** ML5.1
+and ML5.2 are complete. Original ML5.3 still needs 88 frozen answers generated,
+all 100 reviewed, then ML5.4 synthesis. Remaining generation is roughly four
+hours at its last measured mean and needs separate approval; keep its sealed
+prompts/settings. If Aditya chooses to defer that expensive study, explicitly
+record it incomplete before a limited closeout. Do not silently claim full
+ML5 completion, rewrite the frozen study using this faster candidate, start
+another tuning cycle or ML6 under this completed authorization.
+
+### ML5.3 original completion: memory interruption and guarded resume (October 19, 2026)
+
+**Explicit user resource update, October 19:** after eight isolated-worker
+outputs, Aditya requested one additional thread, then 85% RAM and 50% CPU limits.
+The controller alone was suspended while the current answer finished/unloaded,
+then ended at a clean 38/100 checkpoint. No extra generation attempt failed.
+The sealed `ml/eval/resource_limited_completion.py` and separate four-thread
+profile preserve the original 38-output prefix and both failed histories.
+The final 62 answers run under `ml/out/ml53_resource_completion/resumed/`.
+Provenance upon completion will be 2 outputs with two threads, 36 with three,
+62 with four. All prompts, contexts, model/version/digest, temperature .1,
+512 cap and 32K allocation remain fixed; no frozen question files reopened.
+
+Keep fresh workers/unloading per answer. The revised guard stops verified
+model runners above 85% sampled RAM use, reserves 4 GiB plus 15% physical RAM
+before loading, and waits unloaded when total CPU is at least 50%. Restrict
+the manually started Ollama daemon to six of this laptop's twelve logical
+CPUs before runner creation; verify inherited model affinity and restore the
+daemon's original mask after unloading, including failures. This gives the
+model a 50% CPU-time ceiling; unrelated apps/Python can raise whole-laptop
+CPU beyond 50%. The two-second RAM guard is not an instantaneous hard cap.
+
+**40 focused model-free tests passed in 3.77 s**. A disposable lightweight
+Python child verified actual Windows affinity inheritance `[0,2,4,6,8,10]`
+and restoration without loading a model. See `docs/ML53_RESOURCE_AMENDMENT.md`.
+The final continuation and newly sealed review helpers are running/prepared;
+no answer content has been opened and ML5.3 remains incomplete.
+
+**Resource follow-up, October 19:** the guarded run below subsequently saved
+30/100 original answers, then stopped A031 at 80.19% physical-memory use.
+No partial A031 output was saved or inspected. RAM returned to about 51%
+after model/worker exit. The exact cause of accumulating resource use is not
+established; no unrelated application was closed. The failed original A013
+and guarded A031 journals remain unchanged, and the original twelve-answer
+prefix is preserved. This is the second measured resource interruption.
+
+After manual diagnosis, `ml/eval/memory_isolated_completion.py` and
+`docs/ML53_ISOLATED_RECOVERY.md` implement a resource-only amendment under
+Aditya's explicit instruction to complete the already approved study unattended.
+The remaining seventy planned outputs use a fresh Python worker and initially
+unloaded model for every answer, followed by prompt-free unloading and verified
+runner exit. Reserve 4 GiB plus 20% physical-memory headroom before loading;
+wait unloaded on low RAM or CPU at least 65%. Retain the two-second 80% guard,
+Below Normal priority, three threads and CPU-only execution. Any further failure
+stops without automatic retry. Keep prompts, model/version/digest, temperature,
+32K allocation, output cap and frozen contexts unchanged. Both administrative
+retries must be disclosed; cold workers further limit timing comparisons.
+
+The new continuation under `ml/out/ml53_isolated_completion/resumed/` contains
+the exact thirty-answer successful prefix, original plan/preparation/profile
+and hash links to prior failure histories. **32 focused tests passed in 3.38 s**,
+covering invalid-history rejection, preload reserve, failure cleanup and
+single-attempt controller behavior alongside existing recovery/grading tests.
+An initial test invocation hit the sandbox's temporary-directory restriction;
+the successful run used a dedicated folder under ignored `ml/out/`. No actual
+model load or process changes occurred in tests. Generation is now running;
+ML5.3 remains incomplete until all 100 outputs and ratings are verified.
+
+Aditya approved generation of the remaining 88 original answers and assistant
+review of all 100. Checked the 12/100 checkpoint and existing three-thread
+amendment. Snapshotted 66 prior checkpoint/report files, authorizing only
+the original journal/state to advance; 64 immutable files remain unchanged.
+A localhost metadata connection refusal occurred before any generation or
+journal mutation; Aditya started Ollama manually and the preflight then matched
+the saved model/version. No CPU approval was requested again.
+
+During the first pending A013 request, Aditya reported 87% memory usage and
+prior laptop shutdowns under high load. Measured available memory was 2.07
+GiB / 15.34 GiB. First lowered the verified Ollama runner from Above Normal
+to Below Normal priority, then stopped that model runner to release RAM when
+the user clarified the shutdown concern. The HTTP request failed without a
+saved answer. All twelve complete outputs remain byte-identical. Preserved
+the original A013 started/failed events, failed state and original successful
+journal hash; the failed state retains its last-good batch hash while the
+actual journal includes failure events. Never reset or silently repair them.
+Recorded hashes/diagnosis in ignored `ml/out/ml53_completion/`.
+
+A prompt-free unload cleared Ollama's stopped-model entry without model
+generation. After Aditya closed Claude, available RAM rose to approximately
+7.35 GiB. He explicitly requested continuation and completion while away.
+Added `ml/eval/memory_safe_completion.py` and resource/recovery tests with a
+separate source-sealed procedure `docs/ML53_MEMORY_RECOVERY.md`. The runner
+copies the exact original plan/preparation/three-thread profile and successful
+twelve-answer prefix into `ml/out/ml53_completion/resumed/`. The original
+failed files remain unchanged. Recovery explicitly identifies A013 as an
+administrative retry after resource interruption; do not claim no retries.
+No partial output from that attempt was viewed and no quality-selected retry,
+prompt/context/temperature/token-cap/model change was introduced.
+
+Reserve 3.5 GiB for an unloaded model and projected available RAM of at least
+20% of physical memory before each request. Run one durable answer batch at
+a time; wait/unload between answers when headroom is insufficient or total
+CPU is at least 85%. Monitor physical RAM every two seconds; above 80% usage,
+stop only child model runners whose paths match the manually started Ollama
+installation, and stop automatic recovery. Set those runners Below Normal.
+Unload on exit. Record resource samples/peaks, but sampling is not an absolute
+cap or a guarantee against hardware, thermal or power faults. Other apps are
+not stopped by the runner.
+
+Verification before preparing/starting recovery: **516 model-free tests passed
+in 122.37 s, no warnings**; focused resource/recovery/grading group **24 passed**.
+Coverage includes preload reserve, actual-child-only emergency stop, priority,
+CPU-pressure waiting, original failed-history preservation and exact prefix
+copying, together with existing generation/grading invariants. No UI operation.
+
+The guarded continuation started with the same manually running model/version,
+original saved contexts and approved three-thread amendment. First output
+reached **13/100**, taking about **396.8 s**, with observed RAM peak **72.2%**.
+Recent memory samples had about 4.4 GiB available. This single timing does not
+predict the remaining run; the earlier four-hour estimate may be exceeded.
+No source question file was reopened or retrieval repeated.
+
+`docs/ML53_ASSISTANT_REVIEW.md` records the user-delegated reviewer amendment,
+unchanged rubric and complete-before-disclosure protocol. Private helper/
+procedure hashes were sealed before opening any new frozen answer output.
+After all 100 complete, review every opaque answer, save/validate all ratings,
+write a receipt, then disclose conditions and compute pooled/per-set/
+answerability paired intervals. Truthful assistant metadata, no human
+validation, neutral title and original/independent authorship caveats. No
+manual grading is required from Aditya. Original two-thread outputs (two)
+and amended three-thread outputs (98 upon completion) retain provenance.
+
+**Current status: generation in progress, ML5.3 not yet complete. Next:**
+finish the approved guarded generation and delegated review, verify all retained
+outputs/hashes and report ML5.3. No additional TRAIN optimization, automatic
+ML5.4/ML6 work, live-default change or commit is included. Later completed
+results belong in a separate note so the recovery/review procedures stay sealed.
+
+### ML5.3 original answer study completed (October 19, 2026)
+
+Completed all **100 outputs / 50 paired cases / six PDFs**, retaining the
+original twelve outputs exactly and adding the approved eighty-eight.
+Preserved both resource-interruption histories and two administrative retries;
+no quality-based retry, new retrieval, frozen question-file read, TRAIN tuning,
+live default change or commit. Final packet and private review artifacts are
+under ignored `ml/out/ml53_resource_completion/`; prior recovery histories
+remain intact. Earlier in-progress notes describe historical checkpoints.
+
+Reviewed all opaque answers against their supplied contexts and references.
+Saved/validated all 100 ratings and wrote an exclusive receipt before
+grading-time plan/private-key disclosure. Metadata records assistant review,
+partial blinding and no independent human validation. Ratings remain sealed.
+The complete report is `docs/ML53_COMPLETION_RESULTS.md`; aggregate numerical
+outputs are `ml/results/ml5_answer_grading.json` and
+`ml/results/ml53_generation_complete.json`.
+
+Pooled CE/ranker correctness is **1.760 / 1.800**, paired difference **+0.040
+[-0.200, 0.275]**; grounding **1.500 / 1.580**, paired **+0.080 [-0.067,
+0.267]**. Original correctness **1.800 / 1.760**, independent **1.720 / 1.840**.
+All paired correctness/grounding intervals include zero. Each method has
+zero answerable abstentions and 9/10 correct unsupported-question refusals;
+one qualified refusal adds unsupported speculation. Wrong mathematical facts,
+table/unit errors and citation mismatches remain. Scores are means out of two,
+not accuracy rates. Six source clusters, selected AI-authored cases and one
+reviewer limit generalization. Frozen ML5.2 switch decision remains unchanged:
+**keep cross-encoder default**; the optional context selector stays deferred.
+
+Thread provenance: two outputs at two threads, 36 at three and 62 at four.
+The final seventy used separate workers with model unloading after every
+answer. Final-stage RAM peaked at **79.668%**, available memory minimum
+3.12 GiB, below the user's 85% sampled stop threshold. Model affinity was
+restricted to six of twelve logical CPUs, then daemon affinity restored
+after unloading. Whole-laptop CPU samples reached **100%**: the 50% model
+ceiling is not a whole-system cap. Resource samples cannot establish the
+source of every spike or guarantee against hardware/thermal/power faults.
+The model was unloaded; subsequent RAM was 58.2% / 6.41 GiB available.
+
+Successful-request mean/median **136.7 / 117.9 s**, range **28.9–396.8 s**;
+total 3h 47m 54s excludes failed work, waits/unloads and review. Final
+62-worker continuation including overhead lasted 2h 12m 38s. Mixed resource
+settings/days/cache states and different output lengths preclude a controlled
+speed comparison. All 100 successful responses report stop reason `stop`.
+
+Verification: pre-recovery full model-free suite **516 passed** without
+warnings; resource-amendment focused suite **40 passed**. Completion verifier
+recomputed metrics/intervals, validated all journal/packet/rating hashes,
+50 pairs, both failed histories, retained prefixes, 70 isolated workers,
+final-worker affinity application/restoration and **64 immutable checkpoints**.
+Actual offline-viewer parser accepted all 100 ratings; **six parser/session
+tests passed**. No UI operation or human grading is pending for ML5.3.
+
+**ML5.3 is complete. Next: ML5.4 synthesis and final ML5 decision log.**
+Stop here; no automatic further workload, ML6, live change or commit.
+
+### ML5.4 final synthesis and decision log (October 19, 2026)
+
+Consolidated ML5.1 TRAIN ablations, ML5.2 original/independent frozen
+retrieval, ML5.3's 100 saved-context answers and the optional TRAIN latency/
+context studies. New artifacts: `docs/ML5_SYNTHESIS.md` and
+`ml/results/ml5_closeout.json`. Summary tables were generated directly from
+saved aggregates; 17 input hashes, exact source metrics and all three
+independently recomputed switch checks are recorded. No frozen question-file
+read, model call, retrieval, fitting, regrading, live change or commit.
+Existing sealed reports/protocols remain unchanged; their pending statements
+describe historical checkpoints. Roadmap and current-status pointers updated.
+
+Final decisions:
+
+- Keep hybrid + OKF concepts + cross-encoder. Pooled frozen ranker-minus-CE
+  MRR **-0.0029 [-0.0551, 0.0385]** fails the fixed switch rule; per-set
+  nonnegative MRR/nDCG check also fails. Recall lower-bound check passes.
+- OKF concept candidates improve pooled CE MRR **+0.0370 [0.0040, 0.0742]**
+  on these six PDFs, with slightly lower pooled Recall. No universal benefit
+  or OKF-only answer-quality gain follows. Keep concepts enabled.
+- Leave links opt-in and retain the fixed ranker configuration/seed as an
+  opt-in experiment. No test-guided feature selection or query-type routing.
+- Defer context/prompt candidates. The last TRAIN coherence study had one
+  correctness regression despite equal mean correctness and faster requests.
+  End the optional tuning cycle.
+- Retain factual/citation/math limits, uncertain answer-quality differences,
+  one assistant reviewer/partial blinding/no human validation, small shared
+  document clusters, two resource interruptions/retries and mixed resource
+  settings. The trained component was LambdaRank; Qwen remained pretrained.
+  CPU-only generation latency and the model-only 50% CPU ceiling do not
+  establish interactive or whole-laptop resource guarantees.
+
+The original ML5 acceptance is met with the explicitly delegated reviewer
+amendment: ablation intervals and OKF verdict, both frozen collections,
+paired statistics/McNemar/type breakdowns, 100 reviewed answers and synthesis.
+This is experiment completion, not deployment acceptance.
+
+**Next: recommend ML7 write-up** using existing evidence for cards, final
+results and README. ML6 answerability gate is optional and would require a
+separate TRAIN calibration/validation plan plus new data for an independent
+claim; neither consumed frozen test file can be reopened for another run.
+No next phase was started.
+
+Closeout verification: full model-free Python suite **532 passed in 78.02 s**,
+zero failed/skipped; two-thread CPU-library limits. The initial sandboxed
+suite and isolated diagnostic stalled creating Windows asyncio's internal
+socket pair before the stub API handler. Both were stopped; a local-socket
+permission rerun passed completely. One warning remains: installed joblib/
+loky invokes unavailable `wmic` to count physical cores and falls back to
+logical cores. Source inspection explains it; no warning suppression or
+dependency/application change. Saved experiment results remain unchanged.
+
+All six grading-session tests and the actual offline packet parser passed.
+The ML5.3 verifier recomputed answer statistics and validated 100 outputs,
+50 paired cases/six PDFs and 64 immutable prior checkpoints. Additional
+closeout checks validate 17 unchanged input hashes, exact aggregate copies,
+the failed switch rule and 42 numeric table rows. `git diff --check` passes.
+No production source changed, so frontend build/UI acceptance was not rerun.
 
 ## Current Project State
 

@@ -1,0 +1,43 @@
+{
+  "status": "prepared_not_generated",
+  "prepared_at": "2026-10-17T18:45:45.527994+00:00",
+  "answers_planned": 100,
+  "questions": 50,
+  "documents": 6,
+  "answerable_questions": 40,
+  "unanswerable_questions": 10,
+  "plan_sha256": "5d31b064302e2d78313b888a820da0d91c94a45cf2d1e077bd639e57255da396",
+  "model": "qwen2.5:3b-instruct",
+  "model_digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 2,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "prompt_characters": {
+    "min": 3943,
+    "max": 27171,
+    "median": 14398
+  },
+  "input_sha256": "a4372b5ef7e0bebac04279bf3761ece25f172a1a5aaa886a9f459cb982d2114b",
+  "protocol_sha256": "da6e0c0a658fab4b6224152169d871e463b4c8b6d53c63b9a7cfc50b62ecf619",
+  "sources": {
+    "ml/eval/answer_generation.py": "3422995cff6be6a3f80146bde5290ddb1cbd9a2c42d6490d35594f00fd86a7c2",
+    "ml/eval/answer_grading.py": "270f9b8eafbb94d9460dc88d99716c7c827fb783a5ae783187ee481069fe0d40",
+    "ml/eval/grading.html": "4b21955bf5b253357f9898b40705082604d847f50d8ceedc18a96e14af50f344",
+    "docs/ML5_GRADING.md": "c5561d040bc06a437a4fe05cc3af92a60336e22f858e4c0ccacb10c68e9eefb4",
+    "local-llm/rag-api/prompt.py": "74d88f917af87e57edc4bf02ef5f3458af2b28cb61adc148279d282ae1c67ea0",
+    "local-llm/rag-api/llm_client.py": "fb46af0d6d7a7ad2f889e7f1fb7dee763ed262bbf927165edc016ac8ca903356"
+  },
+  "frozen_question_files_reopened": false,
+  "retrieval_repeated": false,
+  "llm_generation_started": false,
+  "ollama_metadata_probe": "Manually started server reachable; final corrected identity preflight follows",
+  "human_grading": "pending",
+  "model_manifest_sha256": "cd232a7a8d590449a99eb8fe29b614ef9bf3624d2d17faa496e1135ba4188be0",
+  "supersedes_plan_sha256": "15b53958dc914caafea38f8dcf2f2b8729bdbaba3dd09e934377d01dfb8a50ff",
+  "unchanged_prompts_and_settings": true,
+  "identity_correction": "Server advertises hash-verified equivalent referenced manifest; wrapper hash also pinned"
+}

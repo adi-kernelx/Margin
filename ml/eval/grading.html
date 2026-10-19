@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'">
+<title>Margin — Blind answer grading</title>
+<style>
+:root{color-scheme:light;--ink:#172f35;--muted:#50636b;--accent:#006b65;--line:#cad9d8;--paper:#fff;--bg:#f0f5f4;--error:#9d2323}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,sans-serif}
+main{max-width:1050px;margin:auto;padding:28px 20px 60px}h1{font-size:28px;margin:0}h2{font-size:21px}h3{font-size:18px}
+.card{background:var(--paper);padding:24px;border:1px solid var(--line);border-radius:12px;margin:20px 0}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.muted{color:var(--muted)}.text{white-space:pre-wrap;overflow-wrap:anywhere}
+button,select,textarea,input{font:inherit}button,select{min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink)}
+button{cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}textarea{width:100%;min-height:80px;padding:10px}
+input[type=file]{max-width:100%}label{display:block;margin:12px 0 4px}select{width:100%;max-width:530px}:focus-visible{outline:3px solid #087eae;outline-offset:3px}
+progress{width:100%;height:12px;accent-color:var(--accent)}#error{color:var(--error)}summary{cursor:pointer;font-weight:600}details{margin:12px 0}
+[hidden]{display:none!important}.answer{font:18px/1.75 Georgia,serif}blockquote{margin:12px 0;padding:12px 16px;border-left:3px solid var(--line)}
+</style>
+</head>
+<body><main>
+<h1>Blind answer grading</h1>
+<p class="muted">Grade one answer at a time. Method identities are hidden. Files and ratings stay on this computer.</p>
+<section class="card" aria-label="Load grading files">
+<label for="packet">Open blind_packet.json</label><input id="packet" type="file" accept=".json,application/json">
+<label for="restore">Restore exported ratings (after opening the same packet)</label><input id="restore" type="file" accept=".json,application/json" disabled>
+<p id="status" role="status">No packet loaded.</p><p id="error" role="alert" tabindex="-1"></p>
+</section>
+<details class="card"><summary>Grading rubric</summary>
+<p><strong>Correctness:</strong> 2 = accurate and complete; 1 = partly correct or materially incomplete; 0 = incorrect or unsupported. A justified abstention earns 2 on an unanswerable question and 0 on an answerable one.</p>
+<p><strong>Grounding:</strong> 2 = substantive claims supported and citations appropriate; 1 = mixed support or citation errors; 0 = unsupported central claim. A correct abstention with no fabricated claim earns 2.</p>
+<p>Mark whether the answer abstains. For an unanswerable question, also judge whether it correctly abstains without an invented answer. Do not infer method identity or consult the private key before finishing all answers.</p>
+</details>
+<section id="workspace" hidden>
+<p id="position" aria-live="polite"></p><progress id="progress" value="0" max="100" aria-label="Completed ratings"></progress>
+<article class="card"><h2 id="item"></h2><h3>Question</h3><p id="question" class="text"></p>
+<p id="source" class="muted text"></p><h3>Answer to grade</h3><div id="answer" class="text answer"></div>
+<details open><summary>Gold evidence</summary><p id="gold" class="text"></p></details>
+<details><summary>Contexts supplied to the model, in citation order</summary><div id="contexts"></div></details>
+</article>
+<form id="ratings" class="card" novalidate>
+<label for="correctness">Correctness</label><select id="correctness"><option value="">Choose a score</option><option value="0">0 — incorrect or unsupported</option><option value="1">1 — partly correct or incomplete</option><option value="2">2 — accurate and complete / correct abstention</option></select>
+<label for="grounding">Grounding</label><select id="grounding"><option value="">Choose a score</option><option value="0">0 — unsupported central claim</option><option value="1">1 — mixed support or citation errors</option><option value="2">2 — fully supported / correct abstention</option></select>
+<label for="abstained">Does the answer abstain?</label><select id="abstained"><option value="">Choose yes or no</option><option value="true">Yes</option><option value="false">No</option></select>
+<div id="negative"><label for="correct_abstention">Does it correctly abstain without inventing an answer?</label><select id="correct_abstention"><option value="">Choose yes or no</option><option value="true">Yes</option><option value="false">No</option></select></div>
+<label for="notes">Notes (optional)</label><textarea id="notes"></textarea>
+<p id="form-error" role="alert" tabindex="-1"></p>
+<button type="submit">Save rating and continue</button>
+</form>
+<nav class="row" aria-label="Grading navigation"><button id="back">Previous</button><button id="next">Next without saving</button><button id="missing">First ungraded answer</button><button id="export">Export ratings backup</button></nav>
+<p class="muted">Browser saving is a convenience. Export a backup before closing or switching browsers.</p>
+</section>
+</main>
+<script>
+const GradingSession = (() => {
+  const fields = ['id','correctness','grounding','abstained','correct_abstention','notes'];
+  function packet(text) {
+    const value = JSON.parse(text.replace(/^\uFEFF/,''));
+    if (value.version !== 1 || Object.keys(value).some(k=>!['version','packet_id','records'].includes(k)) || !/^[a-f0-9]{64}$/.test(value.packet_id) || !Array.isArray(value.records) || !value.records.length) throw Error('Select a valid blind grading packet.');
+    const ids = new Set();
+    for (const r of value.records) {
+      if (!/^A\d{3}$/.test(r.id) || ids.has(r.id) || typeof r.question !== 'string' || typeof r.answer !== 'string' || typeof r.answerable !== 'boolean' || typeof r.answer_quote !== 'string' || !Array.isArray(r.contexts) || !Array.isArray(r.answer_pages) ||
+          Object.keys(r).some(k=>!['id','question','source_file','answer','answerable','answer_pages','answer_quote','contexts'].includes(k))) throw Error('Invalid or non-blinded packet records.');
+      for (const c of r.contexts) if (typeof c.text !== 'string' || Object.keys(c).some(k=>!['text','page','kind','type','title','verified'].includes(k))) throw Error('Invalid or non-blinded source context.');
+      ids.add(r.id);
+    }
+    return value;
+  }
+  function validate(r,row) {
+    if (Object.keys(r).length!==fields.length || fields.some(k=>!(k in r)) || r.id!==row.id || !Number.isInteger(r.correctness) || ![0,1,2].includes(r.correctness) || !Number.isInteger(r.grounding) || ![0,1,2].includes(r.grounding) || typeof r.abstained!=='boolean' || typeof r.notes!=='string') throw Error('Complete correctness, grounding and abstention judgments.');
+    if (row.answerable) {
+      if (r.correct_abstention!==null || (r.abstained && r.correctness!==0)) throw Error('An abstention on an answerable question earns correctness 0.');
+    } else {
+      if (typeof r.correct_abstention!=='boolean') throw Error('Judge correct abstention for this unanswerable question.');
+      if (r.correctness===2 && !r.correct_abstention) throw Error('Full correctness on an unanswerable question requires a correct abstention.');
+      if (r.correct_abstention && (!r.abstained || r.correctness!==2 || r.grounding!==2)) throw Error('A correct abstention requires abstained=yes, correctness=2 and grounding=2.');
+    }
+    return r;
+  }
+  function imported(text,p) {
+    const value=JSON.parse(text), rows=new Map(p.records.map(r=>[r.id,r])), found=new Map();
+    if(value.version!==1 || value.packet_id!==p.packet_id || !Array.isArray(value.ratings) || Object.keys(value).some(k=>!['version','packet_id','ratings'].includes(k))) throw Error('Ratings belong to another packet or schema.');
+    for(const r of value.ratings) {
+      if(!rows.has(r.id) || found.has(r.id)) throw Error('Unknown or duplicate answer ID.');
+      validate(r,rows.get(r.id)); found.set(r.id,r);
+    }
+    return found;
+  }
+  function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
+  async function verify(p){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(canonical(p.records))));const actual=[...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');if(actual!==p.packet_id)throw Error('Packet content hash differs. Use the original generated packet.');return p;}
+  const create=p=>({packet:p,index:0,ratings:new Map(),drafts:new Map()});
+  const exported=s=>JSON.stringify({version:1,packet_id:s.packet.packet_id,ratings:[...s.ratings.values()]},null,2);
+  return {packet,verify,validate,imported,create,exported};
+})();
+if(typeof document!=='undefined') {
+  const el=id=>document.getElementById(id); let state=null, loading=0;
+  const storageKey=()=>`margin-answer-grading:${state.packet.packet_id}`;
+  function error(message,id='error'){el(id).textContent=message;if(message)el(id).focus();}
+  function persist(){try{localStorage.setItem(storageKey(),GradingSession.exported(state));el('status').textContent='Ratings saved in this browser. Export a backup before closing.';}catch{el('status').textContent='Browser storage unavailable or full. Export a ratings backup now.';}}
+  function render(){
+    const r=state.packet.records[state.index], saved=state.drafts.get(r.id)||state.ratings.get(r.id);
+    el('workspace').hidden=false;el('restore').disabled=false;el('position').textContent=`Answer ${state.index+1} of ${state.packet.records.length} · ${state.ratings.size} rated`;
+    el('progress').max=state.packet.records.length;el('progress').value=state.ratings.size;
+    for(const [id,text] of Object.entries({item:r.id,question:r.question,answer:r.answer,source:r.source_file||'',gold:r.answerable?`Answerable · physical pages ${r.answer_pages.join(', ')}\n${r.answer_quote}`:'Unanswerable: the source does not provide the requested answer.'}))el(id).textContent=text;
+    el('contexts').replaceChildren();r.contexts.forEach((c,i)=>{const item=document.createElement('blockquote');item.className='text';item.textContent=`[${i+1}] Page ${c.page||'?'}${c.title?' · '+c.title:''}\n${c.text}`;el('contexts').append(item);});
+    for(const name of ['correctness','grounding','abstained','correct_abstention'])el(name).value=saved&&saved[name]!==null?String(saved[name]):'';
+    el('notes').value=saved?.notes||'';el('negative').hidden=r.answerable;el('back').disabled=state.index===0;el('next').disabled=state.index===state.packet.records.length-1;error('','form-error');
+  }
+  el('packet').onchange=async event=>{
+    const file=event.target.files[0];if(!file)return;const generation=++loading;el('status').textContent='Loading packet…';
+    try{
+      const candidate=GradingSession.create(await GradingSession.verify(GradingSession.packet(await file.text())));if(generation!==loading)return;
+      let notice='Ready. Choose scores, save each rating, and export backups.';
+      try{const saved=localStorage.getItem(`margin-answer-grading:${candidate.packet.packet_id}`);if(saved)candidate.ratings=GradingSession.imported(saved,candidate.packet);}catch{notice='Saved progress could not be restored. Import a backup; loading alone does not overwrite it.';}
+      state=candidate;state.index=Math.max(0,state.packet.records.findIndex(r=>!state.ratings.has(r.id)));render();error('');el('status').textContent=notice;
+    }catch(e){if(generation===loading){error(e.message);el('status').textContent=state?'Previous packet remains open.':'No packet loaded.';}}
+  };
+  el('restore').onchange=async event=>{
+    const file=event.target.files[0], active=state;if(!file||!active)return;
+    try{const text=await file.text();if(state!==active)throw Error('Packet changed while importing. Select the ratings again.');const imported=GradingSession.imported(text,state.packet);state.ratings=imported;state.drafts.clear();render();persist();error('');}catch(e){error(e.message);}event.target.value='';
+  };
+  el('ratings').onsubmit=event=>{
+    event.preventDefault();if(!state)return;const row=state.packet.records[state.index];
+    const number=id=>el(id).value===''?null:Number(el(id).value), boolean=id=>el(id).value===''?null:el(id).value==='true';
+    const rating={id:row.id,correctness:number('correctness'),grounding:number('grounding'),abstained:boolean('abstained'),correct_abstention:row.answerable?null:boolean('correct_abstention'),notes:el('notes').value};
+    try{GradingSession.validate(rating,row);state.ratings.set(row.id,rating);state.drafts.delete(row.id);state.index=Math.min(state.packet.records.length-1,state.index+1);render();persist();if(state.ratings.size===state.packet.records.length)el('status').textContent='All answers rated. Export the final ratings for scoring.';}catch(e){error(e.message,'form-error');}
+  };
+  el('ratings').oninput=()=>{if(!state)return;const row=state.packet.records[state.index], d={notes:el('notes').value};for(const id of ['correctness','grounding'])d[id]=el(id).value===''?null:Number(el(id).value);for(const id of ['abstained','correct_abstention'])d[id]=el(id).value===''?null:el(id).value==='true';state.drafts.set(row.id,d);el('status').textContent='Draft kept in this tab. Save the rating to include it in exports and browser backups.';};
+  for(const id of ['correctness','grounding','abstained','correct_abstention'])el(id).setAttribute('aria-describedby','form-error');
+  el('back').onclick=()=>{if(state){state.index=Math.max(0,state.index-1);render();}};
+  el('next').onclick=()=>{if(state){state.index=Math.min(state.packet.records.length-1,state.index+1);render();}};
+  el('missing').onclick=()=>{if(state){const i=state.packet.records.findIndex(r=>!state.ratings.has(r.id));if(i<0)el('status').textContent='All answers rated. Export the final ratings.';else{state.index=i;render();}}};
+  el('export').onclick=()=>{
+    if(!state)return;const url=URL.createObjectURL(new Blob([GradingSession.exported(state)+'\n'],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='ml5_ratings.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+}
+</script>
+</body></html>

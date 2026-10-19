@@ -1,0 +1,104 @@
+{
+  "status": "generation_complete_grading_pending",
+  "questions": 10,
+  "answers": 40,
+  "documents": 4,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "timing": {
+    "full_grounded": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 42.79052256999985,
+        "wall_seconds": 47.80584679000003,
+        "prompt_seconds": 42.0820571,
+        "output_seconds": 5.0154368,
+        "prompt_tokens": 1752.8,
+        "output_tokens": 49.9
+      },
+      "length_stops": 0
+    },
+    "full_original": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 43.653993260000064,
+        "wall_seconds": 49.15084718999988,
+        "prompt_seconds": 43.6096122999,
+        "output_seconds": 5.4966381,
+        "prompt_tokens": 1730.5,
+        "output_tokens": 56.9
+      },
+      "length_stops": 0
+    },
+    "selected_original": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 15.835019749999992,
+        "wall_seconds": 21.128022000000236,
+        "prompt_seconds": 15.7979359999,
+        "output_seconds": 5.2929081,
+        "prompt_tokens": 788.8,
+        "output_tokens": 57.7
+      },
+      "length_stops": 0
+    },
+    "selected_grounded": {
+      "requests": 10,
+      "means": {
+        "first_text_seconds": 14.412258809999912,
+        "wall_seconds": 17.912920019999728,
+        "prompt_seconds": 14.3794132,
+        "output_seconds": 3.5004869,
+        "prompt_tokens": 813.1,
+        "output_tokens": 40.2
+      },
+      "length_stops": 0
+    }
+  },
+  "answerable_questions": 8,
+  "unsupported_probes": 2,
+  "complete_reference_questions": {
+    "full": 8,
+    "bounded": 8
+  },
+  "additional_reference_losses": 0,
+  "citation_syntax": {
+    "full_grounded": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 5,
+      "semantic_support_assessed": false
+    },
+    "full_original": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 2,
+      "semantic_support_assessed": false
+    },
+    "selected_original": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 2,
+      "semantic_support_assessed": false
+    },
+    "selected_grounded": {
+      "invalid_mentions": 0,
+      "answers_without_citation": 4,
+      "semantic_support_assessed": false
+    }
+  },
+  "quality_assessed": false,
+  "live_defaults_changed": false,
+  "limitations": "Diagnostic 2x2 study of ten previously reviewed, assistant-authored TRAIN cases over four PDFs, including two synthetic unsupported probes. No independent holdout or representative traffic. One fresh generation per condition/question, no generation seed, limited reviewer independence and partial blinding. Document-bootstrap intervals use few clusters and multiple exploratory contrasts without multiplicity correction. Counterbalanced order does not eliminate cache, carryover or output-length effects. No automatic live change or population claim.",
+  "plan_sha256": "f92eba66e44002dd94f79fcb7ddc5335f0ea3dac96ecc48fb9ad664ce665c05b",
+  "journal_sha256": "bb5e22c23c3bda08aea8770228238cad2c4627002fb42efcf846b8d087694e51",
+  "packet_sha256": "a6ed7d26287117d8142c5cb42ce447ddebaea6e78ee6c5e7c62fe6b2c367c42d",
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "recorded_at": "2026-10-18T08:41:05.573676+00:00"
+}

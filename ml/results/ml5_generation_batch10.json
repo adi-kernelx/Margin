@@ -1,0 +1,130 @@
+{
+  "status": "approved_ten_answer_batch_complete",
+  "recorded_at": "2026-10-17T19:53:14.970559+00:00",
+  "batch_answers": 10,
+  "completed": 12,
+  "remaining": 88,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 512,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "prior_answers_at_two_threads": 2,
+  "canonical_plan_sha256": "4b1d94ebad28332c3745c21b3b921da9f6cf775bc5e40c48ec8f5c62c9aadad4",
+  "plan_file_sha256": "5d31b064302e2d78313b888a820da0d91c94a45cf2d1e077bd639e57255da396",
+  "runtime_amendment_sha256": "c15db4037758b43a59e70d22a62084d59cfe6929cedebde56db0f42ad8c457e7",
+  "journal_sha256": "dec50f04909cdb78eb2df3d74c852febbe538028d21087c078c6daa48c334bee",
+  "model_identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "samples": [
+    {
+      "batch_answer_number": 1,
+      "wall_seconds": 296.8282904999978,
+      "prompt_characters": 19592,
+      "prompt_tokens": 5421,
+      "output_tokens": 223,
+      "load_seconds": 8.0567721,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 2,
+      "wall_seconds": 224.596478200001,
+      "prompt_characters": 16380,
+      "prompt_tokens": 4871,
+      "output_tokens": 52,
+      "load_seconds": 0.0140693,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 3,
+      "wall_seconds": 107.35950470000535,
+      "prompt_characters": 12955,
+      "prompt_tokens": 2642,
+      "output_tokens": 41,
+      "load_seconds": 0.0159045,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 4,
+      "wall_seconds": 306.41103029999795,
+      "prompt_characters": 20355,
+      "prompt_tokens": 6288,
+      "output_tokens": 50,
+      "load_seconds": 0.0179597,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 5,
+      "wall_seconds": 105.09118139999919,
+      "prompt_characters": 10934,
+      "prompt_tokens": 2289,
+      "output_tokens": 146,
+      "load_seconds": 0.0151953,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 6,
+      "wall_seconds": 283.33263960000477,
+      "prompt_characters": 19079,
+      "prompt_tokens": 5616,
+      "output_tokens": 119,
+      "load_seconds": 0.0172763,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 7,
+      "wall_seconds": 109.70428099999845,
+      "prompt_characters": 16157,
+      "prompt_tokens": 4275,
+      "output_tokens": 12,
+      "load_seconds": 0.0151411,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 8,
+      "wall_seconds": 79.47441110000364,
+      "prompt_characters": 4913,
+      "prompt_tokens": 3747,
+      "output_tokens": 39,
+      "load_seconds": 0.006374,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 9,
+      "wall_seconds": 28.92409449999832,
+      "prompt_characters": 7481,
+      "prompt_tokens": 1757,
+      "output_tokens": 18,
+      "load_seconds": 0.0046744,
+      "stop_reason": "stop"
+    },
+    {
+      "batch_answer_number": 10,
+      "wall_seconds": 75.3399036999981,
+      "prompt_characters": 13143,
+      "prompt_tokens": 3678,
+      "output_tokens": 86,
+      "load_seconds": 0.008409,
+      "stop_reason": "stop"
+    }
+  ],
+  "request_seconds_total": 1617.0618150000046,
+  "request_seconds_mean": 161.70618150000047,
+  "request_seconds_median": 108.5318928500019,
+  "request_seconds_min": 28.92409449999832,
+  "request_seconds_max": 306.41103029999795,
+  "batch_elapsed_seconds": 1617.421718,
+  "remaining_hours_at_batch_mean": 3.9528177700000118,
+  "remaining_hours_at_prompt_character_ratio": 3.906917158011629,
+  "timing_limitations": "Ten sequential nonrandom timing samples; prompt/output lengths, cache reuse and concurrent laptop work vary. Different prompts and outputs prevent a controlled 2-vs-3-thread speed comparison. Character scaling is only a heuristic.",
+  "generation_failures": 0,
+  "no_regeneration": true,
+  "human_grading": "pending",
+  "frozen_question_files_reopened": false,
+  "retrieval_repeated": false
+}

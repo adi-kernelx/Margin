@@ -1,0 +1,114 @@
+{
+  "status": "complete",
+  "recorded_at": "2026-10-17T20:08:26.644419+00:00",
+  "splits": [
+    "train"
+  ],
+  "documents": 2,
+  "requests": 4,
+  "options": {
+    "temperature": 0.1,
+    "num_predict": 128,
+    "num_thread": 3,
+    "num_gpu": 0,
+    "num_ctx": 32768
+  },
+  "canonical_plan_sha256": "60c8ec36187998b28ce53cd9994a15aff9d01155cc298faf6ed993f54c33a93b",
+  "selection": "Two longest bounded TRAIN concept bundles; fresh generic diagnostic prompt, no retrieval or gold questions",
+  "samples": [
+    {
+      "case": "C01",
+      "variant": "full",
+      "contexts": 5,
+      "context_bytes": 18000,
+      "prompt_bytes": 19107,
+      "first_text_seconds": 124.64816209999844,
+      "wall_seconds": 138.7183447999996,
+      "load_seconds": 4.3596895,
+      "prompt_seconds": 120.257741,
+      "output_seconds": 14.072767,
+      "server_total_seconds": 138.7175778,
+      "prompt_tokens": 5602,
+      "output_tokens": 128,
+      "output_tokens_per_second": 9.095581558338882,
+      "done_reason": "length"
+    },
+    {
+      "case": "C01",
+      "variant": "bounded",
+      "contexts": 2,
+      "context_bytes": 4000,
+      "prompt_bytes": 4987,
+      "first_text_seconds": 1.1839018000027863,
+      "wall_seconds": 10.340143699999317,
+      "load_seconds": 0.0052755,
+      "prompt_seconds": 1.129063,
+      "output_seconds": 9.156452,
+      "server_total_seconds": 10.3385887,
+      "prompt_tokens": 1431,
+      "output_tokens": 128,
+      "output_tokens_per_second": 13.979213782805829,
+      "done_reason": "length"
+    },
+    {
+      "case": "C02",
+      "variant": "bounded",
+      "contexts": 3,
+      "context_bytes": 4000,
+      "prompt_bytes": 5059,
+      "first_text_seconds": 14.137306999997236,
+      "wall_seconds": 24.271925299995928,
+      "load_seconds": 0.0052808,
+      "prompt_seconds": 14.107389,
+      "output_seconds": 10.134805,
+      "server_total_seconds": 24.2707791,
+      "prompt_tokens": 1084,
+      "output_tokens": 128,
+      "output_tokens_per_second": 12.629744726218215,
+      "done_reason": "length"
+    },
+    {
+      "case": "C02",
+      "variant": "full",
+      "contexts": 7,
+      "context_bytes": 18000,
+      "prompt_bytes": 19216,
+      "first_text_seconds": 68.4908226999978,
+      "wall_seconds": 81.21979090000241,
+      "load_seconds": 0.0068362,
+      "prompt_seconds": 68.458804999,
+      "output_seconds": 12.728922,
+      "server_total_seconds": 81.2188539,
+      "prompt_tokens": 4471,
+      "output_tokens": 128,
+      "output_tokens_per_second": 10.0558397639643,
+      "done_reason": "length"
+    }
+  ],
+  "means": {
+    "full": {
+      "first_text_seconds": 96.56949239999813,
+      "wall_seconds": 109.96906785000101,
+      "load_seconds": 2.18326285,
+      "prompt_seconds": 94.3582729995,
+      "output_seconds": 13.400844500000002
+    },
+    "bounded": {
+      "first_text_seconds": 7.660604400000011,
+      "wall_seconds": 17.306034499997622,
+      "load_seconds": 0.0052781500000000005,
+      "prompt_seconds": 7.618226,
+      "output_seconds": 9.6456285
+    }
+  },
+  "quality_assessed": false,
+  "live_defaults_changed": false,
+  "limitations": "Two selected long-context TRAIN stress cases, one run per variant, counterbalanced order with uncontrolled cache reuse. First text is client receipt of a nonempty text chunk, not exact server token latency. Same 32K allocation, 3 threads and 128-token cap across variants; truncations retained. No gold answer quality or end-to-end retrieval/UI measurement; no statistical generalization.",
+  "identity": {
+    "model": "qwen2.5:3b-instruct",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "ollama_version": "0.40.4"
+  },
+  "journal_sha256": "059a2b2ab24d71b2984096db7d111fcd34abf9a8a72d354c532c7f46a9382675",
+  "grading_checkpoint_unchanged": true
+}
