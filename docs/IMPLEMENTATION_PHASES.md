@@ -2,11 +2,12 @@
 
 **Revised:** October 6, 2026
 
-**Latest ML status, October 19, 2026:** ML5.1–ML5.4 are complete. Final
-synthesis retains hybrid + OKF concepts + cross-encoder, opt-in links/ranker
-and deferred context changes. All 100 planned answers were assistant-reviewed.
-Recommended next: ML7 write-up; ML6 answerability gate remains optional.
-See `docs/ML5_SYNTHESIS.md` and `ml/results/ml5_closeout.json`.
+**Latest ML status, October 19, 2026:** ML1–ML5 implementation/experiments
+and ML7 write-up are complete; optional ML6 is not implemented. Default stays
+hybrid + OKF concepts + cross-encoder. ML5 checkpoint: `30be3a0`. Current
+documentation: `docs/ML7_RESULTS.md`, `docs/MODEL_CARD.md`,
+`docs/DATASET_CARD.md` and `README.md`. Next: review/checkpoint ML7, then
+remaining manual product acceptance or a separately chosen engineering phase.
 
 This replaces the original plan in this file (Firestore data model, S3
 presigned saves, an Express API). That architecture was deleted in September
@@ -733,6 +734,37 @@ fixed threshold in `validator.py`.
 - Rewrite `README.md` and `PROJECT_SUMMARY.md`; mark
   `docs/CLOUD_ARCHITECTURE.md` historical.
 - Buffer for end-semester exams.
+
+**Completed October 19, 2026:** after committing ML5 as `30be3a0`
+(`Complete ML5 answer evaluation and final synthesis`), consolidated the
+cross-phase results, model and dataset cards, decisions and reproduction
+limits in `docs/ML7_RESULTS.md`, `docs/MODEL_CARD.md`, `docs/DATASET_CARD.md`
+and `ml/results/ml7_documentation.json`. Rewrote README for native-text find,
+optional CPU/local services, embedded Qdrant and manually started Ollama.
+Rewrote local `PROJECT_SUMMARY.md` (excluded from commits), marked the cloud
+proposal historical and routed old ML READMEs to the current cards.
+
+The write-up distinguishes weak-label development, repeated/adjudicated
+classifier diagnostics, first-read versus post-fix OKF checks, the single
+frozen retrieval milestone and 100 assistant-reviewed answers. No new model
+load, training, raw label/question-file read, inference or UI operation.
+25 aggregate/source/artifact input hashes are recorded. ML6 stays optional;
+no calibration, latency, human-validation or deployment claim was added.
+Verification details are recorded in the ML7 documentation index and log.
+
+**Verification:** 25 aggregate/source/artifact hashes, 25 numerical table rows
+and 24 local links validate; documented command paths/defaults match source.
+The ML5.3 integrity verifier still passes with 100 outputs and 64 immutable
+checkpoints. Three unrelated files are preserved byte-for-byte. The preceding
+532 Python / six grading-session tests remain the unchanged-code baseline;
+no model, UI or full-suite rerun was needed for documentation. Diff whitespace
+checks pass. ML7 was ready for review at this checkpoint; the user subsequently
+requested its documentation commit.
+
+**Next after the requested ML7 checkpoint:** earlier reader/chrome manual
+acceptance and static-demo publication remain
+open. Optional ML6 or another latency/grounding phase needs a separate request
+and new validation plan. No automatic further tuning or publishing.
 
 ---
 

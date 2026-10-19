@@ -1,3 +1,15 @@
+# Historical cloud architecture — superseded
+
+Archived context, October 19, 2026. The Firestore, S3, authentication and
+Express architecture below was removed from the application in September
+2026. It is not the current deployment, setup guide or planned implementation.
+Current behavior is local-first with browser IndexedDB and optional local
+Python services; see [README](../README.md), [ML7 results](ML7_RESULTS.md)
+and [roadmap](IMPLEMENTATION_PHASES.md). The original proposal is retained
+below for historical reference.
+
+---
+
 A — Firestore data model (recursive subcollections)
 
 Top-level:

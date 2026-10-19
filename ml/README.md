@@ -1,5 +1,12 @@
 # ML Data Pipeline — Step 1: Block Extraction
 
+> Historical implementation notes through early ML phases. Current overview:
+> [README](../README.md), [final results](../docs/ML7_RESULTS.md),
+> [model card](../docs/MODEL_CARD.md) and [dataset card](../docs/DATASET_CARD.md).
+> Earlier pending-status statements and commands below describe their original
+> checkpoints. Both retrieval question sets and the classifier milestone reads
+> are consumed; do not rerun historical evaluations or use them for tuning.
+
 Deterministic data-extraction pipeline that splits PDFs into text blocks,
 extracts layout features, and assigns **weak labels** from headings
 ("Definition 2.1", "THEOREM 1.25", "Proof.", etc.).

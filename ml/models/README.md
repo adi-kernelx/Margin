@@ -1,5 +1,10 @@
 # ML2.2 — First classifier
 
+> Historical classifier development notes. The deployed OKF pipeline and
+> frozen optional ranker are described in the [current model card](../../docs/MODEL_CARD.md).
+> See the [final results](../../docs/ML7_RESULTS.md) and
+> [dataset card](../../docs/DATASET_CARD.md) before using older commands below.
+
 At the user's explicit request, `first_classifier.py` now implements the three
 contracts. Ten active tests verify them; no skip flag remains. Model behaviour
 is intentionally small enough to inspect. Grouped evaluation is a later step.

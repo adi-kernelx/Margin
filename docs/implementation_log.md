@@ -9,17 +9,18 @@ unreliable without reading the Git history first.
 **Rebuild started:** September 2, 2026  
 **Last updated:** October 19, 2026
 **Roadmap position:** Weeks 1–8 implemented (8R manual acceptance pending);
-ML5 complete; recommended next is ML7 write-up (ML6 answerability is optional).
+ML1–ML5 implemented/measured and ML7 documented; optional ML6 not implemented.
 **Working branch:** `phase-0-demolition` (the name is historical; the branch now
-contains the rebuild through ML1)  
+contains the reader rebuild and ML track through committed ML5)
 **Primary stack:** React 19, TypeScript, Vite, PDF.js, pdf-lib, IndexedDB,
 Vitest; ML: Python, PyMuPDF, pytest
 
-**Latest ML status:** ML5.1–ML5.4 completed October 19. Final synthesis and
-decision log retain hybrid + concepts + cross-encoder; ranker/links stay
-opt-in and context changes deferred. Recommended next: ML7 write-up; optional
-ML6 needs a separate decision. Earlier snapshots below are historical.
-See `docs/ML5_SYNTHESIS.md` and `ml/results/ml5_closeout.json`.
+**Latest ML status:** ML5 committed as `30be3a0`; ML7 write-up completed
+October 19. See `docs/ML7_RESULTS.md`, `docs/MODEL_CARD.md`,
+`docs/DATASET_CARD.md` and the rewritten README. Default remains hybrid +
+concepts + CE; ML6 is optional and unimplemented. Next: review/checkpoint ML7,
+then remaining manual product acceptance or a separately selected phase.
+Earlier snapshots below are historical.
 
 ---
 
@@ -6842,6 +6843,65 @@ The ML5.3 verifier recomputed answer statistics and validated 100 outputs,
 closeout checks validate 17 unchanged input hashes, exact aggregate copies,
 the failed switch rule and 42 numeric table rows. `git diff --check` passes.
 No production source changed, so frontend build/UI acceptance was not rerun.
+
+## Phase ML7 — Final write-up (October 19, 2026)
+
+First checkpointed the completed ML5 work as **`30be3a0` — Complete ML5 answer
+evaluation and final synthesis**, using 69 explicitly staged source/test/
+aggregate/documentation paths. Verified the exact staging list, excluded
+private data/models/questions and preserved unrelated frontend files. The
+commit has one subject and no body/co-author trailers. No push was requested.
+
+ML7 deliverables:
+
+- `docs/ML7_RESULTS.md`: cross-phase outcome tables and decisions, distinguishing
+  block-role diagnostics, OKF first-read/post-fix checks, frozen retrieval,
+  generated answers, latency and remaining product work.
+- `docs/MODEL_CARD.md`: trained block/definition pipeline and LambdaRank,
+  pretrained encoder/CE/Qwen roles, artifact hashes, supervision, configuration,
+  intended use, limitations and reproducibility boundaries.
+- `docs/DATASET_CARD.md`: manifest/split/expanded training/diagnostic/retrieval/
+  answer-review populations, grouping, annotation authorship, repeated reads,
+  copyright/privacy exclusions and future validation constraints.
+- `README.md`: current native-text literal find, optional local services,
+  root-based PowerShell commands, embedded Qdrant and manually started Ollama;
+  removes old roadmap, OCR-search and mandatory-container implications.
+- `PROJECT_SUMMARY.md`: rewritten local handoff; remains excluded from commits.
+  `docs/CLOUD_ARCHITECTURE.md` now clearly historical; old ML READMEs route to
+  the new cards without replacing their recorded chronology.
+- `ml/results/ml7_documentation.json`: 25 aggregate/source/artifact hashes,
+  exact provenance and verification record, without raw source/question text.
+
+The trained pipeline's adjudicated role accuracy is **0.730 [0.653, 0.804]**,
+macro F1 **0.723 [0.595, 0.773]** on enriched, AI-labelled/adjudicated diagnostic
+data after repeated reads. OKF first-held-out concept/link precision
+**0.929 [0.857, 0.978] / 0.756 [0.561, 0.943]** stays separate from post-fix
+scores. Retained ML5 decisions and all uncertainty: default CE + concepts;
+ranker/links opt-in; context/prompt candidates deferred. No retraining,
+regrading, model loading, frozen question-file read or UI work. The native
+find and service-command descriptions were checked against current source.
+
+ML6 remains optional and unimplemented; the current similarity validator is
+not calibrated answerability. No blanket dataset/model license or independent
+human-validation/production-readiness claim. Raw PDFs, labels, questions,
+vocabulary artifacts and generated packets remain excluded from commits.
+
+Verification: **25 protected input hashes, 25 numeric table rows and 24 local
+Markdown links** validate. Documented npm scripts/dependency paths, service
+entry points, retrieval/LLM defaults and model identities match current source.
+The ML5.3 completion verifier still passes with 100 outputs, 50 paired cases,
+six PDFs and 64 immutable checkpoints. Three unrelated frontend/plan files
+remain byte-identical to the pre-commit checkpoint. The specifically requested
+local summary rewrite is the only intentional change among excluded files.
+`git diff --check` passes. Prior 532 Python/six session tests cover unchanged
+implementation; no full test-suite, UI or model rerun for documentation-only
+changes. No new tests were added for prose/table copying.
+
+**ML7 is complete.** The user subsequently requested its documentation commit;
+the explicit file list excludes the local summary and unrelated frontend work.
+**Next:** finish earlier manual reader/chrome acceptance or choose a bounded
+engineering phase. Static-demo publication is still pending. Optional ML6 has
+not started; explaining its scope does not authorize a model workload.
 
 ## Current Project State
 

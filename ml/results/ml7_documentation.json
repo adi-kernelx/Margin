@@ -1,0 +1,574 @@
+{
+  "date": "2026-10-19",
+  "phase": "ML7",
+  "ml5_commit": "30be3a08416c58ca57bc86e24876dd9ba576e476",
+  "sources_sha256": {
+    "ml/results/gold_ml215_pipeline_adjudicated.json": "535b93508fcab970d39642ddccd02de473e7a6b67161b28ffc0fd7d02d9eab09",
+    "ml/results/gold_ml215_pipeline.json": "02aefebc5895b7f37c9b1ebef3e669a92eae041bf18a73c41b16f1456b782ef1",
+    "ml/results/annotator_agreement.json": "6cb0d0ff5d7e9e7b398ba2b3770f49199689366a04069be9ad5e5c5e395aec45",
+    "ml/results/arxiv_expansion_summary.json": "1bf9a5f0d7b811fba7e24723c786cab25d4beefa245b69fb852d1458d18067d9",
+    "ml/results/okf_bundles_summary.json": "e99933ea99ac0a1275a787750223eb815a3f10ad671d4f872d81b832a291dcc0",
+    "ml/results/okf_gold_test.json": "e1c471cb3d163c859b060e243474b9b03bc06c5559ddff74ace9fd6016b74816",
+    "ml/results/okf_gold_test_final.json": "bd913b4d6765c0a8dfd21661dfa2584d677bfe02494a8ca0142c0e84059a8510",
+    "ml/results/ml5_train.json": "acf527683182091a1262025007197293eedafe68b9e782b9ee0471ce8c4ea6fd",
+    "ml/results/ml5_frozen.json": "af512bac091475f57133599ad79569ce32fab539277d9d0e45da26c4d3ba2e35",
+    "ml/results/ml5_frozen_analysis.json": "b307dd6d977b8365b432d92e246389cf988769abb6c29e89393cf831deb7651f",
+    "ml/results/ml5_answer_grading.json": "b53d6e56ce1c566dd6318b6122403c50a061ad2f07a9670256c72e11a263fbfb",
+    "ml/results/ml53_generation_complete.json": "4b6d98ebdcf9957041cec4c5a04401dad33ff7a63010dd2b13b74f65f8eb72c9",
+    "ml/results/ml5_closeout.json": "6c512ac096e2815d729c2ef7596d6b97009fcdb06499f668d289fba5e3f82837",
+    "ml/splits.json": "cc065d59918699d4946a2679b39d69ec9701dadb885f60d5d9ffdf359ef588b3",
+    "Test PDFs/manifest.csv": "a25ba434bc4dc2fcd236d2bb1dee57a34ec75d691e71559cb7f019c0f463941d",
+    "ml/okf/pipeline.py": "10733f6ce77cde1945ea2eaebcfa29072d7046af0228176f99176c591391bb8b",
+    "ml/ranking/ranker.py": "7cf4519bc58fe9aaf4a0ba30bd06455b10c6e1d3bc1a63a57a88fea07ef41931",
+    "local-llm/rag-api/llm_client.py": "fb46af0d6d7a7ad2f889e7f1fb7dee763ed262bbf927165edc016ac8ca903356",
+    "local-llm/rag-api/retriever.py": "6f1ee58b8b0e801b39783970ba27f8082130c164cce7983a73adca8735994d87",
+    "local-llm/rag-api/reranker.py": "e1514617c955500cab8cbacf4ebfe63ed9bede52ed2ffe072e342e838534f3f9",
+    "local-llm/rag-api/store.py": "51f3b1b28ed01c044395fb4c5c27905dcd51c7154205b2c764707146f4f55808",
+    "local-llm/rag-api/validator.py": "6ceaebe5ddf66e9273e6d68cc04875edfc662f7ccf8023d766b1b2e93abbadf1",
+    "src/core/search/index.ts": "4e5c476aff3922586372eb275022de852b21f0348336f46cc15d679573582a4d",
+    "ml/models/artifacts/okf_pipeline.joblib": "957a3a7a4ea207a298df09289a9bcd1aa3da477e1a5c65c51ebd16d33239e5a7",
+    "ml/models/artifacts/ranker.joblib": "7e35f36de053c0b970658c769f789bb40fdc423da879256d38890380b5c5571f"
+  },
+  "artifact_metadata_only": true,
+  "model_loaded": false,
+  "new_inference_calls": 0,
+  "frozen_question_files_read": 0,
+  "labels_read": 0,
+  "model_cards": [
+    "docs/MODEL_CARD.md"
+  ],
+  "dataset_card": "docs/DATASET_CARD.md",
+  "results": "docs/ML7_RESULTS.md",
+  "public_overview": "README.md",
+  "private_summary": "PROJECT_SUMMARY.md",
+  "ml6": "optional_not_implemented",
+  "limitations": "Aggregate synthesis only; no independent human validation, new test data, end-to-end latency or UI acceptance.",
+  "status": "complete",
+  "dataset_summary": {
+    "manifest_entries": 58,
+    "uses": {
+      "main": 48,
+      "scan-slice": 6,
+      "other": 4
+    },
+    "source_groups": {
+      "train_groups": 23,
+      "test_groups": 10,
+      "excluded_groups": 5
+    },
+    "expanded_weak_rows": 4477,
+    "expanded_usable_groups": 124,
+    "reliable_negatives": 4264,
+    "detector_sentences": {
+      "positive": 458,
+      "negative": 16098
+    },
+    "block_gold": {
+      "blocks": 300,
+      "pdfs": 12
+    },
+    "retrieval": {
+      "original": {
+        "total": 80,
+        "answerable": 65,
+        "unanswerable": 15
+      },
+      "independent": {
+        "total": 78,
+        "answerable": 62,
+        "unanswerable": 16
+      }
+    },
+    "answer_review": {
+      "questions": 50,
+      "answers": 100,
+      "pdfs": 6
+    }
+  },
+  "metrics": {
+    "roles": {
+      "accuracy": 0.73,
+      "macro_f1": 0.7232098102398854,
+      "per_class": {
+        "definition": {
+          "precision": 0.7076923076923077,
+          "recall": 0.6764705882352942,
+          "f1": 0.6917293233082706,
+          "support": 68
+        },
+        "theorem": {
+          "precision": 0.9459459459459459,
+          "recall": 0.813953488372093,
+          "f1": 0.875,
+          "support": 43
+        },
+        "proof": {
+          "precision": 0.9047619047619048,
+          "recall": 0.6785714285714286,
+          "f1": 0.7755102040816326,
+          "support": 56
+        },
+        "example": {
+          "precision": 0.6875,
+          "recall": 0.4230769230769231,
+          "f1": 0.5238095238095238,
+          "support": 26
+        },
+        "algorithm": {
+          "precision": 0.8181818181818182,
+          "recall": 0.6923076923076923,
+          "f1": 0.75,
+          "support": 13
+        },
+        "other": {
+          "precision": 0.6201550387596899,
+          "recall": 0.851063829787234,
+          "f1": 0.7174887892376681,
+          "support": 94
+        }
+      },
+      "confusion_matrix": [
+        [
+          46,
+          2,
+          0,
+          0,
+          1,
+          19
+        ],
+        [
+          1,
+          35,
+          1,
+          0,
+          0,
+          6
+        ],
+        [
+          4,
+          0,
+          38,
+          0,
+          0,
+          14
+        ],
+        [
+          5,
+          0,
+          3,
+          11,
+          0,
+          7
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          9,
+          3
+        ],
+        [
+          8,
+          0,
+          0,
+          5,
+          1,
+          80
+        ]
+      ],
+      "missing_gold_classes": [],
+      "accuracy_ci95": {
+        "ci95": [
+          0.6531975156975157,
+          0.8041732011070111
+        ],
+        "undefined_resamples": 0
+      },
+      "macro_f1_ci95": {
+        "ci95": [
+          0.5949939453914669,
+          0.7733134812996556
+        ],
+        "undefined_resamples": 0
+      }
+    },
+    "contains_definition_all_blocks": {
+      "blocks": 300,
+      "positives": 120,
+      "precision": 0.8769230769230769,
+      "precision_ci95": [
+        0.7936208445642408,
+        0.9589110986860496
+      ],
+      "recall": 0.475,
+      "recall_ci95": [
+        0.3826023017902813,
+        0.5606111793611793
+      ],
+      "f1": 0.6162162162162161
+    },
+    "unheaded_detector": {
+      "blocks": 200,
+      "positives": 91,
+      "precision": 0.864406779661017,
+      "precision_ci95": [
+        0.78125,
+        0.9523809523809523
+      ],
+      "recall": 0.5604395604395604,
+      "recall_ci95": [
+        0.4146341463414634,
+        0.6986643835616436
+      ],
+      "f1": 0.6799999999999999
+    },
+    "okf_first_read": {
+      "documents": 32,
+      "concepts_all": {
+        "precision": {
+          "n": 85,
+          "value": 0.929,
+          "ci95": [
+            0.857,
+            0.978
+          ]
+        },
+        "title_good": {
+          "n": 79,
+          "value": 0.747,
+          "ci95": [
+            0.62,
+            0.861
+          ]
+        },
+        "title_usable": {
+          "n": 79,
+          "value": 0.924,
+          "ci95": [
+            0.857,
+            0.976
+          ]
+        }
+      },
+      "concepts_heading": {
+        "precision": {
+          "n": 53,
+          "value": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "title_good": {
+          "n": 53,
+          "value": 0.849,
+          "ci95": [
+            0.702,
+            0.964
+          ]
+        },
+        "title_usable": {
+          "n": 53,
+          "value": 0.943,
+          "ci95": [
+            0.857,
+            1.0
+          ]
+        }
+      },
+      "concepts_detector": {
+        "precision": {
+          "n": 32,
+          "value": 0.812,
+          "ci95": [
+            0.656,
+            0.944
+          ]
+        },
+        "title_good": {
+          "n": 26,
+          "value": 0.538,
+          "ci95": [
+            0.308,
+            0.773
+          ]
+        },
+        "title_usable": {
+          "n": 26,
+          "value": 0.885,
+          "ci95": [
+            0.72,
+            1.0
+          ]
+        }
+      },
+      "fallback_titles": {
+        "n": 0,
+        "share": 0.0,
+        "real": 0
+      },
+      "links": {
+        "n": 41,
+        "value": 0.756,
+        "ci95": [
+          0.561,
+          0.943
+        ]
+      }
+    },
+    "okf_post_fix": {
+      "documents": 32,
+      "dropped": {
+        "concepts_real": 3,
+        "concepts_not_real": 1,
+        "links_ok": 1,
+        "links_wrong": 3
+      },
+      "concepts_all": {
+        "precision": {
+          "n": 81,
+          "value": 0.938,
+          "ci95": [
+            0.87,
+            0.988
+          ]
+        },
+        "title_good": {
+          "n": 76,
+          "value": 0.776,
+          "ci95": [
+            0.662,
+            0.882
+          ]
+        },
+        "title_usable": {
+          "n": 76,
+          "value": 0.921,
+          "ci95": [
+            0.846,
+            0.976
+          ]
+        }
+      },
+      "concepts_heading": {
+        "precision": {
+          "n": 53,
+          "value": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        },
+        "title_good": {
+          "n": 53,
+          "value": 0.849,
+          "ci95": [
+            0.702,
+            0.964
+          ]
+        },
+        "title_usable": {
+          "n": 53,
+          "value": 0.943,
+          "ci95": [
+            0.857,
+            1.0
+          ]
+        }
+      },
+      "concepts_detector": {
+        "precision": {
+          "n": 28,
+          "value": 0.821,
+          "ci95": [
+            0.655,
+            0.963
+          ]
+        },
+        "title_good": {
+          "n": 23,
+          "value": 0.609,
+          "ci95": [
+            0.375,
+            0.818
+          ]
+        },
+        "title_usable": {
+          "n": 23,
+          "value": 0.87,
+          "ci95": [
+            0.7,
+            1.0
+          ]
+        }
+      },
+      "fallback_titles": {
+        "n": 0,
+        "share": 0.0,
+        "real": 0
+      },
+      "links": {
+        "n": 37,
+        "value": 0.811,
+        "ci95": [
+          0.628,
+          0.971
+        ]
+      }
+    },
+    "retrieval_decision": {
+      "switch_default": false,
+      "checks": {
+        "positive_pooled_mrr_lower": false,
+        "recall_lower_at_least_minus_0_02": true,
+        "each_set_mrr_ndcg_nonnegative": false
+      },
+      "action": "Recommendation only; no service setting changed"
+    },
+    "answer_quality_pooled": {
+      "questions": 50,
+      "documents": 6,
+      "methods": {
+        "cross_encoder": {
+          "correctness": {
+            "value": 1.76,
+            "ci95": [
+              1.608695652173913,
+              1.9
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "grounding": {
+            "value": 1.5,
+            "ci95": [
+              1.3636363636363635,
+              1.607843137254902
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.09302325581395349,
+              0.29310344827586204
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.9,
+            "ci95": [
+              0.7272727272727273,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_count": 9,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 10,
+          "answerable_questions": 40
+        },
+        "ranker_full": {
+          "correctness": {
+            "value": 1.8,
+            "ci95": [
+              1.5208333333333333,
+              1.9791666666666667
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "grounding": {
+            "value": 1.58,
+            "ci95": [
+              1.3683941997851772,
+              1.737714676034348
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "abstained": {
+            "value": 0.2,
+            "ci95": [
+              0.09302325581395349,
+              0.29310344827586204
+            ],
+            "documents": 6,
+            "questions": 50
+          },
+          "correct_abstention_unanswerable": {
+            "value": 0.9,
+            "ci95": [
+              0.7272727272727273,
+              1.0
+            ],
+            "documents": 5,
+            "questions": 10
+          },
+          "correct_abstention_count": 9,
+          "answerable_abstention_count": 0,
+          "unanswerable_questions": 10,
+          "answerable_questions": 40
+        }
+      },
+      "paired": {
+        "correctness": {
+          "value": 0.04,
+          "ci95": [
+            -0.2,
+            0.27450980392156865
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "grounding": {
+          "value": 0.08,
+          "ci95": [
+            -0.06666666666666667,
+            0.2667073170731705
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "abstained": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 6,
+          "questions": 50
+        },
+        "correct_abstention": {
+          "value": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "documents": 5,
+          "questions": 10
+        }
+      }
+    }
+  },
+  "verification": {
+    "input_hashes": 25,
+    "numeric_table_rows": 25,
+    "local_markdown_links": 24,
+    "source_defaults_and_documented_commands": "passed",
+    "excluded_unrelated_files_preserved": 3,
+    "ml5_commit_paths": 69,
+    "prior_full_suite": {
+      "passed": 532,
+      "warning_count": 1,
+      "rerun_for_ml7": false
+    },
+    "ml53_completion_integrity": "passed, including 64 immutable checkpoints",
+    "fresh_model_or_ui_test": false,
+    "new_model_runs": 0
+  }
+}
