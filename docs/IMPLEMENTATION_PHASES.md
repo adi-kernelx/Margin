@@ -13,7 +13,7 @@ This replaces the original plan in this file (Firestore data model, S3
 presigned saves, an Express API). That architecture was deleted in September
 2026 (`ca823f9`, `e1f242c`). Margin is now a local-first, single-user reader.
 History lives in `docs/implementation_log.md` (core and ML) and
-`docs/frontend_implementation_log.md` (UI).
+`docs/frontend_implementation_log.md` (UI; local notes, not in the repository).
 
 ---
 
@@ -37,7 +37,7 @@ History lives in `docs/implementation_log.md` (core and ML) and
 - Manual acceptance of Phase 8R and the F8R.2 chrome (done by the user; the
   checks are listed in the logs).
 - Publishing the static demo.
-- `README.md`, `PROJECT_SUMMARY.md` and `docs/CLOUD_ARCHITECTURE.md` describe
+- `README.md`, `PROJECT_SUMMARY.md` (local notes, not in the repository) and `docs/CLOUD_ARCHITECTURE.md` (since removed) describe
   removed systems and must be rewritten (ML7).
 
 ---
@@ -720,6 +720,19 @@ falling back to logical cores; it does not affect the saved results.
 
 ### ML6 — Answerability gate (Nov 10–16) · optional
 
+**Scope clarification, October 20, 2026:** the user wants PDF-supported
+answers for document questions and pretrained general knowledge for unrelated
+questions. ML6 should route answer sources, not always refuse when evidence
+is weak. General answers must be distinguished from PDF-grounded answers;
+mere presence of retrieved chunks is insufficient. The existing prompt allows
+general answers, but response metadata/citations currently do not reliably
+distinguish their provenance. See `docs/ML6_ROUTING.md` (local notes, not in the repository). The user chose labelled
+general knowledge when a related question lacks PDF support, and explicitly
+requires visible **From PDF** / **General knowledge** labels. Mixed responses
+must label sections separately, with citations only on PDF-supported content.
+No live change, fitting or inference has started. Relatedness is distinct from
+the existing answerability labels. Next is ML6.1 protocol and TRAIN-label audit.
+
 - Calibrated logistic regression on retrieval features (top scores, gap,
   agreement); LightGBM comparison.
 - Threshold chosen as a Neyman–Pearson problem: false-answer rate ≤ α.
@@ -731,8 +744,8 @@ fixed threshold in `validator.py`.
 ### ML7 — Write-up (Nov 17–23)
 
 - Results tables, model card, dataset card, decision log.
-- Rewrite `README.md` and `PROJECT_SUMMARY.md`; mark
-  `docs/CLOUD_ARCHITECTURE.md` historical.
+- Rewrite `README.md` and `PROJECT_SUMMARY.md` (local notes, not in the repository); mark
+  `docs/CLOUD_ARCHITECTURE.md` (since removed) historical.
 - Buffer for end-semester exams.
 
 **Completed October 19, 2026:** after committing ML5 as `30be3a0`
@@ -741,7 +754,7 @@ cross-phase results, model and dataset cards, decisions and reproduction
 limits in `docs/ML7_RESULTS.md`, `docs/MODEL_CARD.md`, `docs/DATASET_CARD.md`
 and `ml/results/ml7_documentation.json`. Rewrote README for native-text find,
 optional CPU/local services, embedded Qdrant and manually started Ollama.
-Rewrote local `PROJECT_SUMMARY.md` (excluded from commits), marked the cloud
+Rewrote `PROJECT_SUMMARY.md` (local notes, not in the repository), marked the cloud
 proposal historical and routed old ML READMEs to the current cards.
 
 The write-up distinguishes weak-label development, repeated/adjudicated

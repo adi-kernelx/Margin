@@ -76,7 +76,7 @@ depend on them.
 
 ### Source documents for the rebuild
 
-- `docs/MARGIN_BUILD_PLAN.html` defined the original 17-week roadmap; Weeks
+- `docs/MARGIN_BUILD_PLAN.html` (local notes, not in the repository) defined the original 17-week roadmap; Weeks
   1–8 follow it. From October 2026, `docs/IMPLEMENTATION_PHASES.md` is the plan
   (ML track ML1–ML7).
 - Git history records the actual implementation checkpoints.
@@ -113,7 +113,7 @@ plan before destructive removal work.
 
 - `ab63d6f` captured the pre-rebuild working tree so removed systems remained
   recoverable from Git.
-- `docs/MARGIN_BUILD_PLAN.html` became the roadmap reference.
+- `docs/MARGIN_BUILD_PLAN.html` (local notes, not in the repository) became the roadmap reference.
 - The initial UI-design reference was vendored temporarily in `936c54a`; it was
   later removed from tracked application history as an agent-only artifact.
 
@@ -1366,7 +1366,7 @@ pushes document tabs and actions around when opened.
 
 **Git checkpoint:** `9e79ffa`, committed together with the F8R.2 chrome
 redesign. The header and search-bar layout described above were superseded by
-F8R.2 (see `docs/frontend_implementation_log.md`); the literal native-text
+F8R.2 (see `docs/frontend_implementation_log.md`, local notes, not in the repository); the literal native-text
 search core is unchanged. Manual acceptance is still pending.
 
 ---
@@ -6866,8 +6866,8 @@ ML7 deliverables:
 - `README.md`: current native-text literal find, optional local services,
   root-based PowerShell commands, embedded Qdrant and manually started Ollama;
   removes old roadmap, OCR-search and mandatory-container implications.
-- `PROJECT_SUMMARY.md`: rewritten local handoff; remains excluded from commits.
-  `docs/CLOUD_ARCHITECTURE.md` now clearly historical; old ML READMEs route to
+- `PROJECT_SUMMARY.md` (local notes, not in the repository): rewritten local handoff.
+  `docs/CLOUD_ARCHITECTURE.md` (since removed) now clearly historical; old ML READMEs route to
   the new cards without replacing their recorded chronology.
 - `ml/results/ml7_documentation.json`: 25 aggregate/source/artifact hashes,
   exact provenance and verification record, without raw source/question text.
@@ -6902,6 +6902,46 @@ the explicit file list excludes the local summary and unrelated frontend work.
 **Next:** finish earlier manual reader/chrome acceptance or choose a bounded
 engineering phase. Static-demo publication is still pending. Optional ML6 has
 not started; explaining its scope does not authorize a model workload.
+
+## ML6 source-routing clarification (October 20, 2026)
+
+The user requests document answers when related to the PDF and pretrained
+model knowledge otherwise. Captured the requirement and current-code findings
+in `docs/ML6_ROUTING.md` (local notes, not in the repository). The user then chose **Use labelled general knowledge**
+for related questions without PDF support and explicitly required source labels.
+Each answer must visibly specify **From PDF** or **General knowledge**; mixed
+answers label sections separately, with PDF citations only on the supported
+part. A fallback acknowledges missing PDF support before using model knowledge.
+This is requirements work, not implementation or workload approval. No model,
+raw frozen questions, UI or live defaults were touched.
+
+Current `prompt.py` already permits general answers; `graph.py` nevertheless
+labels any response with retrieved chunks as grounded and returns those chunks
+as sources. Existing confidence is post-generation similarity/relevance, not
+calibrated answer-source routing. A future implementation must distinguish
+relatedness, document answerability and retrieval failure; general outputs
+must not carry spurious PDF attribution. Existing TRAIN answerability flags
+are not automatically valid relatedness labels. Policy choices are resolved.
+Next: ML6.1 protocol and TRAIN-label audit; no fitting or frozen re-evaluation.
+
+## Long-context compression research (October 20, 2026)
+
+At the user's request, reviewed primary papers and official runtime docs for
+hierarchical retrieval (RAPTOR), token compression (LLMLingua-2), tiered memory
+(MemGPT), optimized compaction (ACON), latent memory (ICAE/gist) and KV-cache
+quantization (KIVI/Ollama). `docs/CONTEXT_COMPRESSION_RESEARCH.md` (local notes, not in the repository) records dated
+sources, reported-versus-local claims, compatibility/quality limits and a
+bounded optional validation plan. No installations, model work, frozen reads,
+live changes, chat-memory integration or commit.
+
+Recommendation for investigation: preserve original sources; use a compact
+navigation layer with coherent, question-specific original evidence and an
+adaptive budget. Disk compression, prompt-token reduction and runtime cache
+compression solve different space problems. The earlier coherence candidate
+was faster but had a correctness regression; it remains deferred. Current
+Ollama docs do not prove recorded CPU-runtime compatibility. This research
+does not begin another tuning cycle. Next, if requested: prepare one bounded
+TRAIN/new-validation comparison, with workload approval before any model run.
 
 ## Current Project State
 
@@ -7031,7 +7071,7 @@ CI gates `src/core` at zero warnings.
 - `f390691` checkpoints the real page-preview follow-up and Phase 8R.1 through
   Phase 8R.5 implementation, tests, and the Text-tool render-loop repair.
 - Frontend phases F1 through F8 are checkpointed through `0e0847e`; their
-  detailed chronology lives in `docs/frontend_implementation_log.md`.
+  detailed chronology lives in `docs/frontend_implementation_log.md` (local notes, not in the repository).
 - Phase 8R.6 (literal find) and F8R.2 (chrome redesign) are committed in
   `9e79ffa`; the ML1 pipeline and manifest in `a11f5a9`.
 - Manual browser acceptance of 8R and F8R.2 remains pending and is not implied
@@ -7040,9 +7080,9 @@ CI gates `src/core` at zero warnings.
   roadmap/log entries and the `.venv-ml` ignore rule are checkpointed in
   `984c0ea` — `feat(ml): add classifiers, evaluation and training data repairs`.
 - Unrelated edits to `docs/FRONTEND_PLAN.md` and
-  `docs/frontend_implementation_log.md` remain uncommitted and were preserved.
-- `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` remain untracked local
-  documentation; `PROJECT_SUMMARY.md` is out of date and is rewritten in ML7.
+  `docs/frontend_implementation_log.md` (local notes, not in the repository) were preserved.
+- `docs/MARGIN_BUILD_PLAN.html` and `PROJECT_SUMMARY.md` are local notes, not in
+  the repository; `PROJECT_SUMMARY.md` is out of date and is rewritten in ML7.
 - Full-repository ESLint still reports the inherited shell backlog (mostly
   `any` in `PDFViewer.tsx` and `useClientOcr.ts`); none of it comes from the
   two October commits.
