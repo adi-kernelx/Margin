@@ -11,5 +11,8 @@ export const IS_DEMO = import.meta.env.VITE_DEMO === '1';
 /** The assistant panel and its commands. */
 export const ASSISTANT_ENABLED = !IS_DEMO;
 
+/** The Knowledge panel, which builds bundles through the RAG service. */
+export const KNOWLEDGE_ENABLED = !IS_DEMO;
+
 /** Health polling and the service pips / Settings section that show it. */
 export const SERVICES_ENABLED = !IS_DEMO;

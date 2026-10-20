@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocument } from 'pdf-lib';
@@ -67,11 +67,16 @@ import { DocumentDock } from './DocumentDock';
 import { DocumentPanelBar } from './DocumentPanelBar';
 import { readDockTab, type DockTab } from '@/lib/ui/dock';
 import { OutlinePanel } from './OutlinePanel';
-import { KnowledgePanel } from './KnowledgePanel';
+import { KNOWLEDGE_ENABLED } from '@/lib/features';
 import { toast } from './ui/Toast';
 import { pageIdForSourceIndex } from '@/core/ui/outline';
 import { useRegisterCommands } from '@/lib/commands/registry';
 import { libraryDB } from '@/lib/storage/library-db';
+
+// Lazy and gated, so the static demo bundle carries no RAG-service client.
+const KnowledgePanel = KNOWLEDGE_ENABLED
+    ? lazy(() => import('./KnowledgePanel').then(module => ({ default: module.KnowledgePanel })))
+    : null;
 
 // Configure worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -1082,7 +1087,9 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
                     onClose={() => setDockTab(null)}
                     noteCount={notes.length}
                     outline={<OutlinePanel documentKey={stableId} loadSource={loadSource} pages={pageDocument?.pages ?? []} onNavigate={scrollToPageId} />}
-                    knowledge={<KnowledgePanel documentId={stableId} fileName={fileName} loadSource={loadSource} onNavigate={scrollToSourceRegion} />}
+                    knowledge={KnowledgePanel
+                        ? <Suspense fallback={null}><KnowledgePanel documentId={stableId} fileName={fileName} loadSource={loadSource} onNavigate={scrollToSourceRegion} /></Suspense>
+                        : <p className="p-4 text-sm text-text-muted">Knowledge bundles need the local RAG service, so they are not part of the static demo.</p>}
                     notes={<NotesPanel
                     documentId={stableId}
                     documentTitle={fileName}

@@ -1,20 +1,6 @@
 # ==================================================
-# AI PDF Reader - Complete .gitignore
+# Margin - .gitignore
 # ==================================================
-
-# -------------------
-# Logs & Debug Files
-# -------------------
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-build_log.txt
-error.log
-audit*.log
 
 # -------------------
 # Dependencies
@@ -22,10 +8,9 @@ audit*.log
 node_modules/
 .pnp
 .pnp.js
-package-lock.json.bak
 
 # -------------------
-# Build Outputs
+# Build outputs
 # -------------------
 dist/
 dist-demo/
@@ -33,9 +18,24 @@ dist-ssr/
 build/
 *.local
 .vite/
+*.tsbuildinfo
+.eslintcache
 
 # -------------------
-# Editor & IDE
+# Logs & temporary files
+# -------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+*.bak
+
+# -------------------
+# Editors & OS
 # -------------------
 .vscode/*
 !.vscode/extensions.json
@@ -43,174 +43,102 @@ build/
 .idea/
 *.swp
 *.swo
-*.swn
+*.sw?
+*.suo
+*.sln
 .DS_Store
 Thumbs.db
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+desktop.ini
 
 # -------------------
-# Environment & Secrets
+# Environment & secrets
 # -------------------
 .env
 .env.*
 !.env.example
 !.env.demo
 .runtimeconfig.json
-
-# Sensitive Keys & Credentials
 *.pem
 *.key
 *.p12
 *.pfx
-service-account.json
-vision-key.json
-firebase-admin.json
+service-account*.json
+firebase-admin*.json
 *-key.json
-credentials.json
+credentials*.json
 
 # -------------------
-# Backend Specific
-# -------------------
-backend/node_modules/
-backend/dist/
-backend/.env
-backend/.env.*
-!backend/.env.example
-backend/firebase-admin.json
-backend/qdrant_storage/
-backend/typesense_data/
-backend/audit.log
-backend/audit-error.log
-backend/scripts/
-backend_backup_safe/
-
-# -------------------
-# Python Artifacts
+# Python
 # -------------------
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
 *.egg-info/
 .eggs/
 *.egg
 venv/
 .venv/
-.venv-ml/
+.venv-*/
 env/
-.env/
 pip-wheel-metadata/
 *.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
 
 # -------------------
-# Lambda & Deployment
-# -------------------
-*.zip
-backend/lambda/*/package/
-*.terraform
-.terraform/
-
-# -------------------
-# RAG & ML Models
-# -------------------
-local-llm/models/
-local-llm/rag-service/
-rag-service/
-*.gguf
-*.bin
-*.safetensors
-*.onnx
-
-# Embedding Cache
-embedding_cache.db
-*.db
-
-# -------------------
-# Ingest Sidecars
-# -------------------
-ingest-sidecars/sidecars/*.json
-ingest-sidecars/embedding_cache.db
-
-# -------------------
-# OCR Service
-# -------------------
-ocr-service/.paddleocr/
-ocr-service/logs/
-
-# -------------------
-# Docker Volumes
-# -------------------
-docker-data/
-data/
-
-# -------------------
-# Agent & Temporary
-# -------------------
-.agent/
-.gemini/
-.agents/
-.claude/
-.codex/
-.gpt/
-.chatgpt/
-CLAUDE.md
-HANDOFF.md
-GPT.md
-CHATGPT.md
-*.tmp
-*.temp
-
-# -------------------
-# Internal Docs (Project-specific)
-# -------------------
-IMPLEMENTATION_PROGRESS.md
-POINT_ERASER_ALGORITHM.md
-ERASER_ENHANCEMENT.md
-
-# -------------------
-# Test PDFs & Samples
-# -------------------
-*.pdf
-!docs/*.pdf
-!public/*.pdf
-!src/demo/assets/*.pdf
-
-# -------------------
-# Firebase
-# -------------------
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-database-debug.log
-
-# -------------------
-# Functions (Firebase)
-# -------------------
-functions/node_modules/
-functions/lib/
-
-# -------------------
-# Coverage & Testing
+# Testing & coverage
 # -------------------
 coverage/
 .nyc_output/
 *.lcov
 
 # -------------------
-# ML pipeline output (copyrighted text)
+# Local service data (Qdrant, caches, models)
+# -------------------
+data/
+docker-data/
+*.db
+*.gguf
+*.bin
+*.safetensors
+*.onnx
+ocr-service/.paddleocr/
+ocr-service/logs/
+# ML pipeline source lives in ml/data/; the "data/" rule above must not hide it
+!ml/data/
+
+# -------------------
+# PDFs (copyrighted); only the manifest and demo assets are tracked
+# -------------------
+*.pdf
+!public/*.pdf
+!src/demo/assets/*.pdf
+
+# -------------------
+# ML outputs with copyrighted text or learned vocabularies
 # -------------------
 ml/out/
 ml/labels/*.jsonl
 ml/labels/second_annotator/
 ml/models/artifacts/
-# User questions include quotations from private/copyrighted PDFs.
+# Questions quote private/copyrighted PDFs
 ml/eval/questions.jsonl
 ml/eval/questions_independent.jsonl
-# ML pipeline source lives in ml/data/; the Docker "data/" rule above must not hide it
-!ml/data/
+
+# -------------------
+# Local-only project notes
+# -------------------
+PROJECT_SUMMARY.md
+docs/MARGIN_BUILD_PLAN.html
+docs/FRONTEND_PLAN.md
+docs/frontend_implementation_log.md
+docs/CONTEXT_COMPRESSION_RESEARCH.md
+docs/ML6_ROUTING.md
+
+# -------------------
+# AI assistant files and folders
+# -------------------
+.claude/
+CLAUDE.md
+.codex/

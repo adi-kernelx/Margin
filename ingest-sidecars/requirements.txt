@@ -1,3 +1,0 @@
-requests
-qdrant-client
-tqdm
