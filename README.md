@@ -1,15 +1,25 @@
+<img src="public/margin.svg" alt="" width="64" height="64">
+
 # Margin
 
-Margin is a local-first PDF reading and annotation workspace for mathematical
-documents. The browser stores the library and edits locally. Optional Python
-services build Open Knowledge Format (OKF) concept bundles and provide a local
-retrieval-augmented assistant.
+A local-first PDF reader for mathematical and research documents, with
+annotation tools, a knowledge panel that extracts definitions and theorems,
+and an optional AI assistant that answers questions from the open PDF with
+page citations. Everything runs on your own machine: there are no accounts
+and nothing is uploaded.
 
-**Status, October 19, 2026:** ML1–ML5 implementation and experiments are
-complete, and ML7 documents their results. ML6's calibrated answerability
-gate is optional and has not been implemented. Manual acceptance of earlier
-reader/chrome changes and static-demo publication remain open. Experimental
-completion does not establish deployment-ready answer quality.
+## Features
+
+- **Reading:** tabs and split panes, a local library, find in document,
+  outline, notes, and page operations (reorder, rotate, split, merge).
+- **Annotation:** ink, highlights, text, shapes and math, with shared
+  undo/redo and export to PDF or Markdown.
+- **Knowledge panel:** builds an Open Knowledge Format (OKF) bundle of the
+  document's definitions, results and notation; jump to each one in the PDF,
+  mark it verified, export the bundle.
+- **Assistant:** ask about the open PDF or summarise it. Answers cite their
+  pages and concepts, render LaTeX, and show token counts and speeds.
+- **OCR:** scanned pages get a selectable text layer from a local OCR service.
 
 ## Architecture
 
@@ -17,171 +27,108 @@ completion does not establish deployment-ready answer quality.
 
 The browser app keeps every document, annotation, bundle and conversation in
 IndexedDB. Two optional local services do the heavy work: the OCR service
-(port 8000) and the RAG API (port 9101), which indexes passages and OKF
-concepts in an embedded Qdrant store and answers questions through Ollama.
-The `ml/` track trains the block classifier and ranker offline; the service
-loads their saved artifacts at start-up.
+(port 8000) and the RAG API (port 9101). The RAG API indexes passages and
+concepts in an embedded Qdrant store, ranks them with BM25, vector search and
+a cross-encoder, and generates answers with Qwen 2.5 3B through Ollama. The
+`ml/` track trains the block classifier and ranker offline; the service loads
+their saved artifacts at start-up.
 
-## Reader and knowledge tools
+## Getting started
 
-- Read PDFs in tabs and split panes; keep a local library in IndexedDB.
-- Annotate with ink, highlights, text, shapes and math; use shared undo/redo,
-  page operations, notes and PDF/Markdown export.
-- Find literal, case-insensitive strings in native PDF text, with page bounds.
-  The current find implementation has no OCR or semantic-search fallback.
-- Build an OKF bundle, inspect linked concepts, jump to their PDF regions,
-  mark a concept verified and export its Markdown bundle.
-- Ask the optional local assistant over indexed passages and concepts.
-  Citations aid inspection; they do not guarantee a correct or supported answer.
+Requires Node.js 22. The reader needs no other service.
 
-The reader does not need a Python service. The Knowledge panel needs `/bundle`;
-chat additionally needs embeddings, retrieval/reranking and a running local
-LLM. OCR code and a separate service remain in the repository; current find
-and the ML evaluation use native text. Scanned-PDF ML/OCR acceptance is outside
-the completed evaluation.
-
-## Run the reader
-
-From the repository root, with Node.js/npm installed:
-
-```powershell
+```bash
 npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite. `npm run build` builds the reader;
-`npm run preview` serves that build. The static demo is separate:
+Open the URL Vite prints. Documents live in the browser's storage, so export
+anything important before clearing site data.
 
-```powershell
-npm run build:demo
-npm run demo:check
+### Assistant (optional)
+
+1. Install [Ollama](https://ollama.com) and pull the model once:
+   `ollama pull qwen2.5:3b-instruct`. Open the Ollama app.
+2. Create the Python environment (Python 3.13):
+
+   ```bash
+   py -3.13 -m venv .venv-ml
+   .venv-ml\Scripts\python.exe -m pip install -r ml/models/requirements.txt -r ml/eval/requirements.txt -r local-llm/rag-api/requirements.txt
+   ```
+
+3. Start the service:
+
+   ```bash
+   npm run assistant
+   ```
+
+Opening a PDF indexes its text automatically. The assistant panel shows what
+is missing if the service, Ollama or the model is not available. Settings
+such as the model, context size and retrieval method are listed in
+[`.env.example`](.env.example).
+
+The Knowledge panel needs `ml/models/artifacts/okf_pipeline.joblib`, which is
+produced by the `ml/` pipeline and not committed.
+
+### OCR (optional)
+
+```bash
+cd ocr-service
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The demo does not provide OCR, ingestion, Knowledge or assistant services.
-Historical Firebase/Express environment examples are not required for the
-local reader. Export important documents/annotations before clearing browser
-site data; IndexedDB is local storage, not a remote backup.
+### Static demo
 
-## Optional local services
+`npm run build:demo` builds a version without services into `dist-demo/`;
+`npm run demo:check` verifies that no service code leaked into it.
 
-Run Python commands from the repository root. The recorded development
-environment is Python 3.13.2 with `.venv-ml`; dependency files are not a complete
-platform lockfile. For a fresh ML/service environment:
+## Results
 
-```powershell
-py -3.13 -m venv .venv-ml
-.\.venv-ml\Scripts\python.exe -m pip install -r ml/models/requirements.txt -r ml/eval/requirements.txt -r local-llm/rag-api/requirements.txt
-```
+Measured on 127 held-out questions over six PDFs (95% intervals resample
+whole documents):
 
-Existing installations should keep their verified environment rather than
-reinstall it. Model weights may download on first use; offline operation
-requires those cached weights and the relevant local artifacts first.
-Training, building bundles and model-backed evaluation consume CPU/RAM;
-schedule them explicitly on a shared laptop. This README does not run them.
+| Retrieval | Recall@5 | MRR@10 | nDCG@10 |
+|---|---:|---:|---:|
+| Hybrid + OKF concepts + cross-encoder (default) | 0.953 | 0.831 | 0.851 |
+| Same, with the learned LambdaRank ranker | 0.992 | 0.828 | 0.855 |
 
-For Knowledge tools alone, with the local OKF artifact already available:
+- OKF concepts improve ranking: MRR +0.037 [+0.004, +0.074] over passages
+  alone.
+- The learned ranker finds the answer page more often but does not rank it
+  higher (MRR −0.003 [−0.055, +0.039]), so it stays optional.
+- Generated answers scored 1.76 / 2 for correctness on a reviewed sample of
+  100. Mathematical, unit and citation errors still occur, and CPU generation
+  takes tens of seconds per answer.
 
-```powershell
-.\.venv-ml\Scripts\python.exe -m uvicorn bundle_server:app --app-dir local-llm/rag-api --host 127.0.0.1 --port 9101
-```
+Details: [results](docs/ML7_RESULTS.md), [model card](docs/MODEL_CARD.md),
+[dataset card](docs/DATASET_CARD.md).
 
-For chat, open the Ollama app (once: `ollama pull qwen2.5:3b-instruct`), then
-start the full service **instead of** the bundle-only server:
+## Project layout
 
-```powershell
-npm run assistant
-```
+| Path | Contents |
+|---|---|
+| `src/` | React 19 + TypeScript frontend; `src/core/` holds pure, tested logic |
+| `local-llm/rag-api/` | RAG service: ingest, retrieval, reranking, generation, OKF bundles |
+| `ocr-service/` | PaddleOCR service |
+| `ml/` | Block extraction, classifier and ranker training, evaluation, results |
+| `docs/` | Roadmap, implementation log, results, model and dataset cards |
+| `scripts/` | Demo build helpers and the assistant launcher |
 
-The script checks that Ollama and the model are available (it never starts
-Ollama) and runs the service on port 9101. The assistant panel shows which
-part is missing: the service, Ollama, or the model. The equivalent manual
-command, with the defaults spelled out:
+## Development
 
-```powershell
-$env:RETRIEVAL = 'hybrid_concepts'
-$env:RERANK = 'cross_encoder'
-$env:LLM_BASE_URL = 'http://localhost:11434/v1'
-$env:LLM_MODEL = 'qwen2.5:3b-instruct'
-.\.venv-ml\Scripts\python.exe -m uvicorn main:app --app-dir local-llm/rag-api --host 127.0.0.1 --port 9101
-```
-
-Both entry points use port 9101; run one. The full service can load the
-embedder at startup through its validator. No Docker, Typesense or external
-Qdrant server is required by this local path. With `QDRANT_URL` unset, Qdrant
-uses `local-llm/data/qdrant`; only one client/process may own that folder.
-Loopback services have no user-account authentication; keep this single-user
-setup local. Server endpoints and model URLs can be configured, so local data
-handling depends on keeping those defaults local.
-
-`/bundle` requires `ml/models/artifacts/okf_pipeline.joblib`. The learned-ranker
-option uses `ml/models/artifacts/ranker.joblib`; neither artifact is committed.
-Raw PDFs, quoted labels/questions and generated answers are also excluded.
-See the cards for artifact identities and reproduction constraints.
-
-## Architecture
-
-```text
-React 19 + TypeScript + Vite + PDF.js
-  src/core/        pure decisions, geometry and command semantics
-  src/lib/         browser, PDF and storage adapters
-  IndexedDB        library, annotations/OCR cache and knowledge bundles
-  local Python :9101
-    /bundle        trained block pipeline -> OKF concepts and links
-    /ingest        native PDF chunks -> embeddings -> embedded Qdrant
-    /query         hybrid BM25 + dense + OKF -> cross-encoder -> local Qwen
-```
-
-The ML track trains a block-role/definition pipeline and a LambdaRank
-reranker. It does **not** train the pretrained embedder, cross-encoder or
-Qwen LLM. Retrieval ranking, generated-answer quality and latency are
-measured separately. There is no account, cloud synchronization or Node
-application backend. Older container/cloud plans are historical alternatives.
-
-## Measured results
-
-The frozen retrieval milestone scores 127 answerable questions from the
-original/independent collections over six shared PDFs; 31 unsupported
-questions are counted separately. Pooled cross-encoder Recall@5/MRR@10/
-page nDCG@10 are **0.9528 / 0.8311 / 0.8509**. Ranker MRR difference is
-**-0.0029 [95% CI -0.0551, +0.0385]** and fails the fixed switch rule.
-Keep hybrid + OKF concepts + cross-encoder. Concepts improve pooled CE MRR
-versus passages by **+0.0370 [+0.0040, +0.0742]** on this sample.
-
-All 100 saved-context answers were assistant-reviewed: CE/ranker mean
-correctness **1.76/1.80 out of 2**, paired **+0.04 [-0.20, +0.275]**.
-There is no demonstrated answer-quality improvement. One reviewer, partial
-blinding, AI-authored cases and few documents limit generalization. Factual,
-mathematical and citation errors remain. Successful frozen generation took
-**136.7 s mean / 117.9 s median per request**; this is not an acceptable
-interactive-latency claim. Faster TRAIN context variants remain deferred
-because they caused correctness regressions.
-
-Read the [final results](docs/ML7_RESULTS.md), [model card](docs/MODEL_CARD.md),
-[dataset card](docs/DATASET_CARD.md) and [ML5 decision log](docs/ML5_SYNTHESIS.md)
-for intervals, denominators, provenance and limitations.
-
-## Checks and project map
-
-```powershell
+```bash
 npm test
 npm run build
-.\.venv-ml\Scripts\python.exe -m pytest ml/tests -q -p no:cacheprovider
-node --test ml/tests/grading_session.test.cjs
+.venv-ml\Scripts\python.exe -m pytest ml/tests -q -p no:cacheprovider
 ```
 
-The latest full ML check passed **532 tests**; six grading-session tests also
-passed. A missing Windows `wmic` physical-core query produced one investigated
-joblib warning with logical-core fallback. Restricted Windows test environments
-may need permission for asyncio's internal socket pair. These checks use stubs
-or small fixtures, not a new model-backed benchmark. UI interaction/visual
-acceptance is performed by the user and remains distinct from unit tests.
+CI runs the type check, the `src/core` lint gate, the tests and both builds on
+every push.
 
-- `src/`: reader UI, pure core and browser adapters.
-- `local-llm/rag-api/`: optional local bundle, ingest and query service.
-- `ml/data/`, `ml/models/`, `ml/okf/`, `ml/ranking/`: training and inference code.
-- `ml/eval/`, `ml/tests/`, `ml/results/`: guarded experiments, tests and aggregates.
-- [Roadmap](docs/IMPLEMENTATION_PHASES.md) and [implementation log](docs/implementation_log.md).
+## Data and privacy
 
-Frozen evaluations are consumed and must not be rerun or used for tuning.
-Model-backed workloads require explicit laptop approval; do not start Ollama
-automatically. See the dataset card before reproducing any historical command.
+Source PDFs, labels, evaluation questions and trained model files stay local
+and are excluded from the repository; their rights belong to their owners.
+The services listen on localhost only and have no authentication, so keep
+them local.

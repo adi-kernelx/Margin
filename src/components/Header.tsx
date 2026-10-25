@@ -36,6 +36,8 @@ function MarginMark() {
                 <rect x="3.5" y="2" width="11" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M6.5 2v14" stroke="currentColor" strokeWidth="1.6" opacity=".55" />
                 <path d="M9 6h3.5M9 9h3.5M9 12h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                {/* the annotation in the margin, as in public/margin.svg */}
+                <path d="M5 6.5v4" stroke="#E8A33D" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
         </span>
     );
