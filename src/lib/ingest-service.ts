@@ -138,3 +138,20 @@ export async function isIngestServiceAvailable(): Promise<boolean> {
         return false;
     }
 }
+
+/**
+ * Index a PDF's own text layer (no OCR needed). Returns null when the
+ * service cannot be reached.
+ */
+export async function ingestPdf(docId: string, pdfFingerprint: string, bytes: Uint8Array): Promise<IngestResponse | null> {
+    const form = new FormData();
+    form.append('file', new Blob([bytes.slice()], { type: 'application/pdf' }), 'document.pdf');
+    form.append('docId', docId);
+    form.append('pdfFingerprint', pdfFingerprint);
+    try {
+        const response = await fetch(`${INGEST_API_URL}/ingest/pdf`, { method: 'POST', body: form });
+        return response.ok ? await response.json() as IngestResponse : null;
+    } catch {
+        return null;
+    }
+}

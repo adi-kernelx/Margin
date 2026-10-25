@@ -1,4 +1,4 @@
-import { ArrowLeft, BadgeCheck, BookOpen, Clock, FileText, MessageSquarePlus, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, BookOpen, ChevronRight, Clock, FileText, MessageSquarePlus, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
@@ -6,6 +6,9 @@ import { queryRag } from '@/lib/rag-service';
 import { getIngestStatus } from '@/lib/ingest-service';
 import { deleteConversation, listConversations, saveConversation } from '@/lib/assistant/history-db';
 import { useServiceHealthStore } from '@/lib/services/health';
+import { assistantReadiness } from '@/core/assistant/readiness';
+import { readAnswerStats, statsRows, statsSummary, type AnswerStats } from '@/core/assistant/stats';
+import { useIndexingStore } from '@/lib/assistant/auto-index';
 import { revealInDocument } from '@/lib/ui/navigate';
 import {
     appendMessage,
@@ -25,6 +28,7 @@ import type { DocumentEntry } from '@/types';
 import { Button } from './ui/Button';
 import { IconButton } from './ui/IconButton';
 import { EmptyState, ErrorState, Skeleton } from './ui/States';
+import { Markdown } from './ui/Markdown';
 
 interface AIChatSidebarProps {
     isOpen: boolean;
@@ -34,12 +38,23 @@ interface AIChatSidebarProps {
     variant?: 'overlay' | 'embedded';
 }
 
+const WIDTH_KEY = 'margin:assistant-width';
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 760;
+const DEFAULT_WIDTH = 400;
+
+function readWidth(): number {
+    try {
+        const stored = Number(window.localStorage.getItem(WIDTH_KEY));
+        return Number.isFinite(stored) && stored >= MIN_WIDTH && stored <= MAX_WIDTH ? stored : DEFAULT_WIDTH;
+    } catch {
+        return DEFAULT_WIDTH;
+    }
+}
+
 const MODES: { value: AssistantMode; label: string; hint: string }[] = [
     { value: 'qa', label: 'Ask', hint: 'Answer a question from the documents' },
     { value: 'summary', label: 'Summarise', hint: 'Condense the scope into key points' },
-    { value: 'explain', label: 'Explain', hint: 'Walk through a concept step by step' },
-    { value: 'compare', label: 'Compare', hint: 'Contrast documents or sections' },
-    { value: 'extract', label: 'Extract', hint: 'Pull out definitions, theorems or data' },
 ];
 
 const SCOPES: { value: AssistantScopeKind; label: string }[] = [
@@ -56,7 +71,7 @@ const PLACEHOLDER: Record<AssistantMode, string> = {
     extract: 'What should be extracted? e.g. “all definitions”',
 };
 
-type IndexState = { kind: 'loading' } | { kind: 'offline' } | { kind: 'none' } | { kind: 'indexed'; chunks: number } | { kind: 'pending' };
+type IndexState = { kind: 'loading' } | { kind: 'offline' } | { kind: 'none' } | { kind: 'indexing' } | { kind: 'indexed'; chunks: number } | { kind: 'pending' };
 
 function newConversation(docId: string): Conversation {
     const now = Date.now();
@@ -70,6 +85,30 @@ function relativeTime(timestamp: number): string {
     const hours = Math.round(minutes / 60);
     if (hours < 24) return `${hours} h ago`;
     return new Date(timestamp).toLocaleDateString();
+}
+
+/** Tokens and speeds in one line; the full timing breakdown on expand. */
+function AnswerStatsLine({ stats }: { stats: AnswerStats }) {
+    const summary = statsSummary(stats);
+    const rows = statsRows(stats);
+    if (!rows.length) return null;
+    return (
+        <details className="group basis-full text-xs text-text-muted">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 select-none hover:text-text-soft">
+                <ChevronRight size={12} className="shrink-0 transition-transform group-open:rotate-90" />
+                <span className="truncate font-mono">{summary ?? 'Details'}</span>
+                {stats.truncated && <span className="shrink-0 text-warning">· cut off</span>}
+            </summary>
+            <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pl-[18px]">
+                {rows.map(([label, value], index) => (
+                    <div key={`${label}-${index}`} className="contents">
+                        <dt className="text-text-muted">{label}</dt>
+                        <dd className="font-mono text-text-soft">{value}</dd>
+                    </div>
+                ))}
+            </dl>
+        </details>
+    );
 }
 
 function ConfidenceMeter({ value }: { value: number }) {
@@ -92,7 +131,8 @@ function IndexBadge({ state }: { state: IndexState }) {
     const text = {
         loading: 'Checking index…',
         offline: 'Assistant service offline',
-        none: 'Not indexed yet — indexing starts after text recognition finishes',
+        none: 'Not indexed: no text layer found, run OCR on scanned pages',
+        indexing: 'Indexing this PDF for the assistant…',
         pending: 'Open a document to check its index',
         indexed: state.kind === 'indexed' ? `Indexed for AI · ${state.chunks} passages` : '',
     }[state.kind];
@@ -108,6 +148,9 @@ function IndexBadge({ state }: { state: IndexState }) {
 export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument, variant = 'embedded' }: AIChatSidebarProps) {
     const focusedDocId = useAppStore(state => state.focusedDocId);
     const ragHealth = useServiceHealthStore(state => state.byKey.rag);
+    const ragModel = useServiceHealthStore(state => state.ragModel);
+    const readiness = assistantReadiness(ragHealth, ragModel);
+    const indexingVersion = useIndexingStore(state => state.version);
     const focusedDoc = documents.find(doc => doc.id === focusedDocId);
     // History is keyed by the persistent id so it survives reopening the file.
     const historyKey = focusedDoc?.stableId ?? '';
@@ -122,6 +165,17 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
     const [pending, setPending] = useState<{ startedAt: number } | null>(null);
     const [now, setNow] = useState(Date.now());
     const [indexState, setIndexState] = useState<IndexState>({ kind: 'pending' });
+    const [width, setWidth] = useState(readWidth);
+    const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+    const commitWidth = useCallback((next: number) => {
+        const clamped = Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next)));
+        setWidth(clamped);
+        try {
+            window.localStorage.setItem(WIDTH_KEY, String(clamped));
+        } catch {
+            // Non-essential preference.
+        }
+    }, []);
     const abortRef = useRef<AbortController | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -148,6 +202,10 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
             setIndexState({ kind: 'offline' });
             return;
         }
+        if (useIndexingStore.getState().indexing[fingerprint]) {
+            setIndexState({ kind: 'indexing' });
+            return;
+        }
         const controller = new AbortController();
         setIndexState({ kind: 'loading' });
         void getIngestStatus(fingerprint, controller.signal).then(status => {
@@ -156,7 +214,7 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
             else setIndexState(status.ingested ? { kind: 'indexed', chunks: status.chunkCount } : { kind: 'none' });
         });
         return () => controller.abort();
-    }, [isOpen, focusedDoc?.pdfFingerprint, ragHealth]);
+    }, [isOpen, focusedDoc?.pdfFingerprint, ragHealth, indexingVersion]);
 
     // Elapsed-time ticker while waiting; stands in for streaming until the
     // backend exposes a token stream (register M1).
@@ -183,7 +241,7 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
     }, []);
 
     const pages = useMemo(() => parsePageList(pageInput), [pageInput]);
-    const canSend = !pending && ragHealth !== 'offline' && (input.trim().length > 0 || mode === 'summary');
+    const canSend = !pending && readiness.ready && (input.trim().length > 0 || mode === 'summary');
 
     const send = async () => {
         if (!canSend) return;
@@ -209,7 +267,8 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
             }, controller.signal);
             reply = {
                 id: crypto.randomUUID(), role: 'assistant', text: response.answer, createdAt: Date.now(), mode,
-                confidence: response.confidence, sources: response.sources, elapsedMs: Date.now() - startedAt, status: 'ok',
+                confidence: response.confidence, sources: response.sources, elapsedMs: Date.now() - startedAt,
+                stats: readAnswerStats(response.metrics), status: 'ok',
             };
         } catch (error) {
             const stopped = controller.signal.aborted;
@@ -259,10 +318,38 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
             <aside
                 aria-label="Assistant"
                 className={cn(
-                    'flex h-full w-[400px] max-w-full shrink-0 flex-col overflow-hidden border-l border-line bg-surface-1 text-text shadow-elev-2 animate-[panel-in_var(--dur-surface)_var(--ease)]',
+                    'relative flex h-full max-w-full shrink-0 flex-col border-l border-line bg-surface-1 text-text shadow-elev-2 animate-[panel-in_var(--dur-surface)_var(--ease)]',
                     isOverlay && 'fixed right-0 top-0 z-panel',
                 )}
+                style={{ width }}
             >
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize assistant"
+                    aria-valuemin={MIN_WIDTH}
+                    aria-valuemax={MAX_WIDTH}
+                    aria-valuenow={width}
+                    tabIndex={0}
+                    className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:bg-transparent after:transition-colors hover:after:bg-accent focus-visible:after:bg-accent"
+                    onPointerDown={event => {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        dragRef.current = { startX: event.clientX, startWidth: width };
+                    }}
+                    onPointerMove={event => {
+                        if (!dragRef.current) return;
+                        setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragRef.current.startWidth + dragRef.current.startX - event.clientX)));
+                    }}
+                    onPointerUp={event => {
+                        if (!dragRef.current) return;
+                        commitWidth(dragRef.current.startWidth + dragRef.current.startX - event.clientX);
+                        dragRef.current = null;
+                    }}
+                    onKeyDown={event => {
+                        if (event.key === 'ArrowLeft') commitWidth(width + 16);
+                        else if (event.key === 'ArrowRight') commitWidth(width - 16);
+                    }}
+                />
                 <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface-2 px-3 shadow-[var(--edge-highlight)]">
                     <div className="flex min-w-0 items-center gap-2">
                         {view === 'history'
@@ -339,11 +426,8 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
                         </div>
 
                         <div className="flex-1 overflow-y-auto px-3 py-4" aria-live="polite">
-                            {ragHealth === 'offline' && !conversation.messages.length ? (
-                                <ErrorState
-                                    title="Assistant is offline"
-                                    description="Start the local assistant service (docker compose in local-llm/) to ask questions. Reading and annotating keep working without it."
-                                />
+                            {readiness.title && !conversation.messages.length ? (
+                                <ErrorState title={readiness.title} description={readiness.description} />
                             ) : !conversation.messages.length && !pending ? (
                                 <EmptyState
                                     title={MODES.find(option => option.value === mode)!.hint}
@@ -362,11 +446,14 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
                                                         : message.status === 'stopped' ? 'border-line bg-sunken text-text-muted'
                                                             : 'border-line bg-surface-2 text-text',
                                                 )}>
-                                                    <p className="whitespace-pre-wrap">{message.text}</p>
+                                                    {message.status === 'ok'
+                                                        ? <Markdown source={message.text} className="text-text" />
+                                                        : <p className="whitespace-pre-wrap">{message.text}</p>}
                                                     {message.status === 'ok' && (
                                                         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-2">
                                                             {message.confidence !== undefined && <ConfidenceMeter value={message.confidence} />}
                                                             {message.elapsedMs !== undefined && <span className="text-xs text-text-muted">{formatElapsed(message.elapsedMs)}</span>}
+                                                            {message.stats && <AnswerStatsLine stats={message.stats} />}
                                                         </div>
                                                     )}
                                                 </div>
@@ -405,6 +492,9 @@ export function AIChatSidebar({ isOpen, onClose, documents = [], onFocusDocument
                         </div>
 
                         <div className="shrink-0 border-t border-line bg-surface-2 p-3">
+                            {readiness.title && conversation.messages.length > 0 && (
+                                <p className="mb-2 text-xs text-danger" role="status">{readiness.title}. {readiness.description}</p>
+                            )}
                             <div className="flex items-end gap-2 rounded-xl border border-line bg-sunken p-2 shadow-[var(--edge-press)] focus-within:border-accent">
                                 <textarea
                                     ref={inputRef}

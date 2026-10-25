@@ -48,6 +48,34 @@ describe('parseMarkdown', () => {
     });
 });
 
+describe('LaTeX delimiters written by language models', () => {
+    it('reads \\( \\) as inline math and keeps citations as text', () => {
+        expect(parseInline('[1] The gradient \\(\\nabla f = \\left(\\frac{\\partial f}{\\partial x_1}\\right)\\) points up.')).toEqual([
+            { type: 'text', text: '[1] The gradient ' },
+            { type: 'math', tex: '\\nabla f = \\left(\\frac{\\partial f}{\\partial x_1}\\right)' },
+            { type: 'text', text: ' points up.' },
+        ]);
+    });
+
+    it('reads \\[ \\] and $$ $$ as display math, also across lines', () => {
+        expect(parseInline('\\[ x_{k+1} = x_k - \\alpha \\nabla f \\]')).toEqual([
+            { type: 'math', tex: 'x_{k+1} = x_k - \\alpha \\nabla f', display: true },
+        ]);
+        expect(parseMarkdown('Update:\n$$\na + b\n$$\ndone')[0]).toEqual({
+            type: 'paragraph',
+            children: [
+                { type: 'text', text: 'Update: ' },
+                { type: 'math', tex: 'a + b', display: true },
+                { type: 'text', text: ' done' },
+            ],
+        });
+    });
+
+    it('still reads single-dollar math', () => {
+        expect(parseInline('$x^2$')).toEqual([{ type: 'math', tex: 'x^2' }]);
+    });
+});
+
 describe('isSafeHref', () => {
     it('allows only http(s) and mailto', () => {
         expect(isSafeHref('http://a')).toBe(true);

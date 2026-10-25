@@ -67,7 +67,7 @@ import { DocumentDock } from './DocumentDock';
 import { DocumentPanelBar } from './DocumentPanelBar';
 import { readDockTab, type DockTab } from '@/lib/ui/dock';
 import { OutlinePanel } from './OutlinePanel';
-import { KNOWLEDGE_ENABLED } from '@/lib/features';
+import { ASSISTANT_ENABLED, KNOWLEDGE_ENABLED } from '@/lib/features';
 import { toast } from './ui/Toast';
 import { pageIdForSourceIndex } from '@/core/ui/outline';
 import { useRegisterCommands } from '@/lib/commands/registry';
@@ -155,6 +155,17 @@ export function PDFViewer({ file, fileUrl, fileId, stableId, parentFolderId, rol
 
     // Client-side OCR Hook (Local Only)
     const { startOcr, pages: ocrPages, status: _clientOcrStatus } = useOcr(fileId, pdfDoc);
+
+    // Index text PDFs for the assistant without waiting for OCR.
+    useEffect(() => {
+        if (!ASSISTANT_ENABLED || !pdfDoc) return;
+        let stop = () => {};
+        let disposed = false;
+        void import('@/lib/assistant/auto-index').then(module => {
+            if (!disposed) stop = module.watchAssistantIndex(fileId, pdfDoc);
+        });
+        return () => { disposed = true; stop(); };
+    }, [fileId, pdfDoc]);
 
     // Auto-start Client OCR / Global Store Sync
     useEffect(() => {

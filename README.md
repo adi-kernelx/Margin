@@ -11,6 +11,17 @@ gate is optional and has not been implemented. Manual acceptance of earlier
 reader/chrome changes and static-demo publication remain open. Experimental
 completion does not establish deployment-ready answer quality.
 
+## Architecture
+
+![Margin architecture](docs/architecture.svg)
+
+The browser app keeps every document, annotation, bundle and conversation in
+IndexedDB. Two optional local services do the heavy work: the OCR service
+(port 8000) and the RAG API (port 9101), which indexes passages and OKF
+concepts in an embedded Qdrant store and answers questions through Ollama.
+The `ml/` track trains the block classifier and ranker offline; the service
+loads their saved artifacts at start-up.
+
 ## Reader and knowledge tools
 
 - Read PDFs in tabs and split panes; keep a local library in IndexedDB.
@@ -74,8 +85,17 @@ For Knowledge tools alone, with the local OKF artifact already available:
 .\.venv-ml\Scripts\python.exe -m uvicorn bundle_server:app --app-dir local-llm/rag-api --host 127.0.0.1 --port 9101
 ```
 
-For chat, open Ollama manually and ensure `qwen2.5:3b-instruct` is already
-available, then start the full service **instead of** the bundle-only server:
+For chat, open the Ollama app (once: `ollama pull qwen2.5:3b-instruct`), then
+start the full service **instead of** the bundle-only server:
+
+```powershell
+npm run assistant
+```
+
+The script checks that Ollama and the model are available (it never starts
+Ollama) and runs the service on port 9101. The assistant panel shows which
+part is missing: the service, Ollama, or the model. The equivalent manual
+command, with the defaults spelled out:
 
 ```powershell
 $env:RETRIEVAL = 'hybrid_concepts'

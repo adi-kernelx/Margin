@@ -4,7 +4,7 @@ from schemas import Source, QueryRequest, QueryScope
 from retriever import retrieve
 from reranker import rerank
 from prompt import build_prompt
-from llm_client import LLMError, generate as llm_generate
+from llm_client import LLMError, generate_with_stats
 from validator import validate_answer
 from memory import memory_store
 from monitor import PerformanceMonitor, Measure
@@ -69,13 +69,13 @@ def generate_step(state: GraphState):
         with Measure(monitor, "llm"):
             prompt_text = build_prompt(state["question"], [], mode="explain")
             try:
-                answer = llm_generate(prompt_text)
+                answer, stats = generate_with_stats(prompt_text)
             except LLMError as error:
                 return llm_failure(error)
         return {
             "answer": answer,
-            "confidence": 1.0, 
-            "metrics": {"note": "Explanation mode"}
+            "confidence": 1.0,
+            "metrics": {"note": "Explanation mode", **stats}
         }
 
     # 2. Build prompt (handles empty chunks gracefully with new prompt.py)
@@ -93,12 +93,13 @@ def generate_step(state: GraphState):
     cached_ans = cache_store.get_answer(prompt_hash)
     if cached_ans:
         print("[Cache] Answer hit")
-        return cached_ans
+        # Token counts describe the original generation, not this reply.
+        return {**cached_ans, "metrics": {**cached_ans["metrics"], "cached": True}}
 
     # 4. Generate LLM Response
     with Measure(monitor, "llm"):
         try:
-            raw_response = llm_generate(prompt_text)
+            raw_response, stats = generate_with_stats(prompt_text)
         except LLMError as error:
             return llm_failure(error)  # not cached, so a retry reaches the model again
     
@@ -131,7 +132,9 @@ def generate_step(state: GraphState):
             "grounding_score": round(g_score, 2),
             "avg_relevance": round(avg_relevance, 2),
             "validation_note": note,
-            "mode": "grounded" if has_context else "general"
+            "mode": "grounded" if has_context else "general",
+            "sources": len(state["chunks"]),
+            **stats,
         }
     }
     

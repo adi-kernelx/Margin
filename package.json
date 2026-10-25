@@ -12,6 +12,7 @@
     "demo:check": "node scripts/check-demo-build.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
+    "assistant": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-assistant.ps1",
     "test": "vitest run",
     "test:watch": "vitest"
   },

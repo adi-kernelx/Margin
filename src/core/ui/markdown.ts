@@ -3,7 +3,8 @@
 // It produces a token tree the shell renders as React elements, so no
 // user-written HTML ever reaches the DOM. Supported: ATX headings (#–###),
 // bullet and numbered lists, paragraphs, **bold**, *italic*, `code`,
-// [links](https://…) and $inline math$. Link targets other than http(s) and
+// [links](https://…), inline math as $…$ or \(…\), and display math as
+// $$…$$ or \[…\] (the forms language models write). Link targets other than http(s) and
 // mailto are dropped to plain text, which is the whole sanitisation story.
 
 export type InlineToken =
@@ -11,7 +12,7 @@ export type InlineToken =
     | { type: 'strong'; children: InlineToken[] }
     | { type: 'em'; children: InlineToken[] }
     | { type: 'code'; text: string }
-    | { type: 'math'; tex: string }
+    | { type: 'math'; tex: string; display?: boolean }
     | { type: 'link'; href: string; children: InlineToken[] };
 
 export type BlockToken =
@@ -25,8 +26,10 @@ export function isSafeHref(href: string): boolean {
     return SAFE_HREF.test(href.trim());
 }
 
-// Order matters: code and math are opaque, so they are tried before emphasis.
-const INLINE_PATTERN = /(`[^`]+`)|(\$[^$\n]+\$)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*)|(\[[^\]]+\]\([^)\s]+\))/;
+// Order matters: code and math are opaque, so they are tried before emphasis,
+// and $$…$$ before $…$. Groups: 1 code, 2 $$…$$, 3 \[…\], 4 \(…\), 5 $…$,
+// 6 bold, 7 italic, 8 link.
+const INLINE_PATTERN = /(`[^`]+`)|(\$\$[\s\S]+?\$\$)|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$[^$\n]+\$)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*)|(\[[^\]]+\]\([^)\s]+\))/;
 
 export function parseInline(source: string): InlineToken[] {
     const tokens: InlineToken[] = [];
@@ -40,9 +43,11 @@ export function parseInline(source: string): InlineToken[] {
         if (match.index > 0) tokens.push({ type: 'text', text: rest.slice(0, match.index) });
         const raw = match[0];
         if (match[1]) tokens.push({ type: 'code', text: raw.slice(1, -1) });
-        else if (match[2]) tokens.push({ type: 'math', tex: raw.slice(1, -1) });
-        else if (match[3]) tokens.push({ type: 'strong', children: parseInline(raw.slice(2, -2)) });
-        else if (match[4]) tokens.push({ type: 'em', children: parseInline(raw.slice(1, -1)) });
+        else if (match[2] || match[3]) tokens.push({ type: 'math', tex: raw.slice(2, -2).trim(), display: true });
+        else if (match[4]) tokens.push({ type: 'math', tex: raw.slice(2, -2).trim() });
+        else if (match[5]) tokens.push({ type: 'math', tex: raw.slice(1, -1) });
+        else if (match[6]) tokens.push({ type: 'strong', children: parseInline(raw.slice(2, -2)) });
+        else if (match[7]) tokens.push({ type: 'em', children: parseInline(raw.slice(1, -1)) });
         else {
             const split = raw.indexOf('](');
             const label = raw.slice(1, split);

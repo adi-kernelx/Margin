@@ -2,6 +2,8 @@
 // network call live in the shell; this module owns the shapes, titles,
 // confidence bands and the request-scope decision.
 
+import type { AnswerStats } from './stats';
+
 export type AssistantMode = 'qa' | 'summary' | 'compare' | 'explain' | 'extract';
 export type AssistantScopeKind = 'document' | 'open' | 'pages';
 
@@ -51,6 +53,8 @@ export interface AssistantMessage {
     confidence?: number;
     sources?: AssistantSource[];
     elapsedMs?: number;
+    /** Token counts and timings reported by the service. */
+    stats?: AnswerStats;
     status?: 'ok' | 'error' | 'stopped';
 }
 

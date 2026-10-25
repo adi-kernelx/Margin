@@ -10,6 +10,7 @@
 // thirty seconds while offline and one every five seconds while online.
 
 import { create } from 'zustand';
+import { parseModelStatus, type ModelStatus } from '@/core/assistant/readiness';
 
 export type ServiceKey = 'ocr' | 'rag';
 
@@ -47,29 +48,33 @@ interface HealthState {
     /** One entry per service; missing keys default to 'checking'. */
     byKey: Record<ServiceKey, ServiceHealth>;
     lastCheckedAt: Record<ServiceKey, number>;
-    set: (key: ServiceKey, state: ServiceHealth) => void;
+    /** The assistant's language model, as reported by the RAG service's /health. */
+    ragModel: ModelStatus;
+    set: (key: ServiceKey, state: ServiceHealth, body?: unknown) => void;
 }
 
 export const useServiceHealthStore = create<HealthState>((set) => ({
     byKey: { ocr: 'checking', rag: 'checking' },
     lastCheckedAt: { ocr: 0, rag: 0 },
-    set: (key, state) => set(prev => ({
+    ragModel: { state: 'unknown', name: null },
+    set: (key, state, body) => set(prev => ({
         byKey: { ...prev.byKey, [key]: state },
         lastCheckedAt: { ...prev.lastCheckedAt, [key]: Date.now() },
+        ...(key === 'rag' ? { ragModel: state === 'online' ? parseModelStatus(body) : { state: 'unknown', name: null } } : {}),
     })),
 }));
 
 /** Fire-and-forget probe; never throws. */
-async function probe(descriptor: ServiceDescriptor): Promise<ServiceHealth> {
+async function probe(descriptor: ServiceDescriptor): Promise<{ state: ServiceHealth; body?: unknown }> {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
         const response = await fetch(descriptor.healthUrl, { signal: controller.signal });
-        if (!response.ok) return 'offline';
+        if (!response.ok) return { state: 'offline' };
         const body = await response.json().catch(() => null);
-        return body && body.status === 'ok' ? 'online' : 'offline';
+        return body && body.status === 'ok' ? { state: 'online', body } : { state: 'offline' };
     } catch {
-        return 'offline';
+        return { state: 'offline' };
     } finally {
         window.clearTimeout(timeout);
     }
@@ -81,8 +86,8 @@ export async function checkServiceNow(key: ServiceKey): Promise<ServiceHealth> {
     if (!descriptor) return 'offline';
     const { set } = useServiceHealthStore.getState();
     set(key, 'checking');
-    const state = await probe(descriptor);
-    set(key, state);
+    const { state, body } = await probe(descriptor);
+    set(key, state, body);
     return state;
 }
 
@@ -101,8 +106,8 @@ export function startServiceHealthPolling(): void {
 
     for (const descriptor of SERVICES) {
         const run = async () => {
-            const state = await probe(descriptor);
-            set(descriptor.key, state);
+            const { state, body } = await probe(descriptor);
+            set(descriptor.key, state, body);
             const next = state === 'online' ? INTERVAL_ONLINE_MS : INTERVAL_OFFLINE_MS;
             timers.push(window.setTimeout(run, next));
         };

@@ -23,7 +23,7 @@ export interface QueryResponse {
     answer: string;
     confidence: number;
     sources: Source[];
-    metrics: Record<string, number>;
+    metrics: Record<string, unknown>;
 }
 
 const RAG_API_URL = 'http://localhost:9101';

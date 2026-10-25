@@ -193,14 +193,33 @@ def chunk_spans(spans: List[Dict]) -> List[Dict]:
 def ensure_collection():
     store.ensure_collection(QDRANT_COLLECTION)
 
-def process_ingest(req: IngestRequest) -> IngestResponse:
-    from embedder import get_embeddings
+def process_ingest(req: IngestRequest, encode=None) -> IngestResponse:
     print(f"[Ingest] Processing doc: {req.docId}, pages: {len(req.ocrData)}")
+    return ingest_spans(build_spans_from_ocr_data(req.docId, req.pdfFingerprint, req.ocrData), encode)
+
+
+def build_spans_from_pdf(doc_id: str, pdf_fingerprint: str, data: bytes) -> List[Dict]:
+    """Native PDF words with page-normalised boxes, the text the ML evaluations used."""
+    import pymupdf
+    spans = []
+    with pymupdf.open(stream=data, filetype="pdf") as document:
+        for page_number, page in enumerate(document, 1):
+            width, height = page.rect.width, page.rect.height
+            for x0, y0, x1, y1, word, *_ in page.get_text("words"):
+                text = normalize_whitespace(word)
+                if text:
+                    spans.append({"docId": doc_id, "pdfFingerprint": pdf_fingerprint, "page": page_number,
+                                  "text": text, "confidence": None,
+                                  "bbox": normalize_bbox({"x0": x0 / width, "y0": y0 / height,
+                                                          "x1": x1 / width, "y1": y1 / height})})
+    spans.sort(key=lambda s: (s["page"], s["bbox"]["y0"], s["bbox"]["x0"]))
+    return spans
+
+
+def ingest_spans(spans: List[Dict], encode=None) -> IngestResponse:
+    if encode is None:
+        from embedder import get_embeddings as encode
     ensure_collection()
-    
-    # Check existing? (Skipping for now to simplify logic, assume overwrite or multiple versions)
-    
-    spans = build_spans_from_ocr_data(req.docId, req.pdfFingerprint, req.ocrData)
     if not spans:
         return IngestResponse(success=True, chunksIngested=0, message="No text found")
         
@@ -209,7 +228,7 @@ def process_ingest(req: IngestRequest) -> IngestResponse:
         return IngestResponse(success=True, chunksIngested=0, message="No chunks created")
         
     texts = [c["text"] for c in chunks]
-    embeddings = get_embeddings(texts)
+    embeddings = encode(texts)
     
     points = []
     for chunk, emb in zip(chunks, embeddings):

@@ -236,3 +236,78 @@ def test_ranker_mode_orders_by_the_model(monkeypatch):
     # Dense-only candidates carry no signals: cross-encoder order.
     plain = [{"text": "x" * n, "kind": "passage", "page": n} for n in (1, 2, 3)]
     assert [c["page"] for c in reranker.rerank("q", plain, 3, mode="ranker")] == [3, 2, 1]
+
+
+def test_llm_status_reports_server_and_model(monkeypatch):
+    import httpx
+    import llm_client
+
+    class Reply:
+        def __init__(self, ids):
+            self.ids = ids
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"data": [{"id": i} for i in self.ids]}
+
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: Reply([llm_client.LLM_MODEL, "other"]))
+    assert llm_client.status()["llm"] == "online"
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: Reply(["other"]))
+    assert llm_client.status()["llm"] == "missing"
+
+    def down(*a, **k):
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(httpx, "get", down)
+    assert llm_client.status() == {"llm": "offline", "model": llm_client.LLM_MODEL}
+
+
+def test_text_pdf_is_indexed_without_ocr(memory):
+    import pymupdf
+    document = pymupdf.open()
+    for n in range(2):
+        document.new_page().insert_textbox((50, 50, 550, 750), f"Page {n + 1}. The gradient points in the "
+                                           "direction of steepest ascent of the function. " * 8)
+    data = document.tobytes()
+    spans = ingest.build_spans_from_pdf("doc-9", "fp-9", data)
+    assert {s["page"] for s in spans} == {1, 2} and all(0 <= s["bbox"]["x0"] <= 1 for s in spans)
+    result = ingest.ingest_spans(spans, encode)
+    assert result.chunksIngested >= 2
+    assert ingest.check_status("fp-9").chunkCount == result.chunksIngested
+    found = retriever.retrieve("direction of steepest ascent", 3, QueryScope(docIds=["fp-9"]), "hybrid")
+    assert found and found[0]["pdfFingerprint"] == "fp-9"
+
+
+def test_ollama_reply_gives_token_speeds(monkeypatch):
+    import httpx
+    import llm_client
+
+    body = {"model": "qwen2.5:3b-instruct", "message": {"content": "answer"}, "done_reason": "stop",
+            "prompt_eval_count": 1200, "prompt_eval_duration": 15_000_000_000,
+            "eval_count": 210, "eval_duration": 30_000_000_000, "load_duration": 2_500_000_000}
+    sent = {}
+
+    class Reply:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return body
+
+    def post(url, **kwargs):
+        sent.update(url=url, **kwargs)
+        return Reply()
+
+    monkeypatch.setattr(llm_client, "LLM_API", "ollama")
+    monkeypatch.setattr(httpx, "post", post)
+    text, stats = llm_client.generate_with_stats("prompt")
+    assert text == "answer" and sent["url"].endswith("/api/chat")
+    assert sent["json"]["options"]["num_ctx"] == llm_client.LLM_NUM_CTX
+    assert (stats["prompt_tokens"], stats["prompt_tps"]) == (1200, 80.0)
+    assert (stats["output_tokens"], stats["output_tps"]) == (210, 7.0)
+    assert (stats["load_ms"], stats["prompt_ms"], stats["generation_ms"]) == (2500, 15000, 30000)
+    assert stats["truncated"] is False
+    body["done_reason"] = "length"
+    assert llm_client.generate_with_stats("prompt")[1]["truncated"] is True

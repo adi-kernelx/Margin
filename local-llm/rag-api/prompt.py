@@ -41,36 +41,34 @@ Format:
 - A short paragraph inference
 """
 
-    # Default QA - improved to handle general questions and chitchat
+    # Default QA
     if not context.strip():
-        # No context available - handle general questions
-        return f"""You are a friendly and helpful AI assistant. The user asked: "{question}"
-
-The user is viewing a PDF document but hasn't asked about its specific content, or you couldn't find relevant information in the document.
+        return f"""Answer the question from your general knowledge.
 
 RULES:
-1. If this is a greeting (like "hi", "hello", "hey"), respond warmly and offer to help with questions about the document.
-2. If this is a general knowledge question NOT about the document, you may answer it briefly but remind the user that your main purpose is to help with the PDF content.
-3. If the user asks "who are you" or similar questions, explain that you are an AI assistant that helps users understand and search through PDF documents.
-4. Be conversational and friendly.
-5. If the question seems to be about the document but you found no relevant chunks, politely say you couldn't find that information in the current document.
+1. Start with "General knowledge (not from the PDF):".
+2. Be direct and specific. For "explain" questions, explain step by step.
+3. No greetings, and do not ask the user questions back.
+4. If you do not know, say so plainly instead of guessing.
+
+QUESTION: {question}
 
 ANSWER:"""
-    
-    return f"""You are a helpful document assistant. Answer questions based on the provided context from the PDF document.
+
+    return f"""Answer the question using the numbered excerpts from the PDF below.
 
 RULES:
-1. Prioritize using information from the context below.
-2. If the answer is clearly in the context, use it and cite with [1], [2] etc.
-3. If the question is a greeting or chitchat (like "hi", "hello"), respond warmly and briefly.
-4. If the question is a general knowledge question NOT related to the document content, you may answer briefly but mention you can also help with the document.
-5. If the question appears to be about the document but the answer is NOT in the context, say "I couldn't find that specific information in the document."
-6. Be concise but thorough.
-7. Include citation numbers like [1], [2] after statements when referencing context chunks.
+1. Use the excerpts first. Put a citation like [1] or [2] after each statement taken from them.
+2. Keep formulas, symbols, conditions and units exactly as the excerpts give them.
+3. If the excerpts do not answer the question, say "The PDF does not cover this." Then, if you know the answer, add a short part starting with "General knowledge:" and no citations.
+4. Write the answer itself, not a description of each excerpt. Never start a sentence with "[1] explains" or similar.
+5. Be direct and specific. For "explain" questions, explain step by step.
+6. Write maths in LaTeX between \\( and \\) inline, or \\[ and \\] on its own line.
+7. No greetings, and do not ask the user questions back.
 
-CONTEXT FROM DOCUMENT:
+EXCERPTS FROM THE PDF:
 {context}
 
-USER QUESTION: {question}
+QUESTION: {question}
 
 ANSWER:"""
